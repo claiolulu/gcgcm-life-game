@@ -31,11 +31,22 @@ export const MOUTH_STYLES = ['smile', 'grin', 'neutral', 'oh', 'smirk', 'laugh']
  * 旧数据里的单一 accessory 字段仍然认，见 normalizeAvatar()。
  */
 /**
- * 背景装饰。画在底色渐变之上、人物之下，一律用半透明白，
- * 这样八种底色渐变配哪一个都不会脏。
- * 坐标全部写死 —— 头像必须是纯函数，同一份 JSON 在任何设备上都要长得一样。
+ * 头像背景：十座城市的彩色风景。
+ *
+ * 每一景自带天空渐变和配色，选了城市就由它整个接管背景，`bg`（底色）
+ * 只在选「无」时生效。
+ *
+ * 构图上有个硬约束：脑袋占住 x28-72 / y20-70，肩膀占住 y72 以下，
+ * 所以地标一律画在左右两侧，中间只留天空。头像最小只有 30px，
+ * 细节给不到，靠轮廓和配色认城市。
+ *
+ * 用插画而不是照片：头像必须是纯函数，一段 JSON 本地渲染、不联网、
+ * 任意尺寸都清晰；结业徽章走 SVG→canvas 导出，外链位图会污染画布。
  */
-export const BG_PATTERNS = ['none', 'stars', 'rays', 'dots', 'stripes', 'halo', 'skyline', 'bubbles', 'grid', 'confetti'];
+export const CITY_SCENES = [
+  'none', 'glasgow', 'edinburgh', 'london', 'paris',
+  'newyork', 'tokyo', 'sydney', 'shanghai', 'rome', 'sanfrancisco',
+];
 
 export const HATS = ['none', 'beanie', 'cap', 'bucket', 'grad', 'hood', 'headband', 'flower', 'headphones', 'airpods'];
 export const FACES = ['none', 'glasses', 'round', 'sunglasses', 'mask'];
@@ -71,8 +82,8 @@ export function randomAvatar() {
     face: Math.random() < 0.6 ? 0 : 1 + r(FACES.length - 1),
     extra: Math.random() < 0.65 ? 0 : 1 + r(EXTRAS.length - 1),
     outfit: r(OUTFITS.length),
-    // 背景留三成的概率是纯底色，否则每个人都花花绿绿，反而没有对比
-    bgp: Math.random() < 0.3 ? 0 : 1 + r(BG_PATTERNS.length - 1),
+    // 留两成的概率是纯底色 —— 总得有人素一点，全是风景反而没有对比
+    bgp: Math.random() < 0.2 ? 0 : 1 + r(CITY_SCENES.length - 1),
   };
 }
 
@@ -424,144 +435,287 @@ function ExtraNeck({ style, accent }) {
   }
 }
 
-/* ------------------------------ 背景装饰 ------------------------------ */
+/* ------------------------------ 城市风景 ------------------------------ */
 
-// 两档亮度：主体一档、点缀一档。都是白色半透明，叠在任意底色上都干净。
-const B1 = 'rgba(255,255,255,.17)';
-const B2 = 'rgba(255,255,255,.095)';
-
-/** 四角星，用在 stars / confetti 里 */
-function Spark({ x, y, r, fill }) {
-  return <path d={`M${x} ${y - r} Q${x + r * 0.22} ${y - r * 0.22} ${x + r} ${y} Q${x + r * 0.22} ${y + r * 0.22} ${x} ${y + r} Q${x - r * 0.22} ${y + r * 0.22} ${x - r} ${y} Q${x - r * 0.22} ${y - r * 0.22} ${x} ${y - r} Z`} fill={fill} />;
+/** 排窗户：给摩天楼铺一层小方格灯光 */
+function Windows({ x, y, w, h, cols, rows, fill, op = 0.5 }) {
+  const cells = [];
+  const cw = w / (cols * 2 - 1);
+  const ch = h / (rows * 2 - 1);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      // 隔一个亮一个，看起来像有人在家
+      if ((r + c) % 3 === 2) continue;
+      cells.push(<rect key={`${r}-${c}`} x={x + c * cw * 2} y={y + r * ch * 2} width={cw} height={ch} />);
+    }
+  }
+  return <g fill={fill} opacity={op}>{cells}</g>;
 }
 
-function BgPattern({ style }) {
-  switch (style) {
-    case 'stars':
+/**
+ * 一座城市。gid 用来隔离天空渐变的 id —— 同一页可能同时出现很多头像。
+ * 每个 case 里的顺序都是：天空 → 远景 → 地标 → 地面。
+ */
+function CityScene({ scene, gid }) {
+  const sky = `sky-${gid}`;
+  const Sky = ({ from, to }) => (
+    <>
+      <defs>
+        <linearGradient id={sky} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={from} />
+          <stop offset="100%" stopColor={to} />
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" fill={`url(#${sky})`} />
+    </>
+  );
+
+  switch (scene) {
+    /* 格拉斯哥：市政厅钟塔 + 芬尼斯顿起重机，阴天 */
+    case 'glasgow': {
+      const st = '#5d6b7a';
       return (
         <g>
-          <g fill={B1}>
-            <Spark x={16} y={17} r={5} fill={B1} />
-            <Spark x={83} y={26} r={4} fill={B1} />
-            <Spark x={72} y={9} r={2.6} fill={B1} />
+          <Sky from="#8fa6bd" to="#dfe6ec" />
+          <g fill={st}>
+            <rect x={2} y={50} width={9} height={26} />
+            <rect x={12} y={36} width={9} height={40} />
+            <path d="M16.5 22 L21.5 36 H11.5 Z" />
+            <rect x={22} y={54} width={6} height={22} />
+            <rect x={72} y={58} width={7} height={18} />
+            <rect x={88} y={48} width={10} height={28} />
+            {/* 起重机：立柱 + 悬臂 + 斜撑 */}
+            <rect x={81} y={30} width={3} height={46} />
+            <path d="M70 31 L96 28 L96 32 L70 34 Z" />
+            <path d="M82 40 L92 31 L93 33 L83 42 Z" />
           </g>
-          <g fill={B2}>
-            <circle cx={30} cy={8} r={1.7} />
-            <circle cx={91} cy={12} r={1.4} />
-            <circle cx={9} cy={38} r={1.9} />
-            <circle cx={93} cy={45} r={1.6} />
-            <circle cx={24} cy={31} r={1.3} />
-            <circle cx={64} cy={20} r={1.2} />
-          </g>
+          <Windows x={13} y={40} width={7} height={30} cols={2} rows={5} fill="#f2e6c8" />
+          <rect y={74} width="100" height="26" fill="#46525e" />
         </g>
       );
-
-    case 'rays': {
-      // 从头顶后方散开，只有人物轮廓之外的部分看得见
-      const rays = [];
-      for (let i = 0; i < 16; i++) {
-        const a = (i * Math.PI * 2) / 16;
-        const w = 0.055;
-        const R = 95;
-        rays.push(
-          <path
-            key={i}
-            d={`M50 40 L${50 + Math.cos(a - w) * R} ${40 + Math.sin(a - w) * R} L${50 + Math.cos(a + w) * R} ${40 + Math.sin(a + w) * R} Z`}
-            fill={i % 2 ? B2 : B1}
-          />,
-        );
-      }
-      return <g>{rays}</g>;
     }
 
-    case 'dots': {
-      const dots = [];
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          dots.push(<circle key={`${r}-${c}`} cx={6 + c * 11.5 + (r % 2 ? 5.75 : 0)} cy={6 + r * 11.5} r={2} />);
-        }
-      }
-      return <g fill={B2}>{dots}</g>;
-    }
-
-    case 'stripes': {
-      const bars = [];
-      for (let i = -4; i < 12; i++) bars.push(<rect key={i} x={i * 13} y={-40} width={6} height={180} />);
-      return <g fill={B2} transform="rotate(24 50 50)">{bars}</g>;
-    }
-
-    case 'halo':
-      return (
-        <g fill="none" stroke={B1} strokeWidth={1.6}>
-          <circle cx={50} cy={44} r={27} />
-          <circle cx={50} cy={44} r={36} stroke={B2} />
-          <circle cx={50} cy={44} r={45} stroke={B2} />
-        </g>
-      );
-
-    case 'skyline':
-      // 格拉斯哥的天际线意思一下：塔楼、起重机、几栋方楼。
-      // 只画在头两侧（x<28 和 x>72）——中间会被脑袋挡住，
-      // 底下会被肩膀挡住，画了也白画。
-      return (
-        <g fill={B2}>
-          {/* 左侧：市政厅式的尖塔 + 方楼 */}
-          <rect x={1} y={46} width={12} height={30} />
-          <rect x={15} y={34} width={8} height={42} />
-          <path d="M19 24 L23.5 34 H14.5 Z" />
-          <rect x={24} y={52} width={5} height={24} />
-          {/* 右侧：芬尼斯顿起重机的悬臂 + 方楼 */}
-          <rect x={78} y={30} width={2.6} height={46} />
-          <path d="M74 32 h20 v3 h-20 Z" />
-          <rect x={84} y={44} width={11} height={32} />
-          <rect x={72} y={56} width={5} height={20} />
-          <rect x={96} y={52} width={4} height={24} />
-        </g>
-      );
-
-    case 'bubbles':
+    /* 爱丁堡：岩山上的城堡，暮色 */
+    case 'edinburgh':
       return (
         <g>
-          <g fill={B2}>
-            <circle cx={20} cy={26} r={14} />
-            <circle cx={80} cy={40} r={15} />
-            <circle cx={66} cy={13} r={8} />
+          <Sky from="#4a3f6b" to="#f0a06a" />
+          <circle cx={20} cy={26} r={7} fill="#ffd9a0" opacity={0.85} />
+          <g fill="#3a3348">
+            {/* 城堡岩 */}
+            <path d="M62 76 L68 58 L74 50 L86 46 L96 52 L100 62 L100 76 Z" />
+            <rect x={76} y={34} width={8} height={14} />
+            <rect x={86} y={38} width={6} height={10} />
+            <rect x={70} y={40} width={5} height={9} />
+            <path d="M76 34 h2 v-3 h2 v3 h2 v-3 h2 v3" fill="none" stroke="#3a3348" strokeWidth={1.6} />
+            {/* 前景老城屋顶 */}
+            <path d="M0 76 V62 L8 54 L16 62 V76 Z" />
+            <rect x={18} y={60} width={8} height={16} />
           </g>
-          <g fill="none" stroke={B1} strokeWidth={1.6}>
-            <circle cx={22} cy={50} r={10} />
-            <circle cx={82} cy={16} r={7} />
-            <circle cx={14} cy={62} r={7.5} />
-            <circle cx={78} cy={62} r={6} />
-          </g>
+          <Windows x={77} y={37} width={6} height={9} cols={2} rows={2} fill="#ffcf8a" op={0.9} />
+          <rect y={74} width="100" height="26" fill="#2b2638" />
         </g>
       );
 
-    case 'grid': {
-      const lines = [];
-      for (let i = 1; i < 8; i++) {
-        lines.push(<rect key={`h${i}`} x={0} y={i * 12.5} width={100} height={0.9} />);
-        lines.push(<rect key={`v${i}`} x={i * 12.5} y={0} width={0.9} height={100} />);
-      }
-      return <g fill={B2}>{lines}</g>;
-    }
-
-    case 'confetti':
+    /* 伦敦：大本钟 + 伦敦眼，黄昏 */
+    case 'london':
       return (
         <g>
-          <g fill={B1}>
-            <rect x={13} y={20} width={9} height={3.2} transform="rotate(-24 17.5 21.6)" />
-            <rect x={76} y={24} width={9} height={3.2} transform="rotate(38 80.5 25.6)" />
-            <rect x={58} y={11} width={8} height={3} transform="rotate(-12 62 12.5)" />
-            <rect x={30} y={9} width={7} height={2.8} transform="rotate(28 33.5 10.4)" />
+          <Sky from="#f6c987" to="#7d8fc0" />
+          <g fill="#4a4560">
+            <rect x={9} y={30} width={11} height={46} />
+            <path d="M14.5 18 L21 30 H8 Z" />
+            <rect x={7} y={27} width={15} height={4} />
+            <rect x={0} y={58} width={7} height={18} />
+            <rect x={22} y={60} width={7} height={16} />
           </g>
-          <g fill={B2}>
-            <rect x={18} y={38} width={8} height={2.8} transform="rotate(52 22 39.4)" />
-            <rect x={80} y={48} width={8} height={2.8} transform="rotate(-40 84 49.4)" />
-            <rect x={8} y={48} width={7} height={2.6} transform="rotate(16 11.5 49.3)" />
-            <Spark x={86} y={34} r={3.6} fill={B2} />
-            <Spark x={13} y={31} r={3.2} fill={B2} />
-            <Spark x={68} y={17} r={2.6} fill={B2} />
+          <circle cx={14.5} cy={36} r={4.2} fill="#ffe9b8" />
+          {/* 伦敦眼 */}
+          <g stroke="#4a4560" fill="none" strokeWidth={1.5}>
+            <circle cx={84} cy={44} r={14} />
+            <circle cx={84} cy={44} r={9} strokeWidth={1} opacity={0.7} />
+            <path d="M70 44 H98 M84 30 V58 M74 34 L94 54 M94 34 L74 54" strokeWidth={0.9} opacity={0.75} />
           </g>
+          <rect x={83} y={58} width={2.5} height={18} fill="#4a4560" />
+          <rect y={74} width="100" height="26" fill="#3b3a52" />
+        </g>
+      );
+
+    /* 巴黎：埃菲尔铁塔，粉紫日落 */
+    case 'paris':
+      return (
+        <g>
+          <Sky from="#f7b9cd" to="#9a86c4" />
+          <circle cx={22} cy={24} r={8} fill="#fff0c4" opacity={0.9} />
+          <g fill="#5b4a6e">
+            {/* 铁塔 */}
+            <path d="M74 76 L82 30 L84 30 L92 76 L87 76 L83 44 L79 76 Z" />
+            <rect x={78} y={52} width={10} height={2.4} />
+            <rect x={80.4} y={40} width={5.2} height={2} />
+            <path d="M83 30 v-6 h1 v6 Z" />
+            {/* 奥斯曼式屋顶 */}
+            <path d="M0 76 V60 L7 53 L14 60 V76 Z" />
+            <path d="M16 76 V63 L23 57 L30 63 V76 Z" />
+          </g>
+          <Windows x={2} y={62} width={10} height={12} cols={3} rows={2} fill="#ffe3b0" op={0.75} />
+          <rect y={74} width="100" height="26" fill="#493a5c" />
+        </g>
+      );
+
+    /* 纽约：摩天楼群 + 自由女神，蓝调时刻 */
+    case 'newyork':
+      return (
+        <g>
+          <Sky from="#16234a" to="#4f74ab" />
+          <circle cx={78} cy={20} r={5} fill="#ffeec2" opacity={0.9} />
+          <g fill="#151d38">
+            <rect x={0} y={46} width={9} height={30} />
+            <rect x={10} y={34} width={8} height={42} />
+            <path d="M14 34 v-8 h0.8 v8 Z" />
+            <rect x={19} y={52} width={7} height={24} />
+            <rect x={72} y={40} width={9} height={36} />
+            <rect x={82} y={30} width={9} height={46} />
+            <path d="M86.5 30 L91 22 L82 22 Z" />
+            <rect x={92} y={50} width={8} height={26} />
+          </g>
+          <Windows x={11} y={38} width={6} height={34} cols={2} rows={7} fill="#ffe9a8" op={0.75} />
+          <Windows x={83} y={34} width={7} height={38} cols={2} rows={8} fill="#ffe9a8" op={0.75} />
+          <Windows x={73} y={44} width={7} height={28} cols={2} rows={6} fill="#ffe9a8" op={0.6} />
+          <rect y={74} width="100" height="26" fill="#0e1428" />
+        </g>
+      );
+
+    /* 东京：富士山 + 东京塔，樱粉天 */
+    case 'tokyo':
+      return (
+        <g>
+          <Sky from="#ffd3de" to="#a9d4ef" />
+          <g>
+            {/* 富士山 */}
+            <path d="M0 72 L16 40 L32 72 Z" fill="#7d8fb5" />
+            <path d="M11 50 L16 40 L21 50 L18 48 L16 51 L14 48 Z" fill="#f4f7fb" />
+          </g>
+          {/* 东京塔 */}
+          <g fill="#e2572f">
+            <path d="M74 76 L82 32 L84 32 L92 76 L87.5 76 L83 46 L78.5 76 Z" />
+            <rect x={78} y={54} width={10} height={2.6} />
+            <rect x={80.2} y={42} width={5.6} height={2.2} />
+            <path d="M83 32 v-7 h1 v7 Z" />
+          </g>
+          <g fill="#8b95ad">
+            <rect x={62} y={58} width={7} height={18} />
+            <rect x={94} y={54} width={6} height={22} />
+          </g>
+          <rect y={74} width="100" height="26" fill="#6a7793" />
+        </g>
+      );
+
+    /* 悉尼：歌剧院 + 海港大桥，晴天 */
+    case 'sydney':
+      return (
+        <g>
+          <Sky from="#5cb8ea" to="#d6efff" />
+          <circle cx={50} cy={12} r={6} fill="#fff6cf" opacity={0.85} />
+          {/* 歌剧院：三片壳 */}
+          <g fill="#f6f4ee" stroke="#c3cdd6" strokeWidth={0.7}>
+            <path d="M2 70 Q4 48 20 70 Z" />
+            <path d="M10 70 Q13 42 28 70 Z" />
+            <path d="M19 70 Q23 50 33 70 Z" />
+          </g>
+          {/* 海港大桥 */}
+          <g fill="#7d8b98">
+            <path d="M64 70 Q82 40 100 70 L100 74 Q82 46 64 74 Z" />
+            <rect x={64} y={62} width={36} height={3} />
+            <rect x={67} y={48} width={4} height={22} />
+            <rect x={93} y={48} width={4} height={22} />
+          </g>
+          <rect y={70} width="100" height="30" fill="#3f93c6" />
+        </g>
+      );
+
+    /* 上海：东方明珠 + 陆家嘴，霓虹夜 */
+    case 'shanghai':
+      return (
+        <g>
+          <Sky from="#1b1f42" to="#7a4585" />
+          <g fill="#151735">
+            {/* 东方明珠 */}
+            <rect x={14} y={34} width={3} height={42} />
+            <circle cx={15.5} cy={40} r={6.5} />
+            <circle cx={15.5} cy={57} r={4.4} />
+            <path d="M12 76 L15.5 62 L19 76 Z" />
+            <path d="M15.5 34 v-8 h0.8 v8 Z" />
+            {/* 上海中心 + 金茂 */}
+            <path d="M78 76 L79.5 34 Q84 30 88.5 34 L90 76 Z" />
+            <rect x={92} y={46} width={7} height={30} />
+            <path d="M95.5 46 v-6 h0.8 v6 Z" />
+            <rect x={68} y={56} width={7} height={20} />
+          </g>
+          <g fill="#57e0ff" opacity={0.85}>
+            <circle cx={15.5} cy={40} r={4.4} opacity={0.35} />
+            <circle cx={15.5} cy={57} r={2.8} opacity={0.35} />
+          </g>
+          <Windows x={80} y={40} width={8} height={32} cols={2} rows={7} fill="#ffd98a" op={0.8} />
+          <Windows x={93} y={49} width={5} height={24} cols={2} rows={5} fill="#ffd98a" op={0.7} />
+          <rect y={74} width="100" height="26" fill="#0d0f24" />
+        </g>
+      );
+
+    /* 罗马：斗兽场 + 圣彼得大教堂圆顶，暖金 */
+    case 'rome':
+      return (
+        <g>
+          <Sky from="#ffd79a" to="#d98f5c" />
+          <circle cx={50} cy={14} r={7} fill="#fff3d0" opacity={0.8} />
+          {/* 斗兽场 */}
+          <g fill="#8a6242">
+            <path d="M0 76 V52 Q14 46 28 52 V76 Z" />
+          </g>
+          <g fill="#ffd79a" opacity={0.55}>
+            <rect x={3} y={56} width={3.4} height={7} rx={1.7} />
+            <rect x={9} y={54} width={3.4} height={7} rx={1.7} />
+            <rect x={15} y={53} width={3.4} height={7} rx={1.7} />
+            <rect x={21} y={55} width={3.4} height={7} rx={1.7} />
+            <rect x={3} y={66} width={3.4} height={6} rx={1.7} />
+            <rect x={9} y={65} width={3.4} height={6} rx={1.7} />
+            <rect x={15} y={64} width={3.4} height={6} rx={1.7} />
+            <rect x={21} y={66} width={3.4} height={6} rx={1.7} />
+          </g>
+          {/* 圆顶 */}
+          <g fill="#8a6242">
+            <rect x={72} y={58} width={26} height={18} />
+            <path d="M78 58 Q85 38 92 58 Z" />
+            <rect x={84} y={32} width={2} height={6} />
+            <circle cx={85} cy={31} r={2} />
+            <rect x={70} y={64} width={4} height={12} />
+            <rect x={96} y={62} width={4} height={14} />
+          </g>
+          <rect y={74} width="100" height="26" fill="#6f4c33" />
+        </g>
+      );
+
+    /* 旧金山：金门大桥，晨雾橙 */
+    case 'sanfrancisco':
+      return (
+        <g>
+          <Sky from="#ffcfa8" to="#ff9b73" />
+          <circle cx={50} cy={18} r={8} fill="#fff2d6" opacity={0.7} />
+          <g fill="#c8452f">
+            {/* 双塔 */}
+            <rect x={11} y={26} width={4} height={50} />
+            <rect x={20} y={26} width={4} height={50} />
+            <rect x={9} y={34} width={17} height={3} />
+            <rect x={9} y={46} width={17} height={3} />
+            <rect x={78} y={26} width={4} height={50} />
+            <rect x={87} y={26} width={4} height={50} />
+            <rect x={76} y={34} width={17} height={3} />
+            <rect x={76} y={46} width={17} height={3} />
+            {/* 主缆与桥面 */}
+            <path d="M0 40 Q13 30 26 42 L26 45 Q13 34 0 44 Z" />
+            <path d="M74 42 Q87 30 100 40 L100 44 Q87 34 74 45 Z" />
+            <rect y={60} width="100" height="3.4" />
+          </g>
+          <rect y={72} width="100" height="28" fill="#8f6a86" opacity={0.9} />
         </g>
       );
 
@@ -591,6 +745,7 @@ export function AvatarContent({ config, idSuffix = '', shape = 'circle' }) {
   const extra = pick(EXTRAS, a.extra);
   // 围巾若和衣服同色就完全看不出来，取色板上隔开的一个颜色做对比
   const accent = pick(OUTFITS, (a.outfit ?? 0) + 3);
+  const scene = pick(CITY_SCENES, a.bgp);
   // shape 也要进 id：同一份配置可能在同一页里既以圆形出现（排行榜）
   // 又以方形出现（资料页证件照），两个 clipPath 不能重名
   const gid = `av${a.bg}-${a.skin}-${a.hair}-${a.outfit}-${a.hat}-${a.bgp ?? 0}-${shape}${idSuffix}`;
@@ -610,8 +765,9 @@ export function AvatarContent({ config, idSuffix = '', shape = 'circle' }) {
       </defs>
 
       <g clipPath={`url(#clip-${gid})`}>
-        <rect width="100" height="100" fill={`url(#${gid})`} />
-        <BgPattern style={pick(BG_PATTERNS, a.bgp)} />
+        {scene === 'none'
+          ? <rect width="100" height="100" fill={`url(#${gid})`} />
+          : <CityScene scene={scene} gid={gid} />}
 
         {/* 兜帽后片要在头之前，才能把头框住 */}
         <HoodBack on={hat === 'hood'} outfit={outfit} />
@@ -681,5 +837,5 @@ export const AVATAR_FIELDS = [
   { key: 'extra', label: '饰品', kind: 'text', values: ['无', '耳环', '十字架', '围巾', '领结'] },
   { key: 'outfit', label: '衣服', kind: 'swatch', values: OUTFITS },
   { key: 'bg', label: '底色', kind: 'swatch', values: BACKGROUNDS.map((b) => b[0]) },
-  { key: 'bgp', label: '背景', kind: 'text', values: ['无', '星星', '光芒', '圆点', '斜纹', '光环', '天际线', '气泡', '网格', '彩纸'] },
+  { key: 'bgp', label: '背景', kind: 'text', values: ['无', '格拉斯哥', '爱丁堡', '伦敦', '巴黎', '纽约', '东京', '悉尼', '上海', '罗马', '旧金山'] },
 ];
