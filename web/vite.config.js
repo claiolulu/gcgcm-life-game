@@ -30,6 +30,10 @@ export default defineConfig({
         // 字体共 6MB（Noto Serif SC 有 300+ 个 unicode 子集），全量预缓存会拖垮入场时的弱网。
         // 改成运行时按需缓存：浏览器只下载页面真正用到的子集，之后离线可用。
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // 地标水印（约 260KB）同样不预缓存。它只是页面底纹，加载不到也不影响
+        // 任何功能，但塞进预缓存会让 SW 安装变重 —— 安装是原子的，弱网下装不完
+        // 就整个离线能力都没有。改成运行时按需缓存，核心 App 保持小而必装。
+        globIgnores: ['**/wm/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],
@@ -37,6 +41,16 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         runtimeCaching: [
+          {
+            // 水印：装饰性底纹，下过一次就一直用缓存
+            urlPattern: ({ url }) => url.pathname.startsWith('/wm/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'mlg-wm',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // 字体：一旦下过就永久用缓存，断网后已经显示过的字仍然是宋体
             urlPattern: ({ url }) => url.pathname.startsWith('/fonts/'),

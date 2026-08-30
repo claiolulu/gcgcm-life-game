@@ -165,12 +165,19 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     closing: 'JOHN 15:12',
   };
 
-  // 每页配一处格拉斯哥地标做水印。图在 web/public/wm/ 下，是手绘的 SVG 剪影。
+  // 每页配一处格拉斯哥地标做水印。图在 web/public/wm/ 下。
+  //
+  // 封面和结语页不放：封面本身就是整版设计，结语是全书收尾，
+  // 留白比再压一层地标更像一本护照的最后一页。
+  //
+  // 8 个关卡各自带 landmarkKey，剩下 3 张（大教堂、大学、威灵顿）
+  // 分给非关卡页。页数比图多，重复使用是有意的 —— guide 和 board
+  // 是浮层，不会和正文页同屏出现。
   const landmarkKey = station
     ? station.landmarkKey
-    : { inside: 'cathedral', notes: 'city-chambers', data: 'university',
-        grace: 'cathedral', guide: 'city-chambers', board: 'george-square',
-        closing: 'cathedral' }[kind] || null;
+    : { inside: 'cathedral', notes: 'wellington', data: 'university',
+        grace: 'cathedral', guide: 'wellington', board: 'university',
+        closing: null }[kind] || null;
 
   const noop = () => {};
 
@@ -195,7 +202,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     paper: TONES.cream,
     // 关掉设计稿那层放射状底纹，只留地标水印，页面更干净
     guilloche: 0,
-    watermark: landmarkKey ? `url("/wm/${landmarkKey}.svg")` : 'none',
+    watermark: landmarkKey ? `url("/wm/${landmarkKey}.png")` : 'none',
     // 页脚不再印地标名称，水印本身已经足够表达
     watermarkName: '',
 

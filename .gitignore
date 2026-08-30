@@ -14,3 +14,9 @@ server/data/
 # 只是为了在本地对照原设计跑一遍，7MB 全是重复的字体和 React。
 # 真正需要的字体已经在 web/public/fonts/，转换器和源文件也都留着。
 design/preview/
+
+# 水印提取的中间产物，由 design/wm/extract.py 生成，源图在 design/wm/src/
+design/wm/contact-sheet.png
+design/wm/inspect.png
+__pycache__/
+*.pyc
