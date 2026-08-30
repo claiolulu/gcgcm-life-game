@@ -292,7 +292,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     teammates,
     goTeam: () => actions.openTeam(),
     photo: ui.photo || null,
-    photoGhost: ui.photoGhost || null,
     openQr: () => actions.setModal('qr'),
     closeModal: () => actions.setModal(null),
 

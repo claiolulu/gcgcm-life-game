@@ -158,10 +158,60 @@ def emit(n, scope, ind=0):
 # ------------------------------------------------------------------
 # 生成后的定制补丁。写在这里而不是手改产物，设计改版重跑也不会丢。
 # ------------------------------------------------------------------
+def remove_block_containing(jsx, needle, open_marker):
+    """
+    删掉「包含 needle、且以 open_marker 那一行开头」的整个 <div> 区块。
+
+    先定位 needle，再向上找最近的 open_marker，然后按 <div/</div> 计数
+    找到配对的闭合标签。比写死一大段字符串耐改 —— 设计稿里这块的文案或
+    内层样式变了，删除依然成立。
+    """
+    i = jsx.find(needle)
+    if i == -1:
+        return jsx, False
+    start = jsx.rfind(open_marker, 0, i)
+    if start == -1:
+        return jsx, False
+    line_start = jsx.rfind('\n', 0, start) + 1
+
+    depth, pos = 0, start
+    while pos < len(jsx):
+        o = jsx.find('<div', pos)
+        c = jsx.find('</div>', pos)
+        if c == -1:
+            return jsx, False
+        if o != -1 and o < c:
+            # 自闭合的 <div ... /> 不进栈
+            tag_end = jsx.find('>', o)
+            if tag_end != -1 and jsx[tag_end - 1] == '/':
+                pos = tag_end + 1
+                continue
+            depth += 1
+            pos = o + 4
+        else:
+            depth -= 1
+            pos = c + 6
+            if depth == 0:
+                end = jsx.find('\n', pos)
+                return jsx[:line_start] + jsx[end + 1:], True
+    return jsx, False
+
+
 def apply_patches(jsx):
     n = 0
 
-    # 1) 资料页的「PHOTO 贴照片」占位换成选手头像；旁边的副像用同一张淡化处理
+    # 1) 先整块删掉设计稿里的「GHOST IMAGE 副像」。
+    #    真护照上的副像是防伪用的，这里只是把同一张头像缩小淡化再放一遍，
+    #    信息量为零，还占掉资料页左栏本就不多的高度。
+    jsx, hit = remove_block_containing(
+        jsx, 'GHOST IMAGE',
+        '<div style={{display: "flex", gap: "9px", alignItems: "flex-end"}}>')
+    assert hit, "没找到 GHOST IMAGE 区块"
+    n += 1
+
+    # 2) 资料页的「PHOTO 贴照片」占位换成选手头像。
+    #    设计稿用两个形状拼出一个人形剪影（圆脑袋 + 半圆肩膀），一起替换掉。
+    #    删完副像之后全篇只剩这一对。
     ghost = (
         '<div style={{position: "absolute", left: "50%", top: "20%", width: "42%", '
         'aspectRatio: "1", transform: "translateX(-50%)", borderRadius: "50%", '
@@ -172,20 +222,15 @@ def apply_patches(jsx):
         'height: "34%", transform: "translateX(-50%)", borderRadius: "50% 50% 0 0", '
         'background: "rgba(92,26,34,.16)"}} />\n'
     )
-    # 主照片：两个占位形状一起换成头像
+    placed = False
     for indent in ('                            ', '                              '):
         pair = indent + ghost.strip() + '\n' + indent + body.strip() + '\n'
         if pair in jsx:
             jsx = jsx.replace(pair, indent + '{v.photo}\n', 1)
+            placed = True
             n += 1
             break
-    # 副像（GHOST IMAGE）：剩下的那一对换成淡化头像
-    for indent in ('                              ', '                                '):
-        pair = indent + ghost.strip() + '\n' + indent + body.strip() + '\n'
-        if pair in jsx:
-            jsx = jsx.replace(pair, indent + '{v.photoGhost}\n', 1)
-            n += 1
-            break
+    assert placed, "没找到证件照占位"
 
     # 2) 结语页：分享按钮旁边补一个「查看排名」，方便直接跳排行榜
     share_btn_end = '{v.shareLabel}\n'

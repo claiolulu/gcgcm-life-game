@@ -478,18 +478,6 @@ export default function PassportBookView({ v }) {
                             PHOTO 贴照片
                           </div>
                         </div>
-                        <div style={{display: "flex", gap: "9px", alignItems: "flex-end"}}>
-                          <div style={{flex: "none", width: "38px"}}>
-                            <div style={{width: "100%", aspectRatio: ".78", background: "linear-gradient(170deg,#eee9de,#e2dccd)", position: "relative", overflow: "hidden", opacity: ".6"}}>
-                              {v.photoGhost}
-                            </div>
-                          </div>
-                          <div style={{flex: "1", minWidth: "0", fontFamily: "'EB Garamond',serif", fontSize: "7.5px", lineHeight: "1.8", letterSpacing: ".1em", color: "rgba(42,35,32,.45)"}}>
-                            GHOST IMAGE
-                            <br />
-                            副像
-                          </div>
-                        </div>
                       </div>
                       <div style={{flex: "1", minWidth: "0", display: "flex", flexDirection: "column", gap: "11px", overflow: "auto", paddingBottom: "8px"}}>
                         <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px"}}>
@@ -497,19 +485,19 @@ export default function PassportBookView({ v }) {
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", color: "rgba(42,35,32,.55)"}}>
                               SURNAME 姓
                             </div>
-                            <input readOnly value={v.surname} onChange={v.setSurname} placeholder="ZHANG" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(92,26,34,.3)", fontFamily: "'Courier Prime',monospace", fontSize: "13px", letterSpacing: ".06em", color: "#2a2320", outline: "none"}} />
+                            <input value={v.surname} onChange={v.setSurname} placeholder="ZHANG" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(92,26,34,.3)", fontFamily: "'Courier Prime',monospace", fontSize: "13px", letterSpacing: ".06em", color: "#2a2320", outline: "none"}} />
                           </div>
                           <div>
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", color: "rgba(42,35,32,.55)"}}>
                               GIVEN NAMES 名
                             </div>
-                            <input readOnly value={v.given} onChange={v.setGiven} placeholder="WEI" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(92,26,34,.3)", fontFamily: "'Courier Prime',monospace", fontSize: "13px", letterSpacing: ".06em", color: "#2a2320", outline: "none"}} />
+                            <input value={v.given} onChange={v.setGiven} placeholder="WEI" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(92,26,34,.3)", fontFamily: "'Courier Prime',monospace", fontSize: "13px", letterSpacing: ".06em", color: "#2a2320", outline: "none"}} />
                           </div>
                           <div>
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", color: "rgba(42,35,32,.55)"}}>
                               NICKNAME 昵称
                             </div>
-                            <input readOnly value={v.name} onChange={v.setName} placeholder="\u8f93\u5165\u540d\u5b57" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(92,26,34,.3)", fontSize: "14px", color: "#2a2320", outline: "none"}} />
+                            <input value={v.name} onChange={v.setName} placeholder="\u8f93\u5165\u540d\u5b57" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(92,26,34,.3)", fontSize: "14px", color: "#2a2320", outline: "none"}} />
                           </div>
                         </div>
                         <div>

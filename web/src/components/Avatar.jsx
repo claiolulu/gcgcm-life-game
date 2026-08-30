@@ -30,6 +30,13 @@ export const MOUTH_STYLES = ['smile', 'grin', 'neutral', 'oh', 'smirk', 'laugh']
  * 配饰分成三个互相独立的槽位，可以同时戴 —— 比如学士帽 + 圆框眼镜 + 十字架项链。
  * 旧数据里的单一 accessory 字段仍然认，见 normalizeAvatar()。
  */
+/**
+ * 背景装饰。画在底色渐变之上、人物之下，一律用半透明白，
+ * 这样八种底色渐变配哪一个都不会脏。
+ * 坐标全部写死 —— 头像必须是纯函数，同一份 JSON 在任何设备上都要长得一样。
+ */
+export const BG_PATTERNS = ['none', 'stars', 'rays', 'dots', 'stripes', 'halo', 'skyline', 'bubbles', 'grid', 'confetti'];
+
 export const HATS = ['none', 'beanie', 'cap', 'bucket', 'grad', 'hood', 'headband', 'flower', 'headphones', 'airpods'];
 export const FACES = ['none', 'glasses', 'round', 'sunglasses', 'mask'];
 export const EXTRAS = ['none', 'earrings', 'cross', 'scarf', 'bowtie'];
@@ -45,7 +52,7 @@ export function normalizeAvatar(config) {
   if (a.accessory != null && a.hat == null && a.face == null && a.extra == null) {
     Object.assign(a, LEGACY_ACCESSORY[a.accessory % LEGACY_ACCESSORY.length] || {});
   }
-  return { hat: 0, face: 0, extra: 0, ...a };
+  return { hat: 0, face: 0, extra: 0, bgp: 0, ...a };
 }
 
 const pick = (arr, i) => arr[((i ?? 0) % arr.length + arr.length) % arr.length];
@@ -64,12 +71,14 @@ export function randomAvatar() {
     face: Math.random() < 0.6 ? 0 : 1 + r(FACES.length - 1),
     extra: Math.random() < 0.65 ? 0 : 1 + r(EXTRAS.length - 1),
     outfit: r(OUTFITS.length),
+    // 背景留三成的概率是纯底色，否则每个人都花花绿绿，反而没有对比
+    bgp: Math.random() < 0.3 ? 0 : 1 + r(BG_PATTERNS.length - 1),
   };
 }
 
 export const DEFAULT_AVATAR = {
   bg: 0, skin: 0, hair: 0, hairColor: 0, eyes: 0, mouth: 0, outfit: 0,
-  hat: 0, face: 0, extra: 0,
+  hat: 0, face: 0, extra: 0, bgp: 0,
 };
 
 /* ------------------------------- 发型 ------------------------------- */
@@ -415,6 +424,153 @@ function ExtraNeck({ style, accent }) {
   }
 }
 
+/* ------------------------------ 背景装饰 ------------------------------ */
+
+// 两档亮度：主体一档、点缀一档。都是白色半透明，叠在任意底色上都干净。
+const B1 = 'rgba(255,255,255,.17)';
+const B2 = 'rgba(255,255,255,.095)';
+
+/** 四角星，用在 stars / confetti 里 */
+function Spark({ x, y, r, fill }) {
+  return <path d={`M${x} ${y - r} Q${x + r * 0.22} ${y - r * 0.22} ${x + r} ${y} Q${x + r * 0.22} ${y + r * 0.22} ${x} ${y + r} Q${x - r * 0.22} ${y + r * 0.22} ${x - r} ${y} Q${x - r * 0.22} ${y - r * 0.22} ${x} ${y - r} Z`} fill={fill} />;
+}
+
+function BgPattern({ style }) {
+  switch (style) {
+    case 'stars':
+      return (
+        <g>
+          <g fill={B1}>
+            <Spark x={16} y={17} r={5} fill={B1} />
+            <Spark x={83} y={26} r={4} fill={B1} />
+            <Spark x={72} y={9} r={2.6} fill={B1} />
+          </g>
+          <g fill={B2}>
+            <circle cx={30} cy={8} r={1.7} />
+            <circle cx={91} cy={12} r={1.4} />
+            <circle cx={9} cy={38} r={1.9} />
+            <circle cx={93} cy={45} r={1.6} />
+            <circle cx={24} cy={31} r={1.3} />
+            <circle cx={64} cy={20} r={1.2} />
+          </g>
+        </g>
+      );
+
+    case 'rays': {
+      // 从头顶后方散开，只有人物轮廓之外的部分看得见
+      const rays = [];
+      for (let i = 0; i < 16; i++) {
+        const a = (i * Math.PI * 2) / 16;
+        const w = 0.055;
+        const R = 95;
+        rays.push(
+          <path
+            key={i}
+            d={`M50 40 L${50 + Math.cos(a - w) * R} ${40 + Math.sin(a - w) * R} L${50 + Math.cos(a + w) * R} ${40 + Math.sin(a + w) * R} Z`}
+            fill={i % 2 ? B2 : B1}
+          />,
+        );
+      }
+      return <g>{rays}</g>;
+    }
+
+    case 'dots': {
+      const dots = [];
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          dots.push(<circle key={`${r}-${c}`} cx={6 + c * 11.5 + (r % 2 ? 5.75 : 0)} cy={6 + r * 11.5} r={2} />);
+        }
+      }
+      return <g fill={B2}>{dots}</g>;
+    }
+
+    case 'stripes': {
+      const bars = [];
+      for (let i = -4; i < 12; i++) bars.push(<rect key={i} x={i * 13} y={-40} width={6} height={180} />);
+      return <g fill={B2} transform="rotate(24 50 50)">{bars}</g>;
+    }
+
+    case 'halo':
+      return (
+        <g fill="none" stroke={B1} strokeWidth={1.6}>
+          <circle cx={50} cy={44} r={27} />
+          <circle cx={50} cy={44} r={36} stroke={B2} />
+          <circle cx={50} cy={44} r={45} stroke={B2} />
+        </g>
+      );
+
+    case 'skyline':
+      // 格拉斯哥的天际线意思一下：塔楼、起重机、几栋方楼。
+      // 只画在头两侧（x<28 和 x>72）——中间会被脑袋挡住，
+      // 底下会被肩膀挡住，画了也白画。
+      return (
+        <g fill={B2}>
+          {/* 左侧：市政厅式的尖塔 + 方楼 */}
+          <rect x={1} y={46} width={12} height={30} />
+          <rect x={15} y={34} width={8} height={42} />
+          <path d="M19 24 L23.5 34 H14.5 Z" />
+          <rect x={24} y={52} width={5} height={24} />
+          {/* 右侧：芬尼斯顿起重机的悬臂 + 方楼 */}
+          <rect x={78} y={30} width={2.6} height={46} />
+          <path d="M74 32 h20 v3 h-20 Z" />
+          <rect x={84} y={44} width={11} height={32} />
+          <rect x={72} y={56} width={5} height={20} />
+          <rect x={96} y={52} width={4} height={24} />
+        </g>
+      );
+
+    case 'bubbles':
+      return (
+        <g>
+          <g fill={B2}>
+            <circle cx={20} cy={26} r={14} />
+            <circle cx={80} cy={40} r={15} />
+            <circle cx={66} cy={13} r={8} />
+          </g>
+          <g fill="none" stroke={B1} strokeWidth={1.6}>
+            <circle cx={22} cy={50} r={10} />
+            <circle cx={82} cy={16} r={7} />
+            <circle cx={14} cy={62} r={7.5} />
+            <circle cx={78} cy={62} r={6} />
+          </g>
+        </g>
+      );
+
+    case 'grid': {
+      const lines = [];
+      for (let i = 1; i < 8; i++) {
+        lines.push(<rect key={`h${i}`} x={0} y={i * 12.5} width={100} height={0.9} />);
+        lines.push(<rect key={`v${i}`} x={i * 12.5} y={0} width={0.9} height={100} />);
+      }
+      return <g fill={B2}>{lines}</g>;
+    }
+
+    case 'confetti':
+      return (
+        <g>
+          <g fill={B1}>
+            <rect x={13} y={20} width={9} height={3.2} transform="rotate(-24 17.5 21.6)" />
+            <rect x={76} y={24} width={9} height={3.2} transform="rotate(38 80.5 25.6)" />
+            <rect x={58} y={11} width={8} height={3} transform="rotate(-12 62 12.5)" />
+            <rect x={30} y={9} width={7} height={2.8} transform="rotate(28 33.5 10.4)" />
+          </g>
+          <g fill={B2}>
+            <rect x={18} y={38} width={8} height={2.8} transform="rotate(52 22 39.4)" />
+            <rect x={80} y={48} width={8} height={2.8} transform="rotate(-40 84 49.4)" />
+            <rect x={8} y={48} width={7} height={2.6} transform="rotate(16 11.5 49.3)" />
+            <Spark x={86} y={34} r={3.6} fill={B2} />
+            <Spark x={13} y={31} r={3.2} fill={B2} />
+            <Spark x={68} y={17} r={2.6} fill={B2} />
+          </g>
+        </g>
+      );
+
+    case 'none':
+    default:
+      return null;
+  }
+}
+
 /* ------------------------------- 主组件 ------------------------------- */
 
 /**
@@ -423,7 +579,7 @@ function ExtraNeck({ style, accent }) {
  * 嵌套 <svg> 在部分浏览器序列化到 canvas 时会出问题，所以那里用这个 + transform 缩放。
  * 坐标系固定为 100×100。
  */
-export function AvatarContent({ config, idSuffix = '' }) {
+export function AvatarContent({ config, idSuffix = '', shape = 'circle' }) {
   const a = normalizeAvatar(config);
   const skin = pick(SKINS, a.skin);
   const hairColor = pick(HAIR_COLORS, a.hairColor);
@@ -435,7 +591,9 @@ export function AvatarContent({ config, idSuffix = '' }) {
   const extra = pick(EXTRAS, a.extra);
   // 围巾若和衣服同色就完全看不出来，取色板上隔开的一个颜色做对比
   const accent = pick(OUTFITS, (a.outfit ?? 0) + 3);
-  const gid = `av${a.bg}-${a.skin}-${a.hair}-${a.outfit}-${a.hat}${idSuffix}`;
+  // shape 也要进 id：同一份配置可能在同一页里既以圆形出现（排行榜）
+  // 又以方形出现（资料页证件照），两个 clipPath 不能重名
+  const gid = `av${a.bg}-${a.skin}-${a.hair}-${a.outfit}-${a.hat}-${a.bgp ?? 0}-${shape}${idSuffix}`;
 
   return (
     <>
@@ -445,12 +603,15 @@ export function AvatarContent({ config, idSuffix = '' }) {
           <stop offset="100%" stopColor={bg2} />
         </linearGradient>
         <clipPath id={`clip-${gid}`}>
-          <circle cx="50" cy="50" r="50" />
+          {shape === 'square'
+            ? <rect width="100" height="100" />
+            : <circle cx="50" cy="50" r="50" />}
         </clipPath>
       </defs>
 
       <g clipPath={`url(#clip-${gid})`}>
         <rect width="100" height="100" fill={`url(#${gid})`} />
+        <BgPattern style={pick(BG_PATTERNS, a.bgp)} />
 
         {/* 兜帽后片要在头之前，才能把头框住 */}
         <HoodBack on={hat === 'hood'} outfit={outfit} />
@@ -476,15 +637,25 @@ export function AvatarContent({ config, idSuffix = '' }) {
   );
 }
 
-export default function Avatar({ config, size = 64, ring = false, className = '', style }) {
+/**
+ * fill：撑满父容器而不是画成 size×size 的方块。
+ * 头像本身是 1:1，护照资料页的证件照框是 0.78 的竖长方形，
+ * 用 slice 让它按短边铺满、长边裁掉（等同 CSS 的 background-size: cover），
+ * 再配 shape="square" 去掉圆形裁切，才能真的填满整个框。
+ */
+export default function Avatar({
+  config, size = 64, ring = false, className = '', style,
+  shape = 'circle', fill = false,
+}) {
   return (
     <svg
       viewBox="0 0 100 100"
-      width={size}
-      height={size}
+      preserveAspectRatio={fill ? 'xMidYMid slice' : 'xMidYMid meet'}
+      width={fill ? '100%' : size}
+      height={fill ? '100%' : size}
       className={className}
       style={{
-        borderRadius: '50%',
+        borderRadius: shape === 'square' ? 0 : '50%',
         display: 'block',
         flexShrink: 0,
         boxShadow: ring ? '0 0 0 2px var(--gold)' : undefined,
@@ -493,7 +664,7 @@ export default function Avatar({ config, size = 64, ring = false, className = ''
       role="img"
       aria-label="头像"
     >
-      <AvatarContent config={config} />
+      <AvatarContent config={config} shape={shape} />
     </svg>
   );
 }
@@ -510,4 +681,5 @@ export const AVATAR_FIELDS = [
   { key: 'extra', label: '饰品', kind: 'text', values: ['无', '耳环', '十字架', '围巾', '领结'] },
   { key: 'outfit', label: '衣服', kind: 'swatch', values: OUTFITS },
   { key: 'bg', label: '底色', kind: 'swatch', values: BACKGROUNDS.map((b) => b[0]) },
+  { key: 'bgp', label: '背景', kind: 'text', values: ['无', '星星', '光芒', '圆点', '斜纹', '光环', '天际线', '气泡', '网格', '彩纸'] },
 ];

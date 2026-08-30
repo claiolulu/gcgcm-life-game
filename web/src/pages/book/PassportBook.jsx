@@ -176,16 +176,12 @@ export default function PassportBook() {
       ui: {
         page, overlay, modal, vpLandscape, shared,
         qrThumb: qr.thumb, qrBigImg: qr.big, checking,
-        // 资料页的证件照就是选手自己捏的头像；副像是同一张淡化后的版本，
-        // 和真护照的 ghost image 一个道理
+        // 资料页的证件照就是选手自己捏的头像。
+        // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
+        // 让它铺满整个框（左右各裁掉一点，人物居中，不会切到脸）。
         photo: (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Avatar config={me.avatar} size={104} style={{ borderRadius: 0 }} />
-          </div>
-        ),
-        photoGhost: (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-            <Avatar config={me.avatar} size={34} style={{ borderRadius: 0 }} />
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <Avatar config={me.avatar} fill shape="square" />
           </div>
         ),
       },
