@@ -700,3 +700,38 @@ html.book-locked body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------
+   护照翻页
+
+   护照是左侧装订的：向后翻＝抓住右缘往左掀，绕书脊（左边）转；
+   向前翻是镜像。
+
+   屏幕上同时只有一页，所以拆成两段：旧页转出去 → 换内容 → 新页从
+   底下升上来。转到 96° 时页面已经侧对着观众看不见了，内容正好在
+   那一瞬间换掉。
+
+   转轴方向：向后翻绕左缘（书脊）正向转，页面带着透视往里倒、右侧露出
+   内封的暗红；新页从反向的 -96° 升上来，像是压在下面那一页翻上来。
+   向前翻整个镜像，轴换到右缘。
+
+   只动 transform 和 opacity —— 这两个能交给合成器，不触发重排重绘。
+   本来想用 filter: brightness() 做受光变化，但那要对整屏图层逐帧
+   跑一遍着色器，现场那些旧安卓机吃不消。
+   --------------------------------------------------------------- */
+@keyframes bookFlipOutFwd {
+  from { transform: rotateY(0deg);   opacity: 1; }
+  to   { transform: rotateY(96deg);  opacity: .55; }
+}
+@keyframes bookFlipInFwd {
+  from { transform: rotateY(-96deg); opacity: .55; }
+  to   { transform: rotateY(0deg);   opacity: 1; }
+}
+@keyframes bookFlipOutBack {
+  from { transform: rotateY(0deg);   opacity: 1; }
+  to   { transform: rotateY(-96deg); opacity: .55; }
+}
+@keyframes bookFlipInBack {
+  from { transform: rotateY(96deg);  opacity: .55; }
+  to   { transform: rotateY(0deg);   opacity: 1; }
+}

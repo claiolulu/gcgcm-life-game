@@ -6,6 +6,13 @@
  * 真正的写入只发生在工作人员端。
  */
 
+/**
+ * 翻页两段动画的时长。
+ * 出场比入场快一点：掀起来是使劲，落下去是顺势，这样手感更像翻纸。
+ */
+export const FLIP_OUT_MS = 170;
+export const FLIP_IN_MS = 230;
+
 /* --------------------------- Code 39 条码 --------------------------- */
 
 const C39 = {
@@ -181,6 +188,13 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
   const noop = () => {};
 
+  // 翻到 96° 时页面侧对观众、已经看不见，内容正好在那一瞬间换掉
+  const flipName = ui.flip
+    ? (ui.flip.phase === 'out'
+        ? (ui.flip.dir > 0 ? 'bookFlipOutFwd' : 'bookFlipOutBack')
+        : (ui.flip.dir > 0 ? 'bookFlipInFwd' : 'bookFlipInBack'))
+    : null;
+
   return {
     /* ---- 版式 ---- */
     stageMax: landscape && ui.vpLandscape ? '100%' : '430px',
@@ -199,6 +213,13 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     isGuide: kind === 'guide',
     isBoard: kind === 'board',
     isClosing: kind === 'closing',
+    // 绕书脊转：向后翻掀右缘（轴在左），向前翻镜像
+    flipOrigin: ui.flip ? (ui.flip.dir > 0 ? 'left center' : 'right center') : 'center',
+    pageAnim: flipName
+      ? `${flipName} ${ui.flip.phase === 'out' ? FLIP_OUT_MS : FLIP_IN_MS}ms `
+        + `${ui.flip.phase === 'out' ? 'cubic-bezier(.4,0,.9,.45)' : 'cubic-bezier(.15,.6,.3,1)'} both`
+      : 'none',
+
     paper: TONES.cream,
     // 关掉设计稿那层放射状底纹，只留地标水印，页面更干净
     guilloche: 0,

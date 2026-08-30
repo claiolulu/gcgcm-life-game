@@ -5,6 +5,7 @@ import Avatar from '../../components/Avatar.jsx';
 
 import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages } from './bookVals.js';
+import { FLIP_OUT_MS, FLIP_IN_MS } from './bookVals.js';
 import { useConfig } from '../../lib/config.js';
 import { usePlayer, refreshMe } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
@@ -50,16 +51,76 @@ export default function PassportBook() {
 
   /* ------------------------------ 翻页 ------------------------------ */
 
-  const move = useCallback((d) => {
+  // 翻页动画状态：{ dir: 1|-1, phase: 'out'|'in' }，不翻的时候是 null
+  const [flip, setFlip] = useState(null);
+  const flipping = useRef(false);
+  const flipTimers = useRef([]);
+  const pending = useRef(null);   // 翻页途中最多排队一次
+
+  // 有人开了「减少动态效果」就直接换页，不做 3D 翻转
+  const reduceMotion = useRef(
+    typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+  );
+
+  useEffect(() => () => flipTimers.current.forEach(clearTimeout), []);
+
+  /**
+   * 记「正在前往哪一页」，而不是「现在在哪一页」。
+   *
+   * 翻页要 400ms，期间 page 还是旧值。如果按 page 算下一站，
+   * 快速双击的第二下会算出和当前目标相同的页，等于白点。
+   * 存在 ref 里而不是 state：move/goto 只是读它算方向，
+   * 没必要因此每翻一页就换掉函数标识，那会让下游的 useMemo 全部重算。
+   */
+  const targetRef = useRef(0);
+  useEffect(() => { if (!flipping.current) targetRef.current = page; }, [page]);
+
+  /**
+   * 翻到某一页：旧页转出去 → 换内容 → 新页升上来。
+   */
+  const flipTo = useCallback((dest, dir) => {
+    const to = Math.max(0, Math.min(pageCount - 1, dest));
     setOverlay(null);
-    setPage((p) => Math.max(0, Math.min(pageCount - 1, p + d)));
+    if (to === targetRef.current) return;
+
+    if (reduceMotion.current) { targetRef.current = to; setPage(to); return; }
+
+    // 翻页途中再点：每一下都累加到目标页上，但只排一次动画 ——
+    // 手指停下时正好落在你点到的那一页，中间不补动画。
+    //
+    // 另外两种做法都不行：直接忽略的话，习惯性双击会丢一次；
+    // 每次点击都排一段动画的话，连点几下就排出好几秒的队列，
+    // 手指早停了页还在自己翻。
+    targetRef.current = to;
+    if (flipping.current) { pending.current = { dest: to, dir }; return; }
+
+    flipping.current = true;
+    setFlip({ dir, phase: 'out' });
+    flipTimers.current.push(setTimeout(() => {
+      setPage(to);
+      setFlip({ dir, phase: 'in' });
+    }, FLIP_OUT_MS));
+    flipTimers.current.push(setTimeout(() => {
+      setFlip(null);
+      flipping.current = false;
+      const q = pending.current;
+      pending.current = null;
+      if (q) {
+        targetRef.current = to;   // 先退回这一段的终点，排队的那次才算得对
+        flipTo(q.dest, q.dir);
+      }
+    }, FLIP_OUT_MS + FLIP_IN_MS));
   }, [pageCount]);
+
+  const move = useCallback((d) => {
+    flipTo(targetRef.current + d, d > 0 ? 1 : -1);
+  }, [flipTo]);
 
   const goto = useCallback((i) => {
     if (i < 0) return;
-    setOverlay(null);
-    setPage(Math.max(0, Math.min(pageCount - 1, i)));
-  }, [pageCount]);
+    flipTo(i, i >= targetRef.current ? 1 : -1);
+  }, [flipTo]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -174,7 +235,7 @@ export default function PassportBook() {
     return buildVals({
       me, rank, of, config, board,
       ui: {
-        page, overlay, modal, vpLandscape, shared,
+        page, overlay, modal, vpLandscape, shared, flip,
         qrThumb: qr.thumb, qrBigImg: qr.big, checking,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
@@ -191,7 +252,7 @@ export default function PassportBook() {
         startTour: () => setTourOpen(true),
       },
     });
-  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, qr, checking,
+  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, flip, qr, checking,
       move, goto, share, checkStamp]);
 
   if (loading && !me) {

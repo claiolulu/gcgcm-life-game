@@ -240,6 +240,32 @@ def apply_patches(jsx):
     assert hit, "没找到「PHOTO 贴照片」说明"
     n += 1
 
+    # 4) 翻页用的 3D 层。
+    #    包住正反两种版式的页面、但不包弹层 —— 弹层不该跟着翻。
+    #    必须单独包一层：横版页（资料页、关卡页）在竖屏下自身已经
+    #    rotate(90deg)，把 rotateY 加到同一个元素上会和它复合，
+    #    转出来的方向是歪的。
+    open_anchor = '          {v.isPortrait ? (\n'
+    assert open_anchor in jsx, "没找到竖版页起点"
+    jsx = jsx.replace(
+        open_anchor,
+        '          <div style={{position: "absolute", inset: "0", transformOrigin: v.flipOrigin, '
+        'animation: v.pageAnim, backfaceVisibility: "hidden", willChange: "transform"}}>\n' + open_anchor,
+        1)
+
+    close_anchor = '          {v.askingToken ? (\n'
+    assert close_anchor in jsx, "没找到弹层起点"
+    jsx = jsx.replace(close_anchor, '          </div>\n' + close_anchor, 1)
+    n += 1
+
+    # 5) 舞台加透视，翻页才有近大远小。
+    #    stage 里的两个弹层都是 position:absolute，不会被 perspective
+    #    变成包含块坑到（fixed 定位才会）。
+    stage = 'containerType: "size"}}>'
+    assert stage in jsx, "没找到舞台容器"
+    jsx = jsx.replace(stage, 'containerType: "size", perspective: "1500px"}}>', 1)
+    n += 1
+
     # 2) 结语页：分享按钮旁边补一个「查看排名」，方便直接跳排行榜
     share_btn_end = '{v.shareLabel}\n'
     idx = jsx.find(share_btn_end)
