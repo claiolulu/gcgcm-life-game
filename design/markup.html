@@ -1,0 +1,443 @@
+<div style="height:100vh;height:100dvh;display:flex;align-items:center;justify-content:center;background:radial-gradient(130% 100% at 50% 0%,#26201d,#141110 70%);font-family:'Noto Serif SC','EB Garamond',serif">
+<div style="width:100%;max-width:{{ stageMax }};height:100vh;height:100dvh;position:relative;overflow:hidden;background:#5c1a22;container-type:size">
+
+  <sc-if value="{{ isPortrait }}" hint-placeholder-val="{{ true }}">
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;animation:pageIn .25s ease both">
+
+    <!-- COVER -->
+    <sc-if value="{{ isCover }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;min-height:0;position:relative;background:linear-gradient(155deg,#6b2129 0%,#5c1a22 45%,#48131a 100%);padding:34px 30px 26px;display:flex;flex-direction:column;align-items:center">
+      <div style="position:absolute;inset:0;pointer-events:none;opacity:.28;background:repeating-linear-gradient(45deg,rgba(255,255,255,.06) 0 1px,transparent 1px 4px),repeating-linear-gradient(-45deg,rgba(0,0,0,.1) 0 1px,transparent 1px 4px)"></div>
+      <div style="position:absolute;left:0;top:0;bottom:0;width:22px;background:linear-gradient(90deg,rgba(0,0,0,.4),transparent)"></div>
+      <div style="position:absolute;inset:14px;border:1px solid rgba(198,164,95,.45);pointer-events:none"></div>
+      <div style="position:absolute;inset:19px;border:1px solid rgba(198,164,95,.2);pointer-events:none"></div>
+
+      <div style="position:relative;text-align:center;font-family:'EB Garamond',serif;font-size:11px;letter-spacing:.42em;color:#c6a45f;text-indent:.42em">GCGCM</div>
+      <div style="position:relative;margin-top:9px;font-size:13px;letter-spacing:.5em;color:rgba(198,164,95,.72);text-indent:.5em">迷 你 人 生 国</div>
+
+      <div style="position:relative;margin-top:11%;width:132px;height:132px;display:flex;align-items:center;justify-content:center">
+        <div style="position:absolute;inset:0;border-radius:50%;border:1px solid rgba(198,164,95,.5);background:repeating-conic-gradient(from 0deg,rgba(198,164,95,.16) 0 2deg,transparent 2deg 9deg)"></div>
+        <div style="position:absolute;inset:16px;border-radius:50%;border:1px solid rgba(198,164,95,.34)"></div>
+        <div style="position:relative;width:70px;height:70px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:radial-gradient(circle at 38% 32%,rgba(198,164,95,.4),rgba(198,164,95,.1));border:1px solid rgba(198,164,95,.6)">
+          <div style="font-family:'EB Garamond',serif;font-size:30px;letter-spacing:.04em;color:#e6cd91">M</div>
+        </div>
+      </div>
+
+      <div style="position:relative;text-align:center;margin-top:10%">
+        <div style="font-size:36px;font-weight:700;letter-spacing:.3em;color:#e6cd91;text-indent:.3em">人生护照</div>
+        <div style="margin-top:16px;font-family:'EB Garamond',serif;font-size:14px;letter-spacing:.34em;color:rgba(230,205,145,.78);text-indent:.34em">PASSPORT</div>
+      </div>
+
+      <div style="flex:1;min-height:14px"></div>
+      <div style="position:relative;width:100%;display:flex;flex-direction:column;gap:14px;align-items:center">
+        <div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.2em;color:rgba(230,205,145,.55)">{{ passportNo }}</div>
+        <button sc-camel-on-click="{{ next }}" style="width:100%;padding:15px;background:linear-gradient(180deg,rgba(198,164,95,.22),rgba(198,164,95,.1));border:1px solid rgba(198,164,95,.6);color:#e6cd91;font-family:'EB Garamond',serif;font-size:13px;letter-spacing:.28em;text-indent:.28em" style-active="background:rgba(198,164,95,.3)">OPEN 翻开</button>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- PAPER PAGES -->
+    <sc-if value="{{ isPaper }}" hint-placeholder-val="{{ false }}">
+    <div sc-camel-on-click="{{ pageTap }}" style="flex:1;min-height:0;position:relative;overflow:hidden;background:{{ paper }};display:flex;flex-direction:column">
+      <div style="position:absolute;inset:0;pointer-events:none;opacity:{{ guilloche }};background:repeating-conic-gradient(from 0deg at 22% 28%,rgba(92,26,34,.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 78% 74%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(92,26,34,.035) 0 1px,transparent 1px 6px)"></div>
+      <div style="position:absolute;left:6%;right:6%;top:14%;bottom:16%;pointer-events:none;opacity:.13;background-repeat:no-repeat;background-position:center;background-size:contain;background-image:{{ watermark }}"></div>
+      <div style="position:absolute;left:0;top:0;bottom:0;width:30px;pointer-events:none;z-index:2;background:linear-gradient(90deg,rgba(60,40,30,.2),transparent)"></div>
+
+      <div style="position:relative;z-index:5;flex:none;display:flex;align-items:center;gap:12px;padding:12px 16px 8px;border-bottom:1px solid rgba(92,26,34,.4)">
+        <button sc-camel-on-click="{{ goBoard }}" style="flex:none;width:34px;height:34px;border:1px solid rgba(92,26,34,.35);display:flex;align-items:center;justify-content:center;color:#5c1a22" style-active="background:rgba(92,26,34,.1)">
+          <svg sc-camel-view-box="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 01-8 0V4z"></path><path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3"></path></svg>
+        </button>
+        <div style="flex:1;min-width:0;text-align:center">
+          <div style="font-family:'EB Garamond',serif;font-size:9.5px;letter-spacing:.18em;color:#5c1a22;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ kicker }}</div>
+          <div style="margin-top:2px;font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.1em;color:rgba(42,35,32,.5)">{{ corner }}</div>
+        </div>
+        <button sc-camel-on-click="{{ goGrace }}" style="flex:none;width:34px;height:34px;border-radius:50%;border:1px solid rgba(156,124,60,.75);background:radial-gradient(circle at 36% 30%,#e6cd91,#b9913f);display:flex;align-items:center;justify-content:center;filter:{{ coinFilter }}" style-active="transform:translateY(1px)">
+          <span style="font-family:'EB Garamond',serif;font-size:12px;color:#5c1a22">G</span>
+        </button>
+        <button sc-camel-on-click="{{ goGuide }}" style="flex:none;width:34px;height:34px;border:1px solid rgba(92,26,34,.35);display:flex;align-items:center;justify-content:center;font-family:'EB Garamond',serif;font-size:15px;color:#5c1a22" style-active="background:rgba(92,26,34,.1)">?</button>
+      </div>
+
+      <!-- INSIDE COVER: SCRIPTURE -->
+      <sc-if value="{{ isInside }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;z-index:4;flex:1;min-height:0;overflow:auto;padding:24px 22px 20px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center">
+          <div style="width:74px;height:74px;position:relative;display:flex;align-items:center;justify-content:center">
+            <div style="position:absolute;inset:0;border-radius:50%;border:1px solid rgba(92,26,34,.45);background:repeating-conic-gradient(from 0deg,rgba(92,26,34,.12) 0 2deg,transparent 2deg 10deg)"></div>
+            <div style="font-family:'EB Garamond',serif;font-size:24px;color:#5c1a22">M</div>
+          </div>
+          <div>
+            <div style="font-size:19px;font-weight:700;letter-spacing:.22em;color:#5c1a22;text-indent:.22em">欢迎你</div>
+            <div style="margin-top:8px;font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.24em;color:rgba(42,35,32,.55);text-indent:.24em">WELCOME ABOARD</div>
+          </div>
+        </div>
+
+        <div style="position:relative;padding:22px 18px;border-top:1px solid rgba(92,26,34,.35);border-bottom:1px solid rgba(92,26,34,.35)">
+          <div style="font-size:20px;font-weight:600;line-height:2.1;color:#2a2320;text-align:center;text-wrap:pretty">你们要彼此接纳，<br>如同基督接纳你们一样。</div>
+          <div style="margin-top:18px;font-family:'EB Garamond',serif;font-style:italic;font-size:14px;line-height:1.85;color:rgba(42,35,32,.7);text-align:center;text-wrap:pretty">Welcome one another, as Christ has welcomed you.</div>
+          <div style="margin-top:18px;font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.22em;color:#5c1a22;text-align:center;text-indent:.22em">罗马书 15:7 · ROMANS 15:7</div>
+        </div>
+
+        <div style="font-size:13.5px;line-height:2.05;color:rgba(42,35,32,.75);text-wrap:pretty">本护照由 GCGCM 签发，有效期无尽无穷。持照人将以此身份通行各关卡；无论积分多少，你在这里的位置都不因表现改变。</div>
+
+        <div style="margin-top:auto;display:flex;align-items:center;gap:12px">
+          <div style="flex:1;height:1px;background:rgba(92,26,34,.35)"></div>
+          <div style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.2em;color:rgba(92,26,34,.65)">GCGCM</div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- INDEX / NAVIGATION -->
+      <sc-if value="{{ isNotes }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;z-index:4;flex:1;min-height:0;overflow:auto;padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ navCards }}" as="c" hint-placeholder-count="3">
+            <button sc-camel-on-click="{{ c.go }}" style="display:flex;align-items:center;gap:14px;padding:15px 15px;border:1px solid rgba(92,26,34,.3);background:rgba(255,255,255,.45);text-align:left" style-active="background:rgba(92,26,34,.08)">
+              <span style="flex:none;width:42px;height:42px;border-radius:50%;border:1px solid rgba(156,124,60,.7);display:flex;align-items:center;justify-content:center;color:#5c1a22;font-family:'EB Garamond',serif;font-size:16px;background:{{ c.chip }}">{{ c.glyph }}</span>
+              <span style="flex:1;min-width:0">
+                <span style="display:block;font-size:16px;font-weight:700;letter-spacing:.04em;color:#5c1a22">{{ c.cn }}</span>
+                <span style="display:block;margin-top:4px;font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.18em;color:rgba(42,35,32,.5)">{{ c.en }}</span>
+                <span style="display:block;margin-top:6px;font-size:12px;font-weight:600;line-height:1.7;color:#2a2320">{{ c.desc }}</span>
+              </span>
+              <span style="flex:none;font-family:'EB Garamond',serif;font-size:15px;color:rgba(92,26,34,.5)">→</span>
+            </button>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:16px;padding-top:4px">
+          <button sc-camel-on-click="{{ openQr }}" style="flex:none;width:84px;height:84px;padding:6px;background:#fff;border:1px solid rgba(92,26,34,.45)" style-active="opacity:.85">
+            <sc-if value="{{ qrReady }}" hint-placeholder-val="{{ false }}">
+              <div style="width:100%;height:100%">{{ qrThumb }}</div>
+            </sc-if>
+            <sc-if value="{{ qrLoading }}" hint-placeholder-val="{{ true }}">
+              <div style="width:100%;height:100%;background:repeating-linear-gradient(45deg,rgba(42,35,32,.14) 0 3px,transparent 3px 6px)"></div>
+            </sc-if>
+          </button>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.16em;color:rgba(42,35,32,.55)">MACHINE READABLE 扫码记分</div>
+            <div style="margin-top:8px;font-family:'Courier Prime',monospace;font-weight:700;font-size:12px;letter-spacing:.16em;color:#5c1a22">{{ passportNo }}</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+              <div style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.16em;color:#5c1a22">VISAS {{ doneCount }}/8</div>
+              <div style="flex:1;height:6px;background:rgba(92,26,34,.12);border:1px solid rgba(92,26,34,.28)">
+                <div style="width:{{ pct }}%;height:100%;background:linear-gradient(90deg,#9c7c3c,#c6a45f)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:auto;padding-top:12px;border-top:1px solid rgba(92,26,34,.22);display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+          <div style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.16em;color:rgba(42,35,32,.55)">ISSUED BY GCGCM</div>
+          <div style="font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.08em;color:rgba(42,35,32,.5)">VALID: ETERNAL 无尽无穷</div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- CLOSING -->
+      <sc-if value="{{ isClosing }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;z-index:4;flex:1;min-height:0;overflow:auto;padding:20px 20px 18px;display:flex;flex-direction:column;gap:18px">
+        <div style="position:relative;padding:22px 16px;border-top:1px solid rgba(92,26,34,.35);border-bottom:1px solid rgba(92,26,34,.35)">
+          <div style="font-size:19.5px;font-weight:600;line-height:2.1;color:#2a2320;text-align:center;text-wrap:pretty">你们要彼此相爱，<br>像我爱你们一样。</div>
+          <div style="margin-top:16px;font-family:'EB Garamond',serif;font-style:italic;font-size:13.5px;line-height:1.85;color:rgba(42,35,32,.7);text-align:center;text-wrap:pretty">Love one another, as I have loved you.</div>
+          <div style="margin-top:16px;font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.22em;color:#5c1a22;text-align:center;text-indent:.22em">约翰福音 15:12 · JOHN 15:12</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px">
+          <sc-for list="{{ summaryRows }}" as="s" hint-placeholder-count="4">
+            <div style="border-bottom:1px solid rgba(92,26,34,.22);padding-bottom:5px">
+              <div style="font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.14em;color:rgba(42,35,32,.55)">{{ s.label }}</div>
+              <div style="margin-top:4px;font-family:'Courier Prime',monospace;font-weight:700;font-size:12px;color:#2a2320">{{ s.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font-size:13.5px;font-weight:600;line-height:2.05;color:#2a2320;text-wrap:pretty">今晚八个关卡走完，你的护照盖满了章。最终排名可以点左上角的奖杯查看。分数会归零，名次会被忘记，但今晚认识的人还在。愿你在这座城市里不是一个人。</div>
+
+        <button sc-camel-on-click="{{ share }}" style="margin-top:auto;padding:15px;background:#5c1a22;border:1px solid rgba(198,164,95,.6);color:#e6cd91;font-family:'EB Garamond',serif;font-size:12px;letter-spacing:.24em;text-indent:.24em" style-active="opacity:.85">{{ shareLabel }}</button>
+      </div>
+      </sc-if>
+
+      <!-- GRACE -->
+      <sc-if value="{{ isGrace }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;z-index:4;flex:1;min-height:0;overflow:auto;padding:16px 20px 20px;display:flex;flex-direction:column;gap:18px;align-items:center">
+        <button sc-camel-on-click="{{ closeAside }}" style="align-self:flex-start;padding:8px 14px;border:1px solid rgba(92,26,34,.4);color:#5c1a22;font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.2em;text-indent:.2em" style-active="background:rgba(92,26,34,.1)">← BACK 返回</button>
+
+        <div style="width:104px;height:104px;position:relative;display:flex;align-items:center;justify-content:center;filter:{{ coinFilter }}">
+          <div style="position:absolute;inset:0;border-radius:50%;border:1px solid rgba(156,124,60,.7);background:radial-gradient(circle at 36% 30%,rgba(198,164,95,.5),rgba(156,124,60,.14))"></div>
+          <div style="position:absolute;inset:11px;border-radius:50%;border:1px solid rgba(156,124,60,.45);background:repeating-conic-gradient(from 0deg,rgba(156,124,60,.14) 0 2deg,transparent 2deg 9deg)"></div>
+          <div style="position:relative;text-align:center">
+            <div style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.18em;color:#5c1a22">GRACE</div>
+            <div style="margin-top:4px;font-size:17px;font-weight:700;color:#5c1a22">恩典</div>
+          </div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:19px;font-weight:700;letter-spacing:.06em;color:{{ tokenTitleFg }}">{{ tokenTitle }}</div>
+          <div style="margin-top:10px;font-size:13.5px;font-weight:600;line-height:2;color:{{ tokenBodyFg }};text-wrap:pretty">{{ tokenBody }}</div>
+        </div>
+        <div style="width:100%;display:flex;flex-direction:column;gap:11px">
+          <sc-for list="{{ helpOpts }}" as="o" hint-placeholder-count="3">
+            <div style="padding:12px 0;border-top:1px solid rgba(92,26,34,.25);display:flex;gap:12px;align-items:flex-start">
+              <span style="flex:none;font-family:'EB Garamond',serif;font-size:11px;letter-spacing:.1em;color:#9c7c3c;padding-top:2px">{{ o.n }}</span>
+              <div style="min-width:0">
+                <div style="font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.18em;color:#5c1a22">{{ o.en }}</div>
+                <div style="margin-top:6px;font-size:13px;font-weight:600;line-height:1.9;color:#2a2320">{{ o.cn }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ tokenUsed }}" hint-placeholder-val="{{ false }}">
+          <div style="width:100%;padding:18px;background:#5c1a22;animation:fadeIn .4s ease both">
+            <div style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.2em;color:#c6a45f">GRACE CARD 恩典卡 · {{ usedAt }}</div>
+            <div style="margin-top:12px;font-size:19px;font-weight:700;line-height:1.8;color:#f0e2c4">「我的恩典够你用的」</div>
+            <div style="margin-top:10px;font-family:'EB Garamond',serif;font-style:italic;font-size:13px;line-height:1.8;color:rgba(240,226,196,.75)">My grace is sufficient for thee.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ tokenAvailable }}" hint-placeholder-val="{{ true }}">
+          <button sc-camel-on-click="{{ askToken }}" style="width:100%;margin-top:auto;padding:15px;background:#5c1a22;border:1px solid rgba(198,164,95,.6);color:#e6cd91;font-family:'EB Garamond',serif;font-size:12px;letter-spacing:.24em;text-indent:.24em" style-active="opacity:.85">USE TOKEN 递出代币</button>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <!-- GUIDE -->
+      <sc-if value="{{ isGuide }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;z-index:4;flex:1;min-height:0;overflow:auto;padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px">
+        <button sc-camel-on-click="{{ closeAside }}" style="align-self:flex-start;padding:8px 14px;border:1px solid rgba(92,26,34,.4);color:#5c1a22;font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.2em;text-indent:.2em" style-active="background:rgba(92,26,34,.1)">← BACK 返回</button>
+
+        <sc-for list="{{ guide }}" as="g" hint-placeholder-count="5">
+          <div style="padding:14px 0;border-bottom:1px solid rgba(92,26,34,.2)">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="flex:none;font-family:'EB Garamond',serif;font-size:11px;color:#9c7c3c">{{ g.n }}</span>
+              <span style="font-size:16px;font-weight:700;letter-spacing:.04em;color:#5c1a22">{{ g.cn }}</span>
+              <span style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.18em;color:rgba(42,35,32,.45)">{{ g.en }}</span>
+            </div>
+            <div style="margin-top:8px;padding-left:21px;font-size:13px;font-weight:600;line-height:1.95;color:#2a2320;text-wrap:pretty">{{ g.body }}</div>
+          </div>
+        </sc-for>
+        <div style="margin-top:16px;padding:15px 16px;background:rgba(44,74,90,.08);border-left:2px solid #2c4a5a">
+          <div style="font-family:'EB Garamond',serif;font-size:9.5px;letter-spacing:.2em;color:#2c4a5a">LIFE EVENT 人生盲盒</div>
+          <div style="margin-top:8px;font-size:13px;font-weight:600;line-height:1.95;color:#2a2320">总分首次跨过 15 / 30 / 50 分时，必须暂停挑战，前往场地中央抽一张盲盒卡：Good Fortune、Bad Luck、Unexpected、Extreme。</div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- BOARD -->
+      <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;z-index:4;flex:1;min-height:0;overflow:auto;padding:18px 20px 20px;display:flex;flex-direction:column;gap:12px">
+        <button sc-camel-on-click="{{ closeAside }}" style="align-self:flex-start;padding:8px 14px;border:1px solid rgba(92,26,34,.4);color:#5c1a22;font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.2em;text-indent:.2em" style-active="background:rgba(92,26,34,.1)">← BACK 返回</button>
+
+        <sc-for list="{{ boardRows }}" as="row" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 10px;background:{{ row.bg }};border-bottom:1px solid rgba(92,26,34,.18)">
+            <span style="font-family:'Courier Prime',monospace;font-size:11px;width:22px;color:{{ row.fg }};opacity:.75">{{ row.rank }}</span>
+            <span style="flex:1;min-width:0;font-size:14.5px;font-weight:600;color:{{ row.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.name }}</span>
+            <sc-if value="{{ row.hasTag }}" hint-placeholder-val="{{ false }}">
+              <span style="flex:none;padding:2px 7px;border:1px solid {{ row.tagBd }};font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.12em;color:{{ row.tagFg }};white-space:nowrap">{{ row.tag }}</span>
+            </sc-if>
+            <span style="font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.14em;color:{{ row.fg }};opacity:.55">{{ row.identity }}</span>
+            <span style="font-family:'Courier Prime',monospace;font-size:14px;color:{{ row.fg }}">{{ row.score }}</span>
+          </div>
+        </sc-for>
+        <div style="margin-top:18px;padding:15px 16px;border:1px solid rgba(92,26,34,.28)">
+          <div style="font-family:'EB Garamond',serif;font-size:9.5px;letter-spacing:.2em;color:#5c1a22">AWARDS 颁奖</div>
+          <div style="margin-top:8px;font-size:13px;font-weight:600;line-height:1.95;color:#2a2320">除最高积分奖外，另颁 The Connector、The Creative 等迎新向奖项，最后进入福音反思环节。</div>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="position:relative;z-index:7;flex:none;padding:9px 16px 10px;display:flex;align-items:center;gap:13px;border-top:1px solid rgba(92,26,34,.2)">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Courier Prime',monospace;font-weight:700;font-size:9.5px;letter-spacing:.12em;color:#5c1a22">{{ passportNo }}</div>
+          <div style="margin-top:3px;font-family:'EB Garamond',serif;font-size:7.5px;letter-spacing:.16em;color:rgba(92,26,34,.42);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ watermarkName }}</div>
+        </div>
+        <div style="flex:none;font-family:'Courier Prime',monospace;font-size:9px;color:rgba(42,35,32,.45)">{{ pageNo }}</div>
+        <button sc-camel-on-click="{{ openQr }}" style="flex:none;width:30px;height:30px;padding:2px;background:#fff;border:1px solid rgba(92,26,34,.35)" style-active="opacity:.8">
+          <sc-if value="{{ qrReady }}" hint-placeholder-val="{{ false }}">
+            <div style="width:100%;height:100%">{{ qrThumb }}</div>
+          </sc-if>
+          <sc-if value="{{ qrLoading }}" hint-placeholder-val="{{ true }}">
+            <div style="width:100%;height:100%;background:repeating-linear-gradient(45deg,rgba(42,35,32,.16) 0 2px,transparent 2px 4px)"></div>
+          </sc-if>
+        </button>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ============ LANDSCAPE PAGES ============ -->
+  <sc-if value="{{ isLandscape }}" hint-placeholder-val="{{ false }}">
+  <div sc-camel-on-click="{{ pageTap }}" style="position:absolute;left:50%;top:50%;width:{{ lsW }};height:{{ lsH }};transform:{{ lsTransform }};display:flex;flex-direction:column;background:{{ paper }};overflow:hidden;animation:pageIn .25s ease both">
+    <div style="position:absolute;inset:0;pointer-events:none;opacity:{{ guilloche }};background:repeating-conic-gradient(from 0deg at 18% 30%,rgba(92,26,34,.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 82% 70%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(92,26,34,.032) 0 1px,transparent 1px 6px)"></div>
+    <div style="position:absolute;right:3%;top:12%;width:40%;bottom:14%;pointer-events:none;opacity:.11;background-repeat:no-repeat;background-position:center;background-size:contain;background-image:{{ watermark }}"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;height:30px;pointer-events:none;z-index:2;background:linear-gradient(0deg,rgba(60,40,30,.18),transparent)"></div>
+
+    <div style="position:relative;z-index:5;flex:none;display:flex;align-items:center;gap:12px;padding:9px 16px 7px;border-bottom:1px solid rgba(92,26,34,.4)">
+      <button sc-camel-on-click="{{ goBoard }}" style="flex:none;width:30px;height:30px;border:1px solid rgba(92,26,34,.35);display:flex;align-items:center;justify-content:center;color:#5c1a22" style-active="background:rgba(92,26,34,.1)">
+        <svg sc-camel-view-box="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 01-8 0V4z"></path><path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3"></path></svg>
+      </button>
+      <div style="flex:1;min-width:0;display:flex;align-items:baseline;justify-content:center;gap:12px">
+        <div style="font-family:'EB Garamond',serif;font-size:9.5px;letter-spacing:.18em;color:#5c1a22;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ kicker }}</div>
+        <div style="flex:none;width:9px;height:13px;border:1px solid rgba(42,35,32,.35);animation:rotHint 3s ease-in-out infinite"></div>
+        <div style="flex:none;font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.1em;color:rgba(42,35,32,.5)">{{ corner }}</div>
+      </div>
+      <button sc-camel-on-click="{{ goGrace }}" style="flex:none;width:30px;height:30px;border-radius:50%;border:1px solid rgba(156,124,60,.75);background:radial-gradient(circle at 36% 30%,#e6cd91,#b9913f);display:flex;align-items:center;justify-content:center;filter:{{ coinFilter }}" style-active="transform:translateY(1px)">
+        <span style="font-family:'EB Garamond',serif;font-size:11px;color:#5c1a22">G</span>
+      </button>
+      <button sc-camel-on-click="{{ goGuide }}" style="flex:none;width:30px;height:30px;border:1px solid rgba(92,26,34,.35);display:flex;align-items:center;justify-content:center;font-family:'EB Garamond',serif;font-size:14px;color:#5c1a22" style-active="background:rgba(92,26,34,.1)">?</button>
+    </div>
+
+    <!-- DATA PAGE -->
+    <sc-if value="{{ isData }}" hint-placeholder-val="{{ false }}">
+    <div style="position:relative;z-index:4;flex:1;min-height:0;display:flex;gap:18px;padding:13px 20px 0">
+      <div style="flex:none;width:126px;display:flex;flex-direction:column;gap:10px">
+        <div style="position:relative;padding:5px;background:#fff;border:1px solid rgba(92,26,34,.45)">
+          <div style="width:100%;aspect-ratio:.78;background:linear-gradient(170deg,#e9e3d6,#d8d0c0);position:relative;overflow:hidden">
+            <div style="position:absolute;left:50%;top:20%;width:42%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:rgba(92,26,34,.16)"></div>
+            <div style="position:absolute;left:50%;bottom:0;width:74%;height:34%;transform:translateX(-50%);border-radius:50% 50% 0 0;background:rgba(92,26,34,.16)"></div>
+            <div style="position:absolute;inset:0;background:linear-gradient(128deg,rgba(255,255,255,.34) 0 20%,transparent 32% 68%,rgba(255,255,255,.18) 80%)"></div>
+          </div>
+          <div style="margin-top:5px;font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.16em;text-align:center;color:rgba(42,35,32,.55)">PHOTO 贴照片</div>
+        </div>
+        <div style="display:flex;gap:9px;align-items:flex-end">
+          <div style="flex:none;width:38px">
+            <div style="width:100%;aspect-ratio:.78;background:linear-gradient(170deg,#eee9de,#e2dccd);position:relative;overflow:hidden;opacity:.6">
+              <div style="position:absolute;left:50%;top:20%;width:42%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:rgba(92,26,34,.16)"></div>
+              <div style="position:absolute;left:50%;bottom:0;width:74%;height:34%;transform:translateX(-50%);border-radius:50% 50% 0 0;background:rgba(92,26,34,.16)"></div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:7.5px;line-height:1.8;letter-spacing:.1em;color:rgba(42,35,32,.45)">GHOST IMAGE<br>副像</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:11px;overflow:auto;padding-bottom:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div>
+            <div style="font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.16em;color:rgba(42,35,32,.55)">SURNAME 姓</div>
+            <input value="{{ surname }}" sc-camel-on-change="{{ setSurname }}" placeholder="ZHANG" style="width:100%;margin-top:4px;padding:3px 0;background:transparent;border:none;border-bottom:1px solid rgba(92,26,34,.3);font-family:'Courier Prime',monospace;font-size:13px;letter-spacing:.06em;color:#2a2320;outline:none">
+          </div>
+          <div>
+            <div style="font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.16em;color:rgba(42,35,32,.55)">GIVEN NAMES 名</div>
+            <input value="{{ given }}" sc-camel-on-change="{{ setGiven }}" placeholder="WEI" style="width:100%;margin-top:4px;padding:3px 0;background:transparent;border:none;border-bottom:1px solid rgba(92,26,34,.3);font-family:'Courier Prime',monospace;font-size:13px;letter-spacing:.06em;color:#2a2320;outline:none">
+          </div>
+          <div>
+            <div style="font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.16em;color:rgba(42,35,32,.55)">NICKNAME 昵称</div>
+            <input value="{{ name }}" sc-camel-on-change="{{ setName }}" placeholder="输入名字" style="width:100%;margin-top:4px;padding:3px 0;background:transparent;border:none;border-bottom:1px solid rgba(92,26,34,.3);font-size:14px;color:#2a2320;outline:none">
+          </div>
+        </div>
+
+        <div>
+          <div style="font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.16em;color:rgba(42,35,32,.55)">CLASS 身份</div>
+          <div style="margin-top:5px;display:flex;gap:8px">
+            <sc-for list="{{ identities }}" as="idt" hint-placeholder-count="3">
+              <button sc-camel-on-click="{{ idt.pick }}" style="flex:1;padding:7px 2px;background:{{ idt.bg }};border:1px solid {{ idt.bd }};color:{{ idt.fg }};font-family:'EB Garamond',serif;font-size:10px;letter-spacing:.18em;text-indent:.18em">{{ idt.en }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 18px">
+          <sc-for list="{{ fields }}" as="f" hint-placeholder-count="8">
+            <div style="border-bottom:1px solid rgba(92,26,34,.22);padding-bottom:5px">
+              <div style="font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.14em;color:rgba(42,35,32,.55)">{{ f.label }}</div>
+              <div style="margin-top:4px;font-family:'Courier Prime',monospace;font-weight:700;font-size:11.5px;letter-spacing:.04em;color:{{ f.fg }}">{{ f.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div>
+          <div style="font-family:'EB Garamond',serif;font-size:8px;letter-spacing:.14em;color:rgba(42,35,32,.55)">SIGNATURE 持照人签名</div>
+          <div style="margin-top:14px;height:1px;background:rgba(42,35,32,.35)"></div>
+        </div>
+      </div>
+    </div>
+    <sc-if value="{{ mrzOn }}" hint-placeholder-val="{{ true }}">
+      <div style="position:relative;z-index:4;flex:none;margin-top:10px;padding:9px 20px 11px;background:#eae3d2;border-top:1px solid rgba(92,26,34,.4);overflow:hidden">
+        <div style="font-family:'Courier Prime',monospace;font-weight:700;font-size:11px;line-height:1.7;letter-spacing:.1em;color:#2a2320;white-space:nowrap">{{ mrz1 }}</div>
+        <div style="font-family:'Courier Prime',monospace;font-weight:700;font-size:11px;line-height:1.7;letter-spacing:.1em;color:#2a2320;white-space:nowrap">{{ mrz2 }}</div>
+      </div>
+    </sc-if>
+    </sc-if>
+
+    <!-- VISA PAGE (visa sticker) -->
+    <sc-if value="{{ isVisa }}" hint-placeholder-val="{{ false }}">
+    <div sc-camel-on-click="{{ stampTap }}" style="position:relative;z-index:4;flex:1;min-height:0;display:flex;flex-direction:column;padding:11px 18px 0;cursor:pointer">
+      <div style="flex:none;position:relative;height:44px;overflow:hidden;background:#ece5d6;border:1px solid rgba(92,26,34,.35)">
+        <div style="position:absolute;inset:0;left:38%;background:#5c1a22;clip-path:polygon(14% 0,100% 0,100% 100%,0 100%)"></div>
+        <div style="position:absolute;left:0;top:0;bottom:0;width:44%;background:linear-gradient(120deg,rgba(44,74,90,.22),rgba(92,26,34,.12))"></div>
+        <div style="position:relative;height:100%;display:flex;align-items:center;justify-content:space-between;padding:0 16px">
+          <div style="font-family:'EB Garamond',serif;font-size:19px;letter-spacing:.34em;color:#5c1a22;text-indent:.34em">VISA</div>
+          <div style="text-align:right">
+            <div style="font-family:'EB Garamond',serif;font-size:12px;letter-spacing:.24em;color:#e6cd91;text-indent:.24em">MINI LIFE GAME</div>
+            <div style="margin-top:2px;font-size:9.5px;letter-spacing:.18em;color:rgba(230,205,145,.78)">迷你人生游戏</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex;gap:16px;padding:11px 2px 0;overflow:auto">
+        <div style="flex:1;min-width:0;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-content:start">
+          <sc-for list="{{ visaFields }}" as="v" hint-placeholder-count="10">
+            <div style="border-bottom:1px solid rgba(92,26,34,.18);padding-bottom:3px">
+              <div style="font-family:'EB Garamond',serif;font-size:7.5px;letter-spacing:.14em;color:rgba(42,35,32,.55)">{{ v.label }}</div>
+              <div style="margin-top:3px;font-family:'Courier Prime',monospace;font-weight:700;font-size:11px;letter-spacing:.03em;color:{{ v.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ v.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex:none;width:40%;display:flex;flex-direction:column;gap:9px">
+          <div>
+            <div style="font-family:'EB Garamond',serif;font-size:7.5px;letter-spacing:.14em;color:rgba(42,35,32,.55)">STATION 关卡</div>
+            <div style="margin-top:3px;font-size:19px;font-weight:700;line-height:1.25;color:#5c1a22">{{ visaCn }}</div>
+            <div style="margin-top:3px;font-family:'EB Garamond',serif;font-size:9px;letter-spacing:.16em;color:rgba(42,35,32,.6)">{{ visaEn }}</div>
+          </div>
+          <div>
+            <div style="font-family:'EB Garamond',serif;font-size:7.5px;letter-spacing:.14em;color:rgba(42,35,32,.55)">ANNOTATION 备注</div>
+            <div style="margin-top:4px;font-size:11.5px;font-weight:600;line-height:1.75;color:#2a2320;text-wrap:pretty">{{ visaAnnotation }}</div>
+          </div>
+        </div>
+      </div>
+
+      <sc-if value="{{ visaStamped }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;top:{{ stampTop }};left:{{ stampLeft }};transform:rotate({{ stampRot }});pointer-events:none">
+          <div style="width:98px;height:98px;border-radius:50%;border:2.5px solid {{ stampColor }};display:flex;align-items:center;justify-content:center;color:{{ stampColor }};opacity:.9;animation:stampIn .45s ease both">
+            <div style="width:82px;height:82px;border-radius:50%;border:1px solid {{ stampColor }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+              <div style="font-family:'EB Garamond',serif;font-size:7.5px;letter-spacing:.2em;text-indent:.2em">GCGCM {{ stampNo }}</div>
+              <div style="font-family:'Courier Prime',monospace;font-size:23px;font-weight:700;line-height:1">+{{ visaScore }}</div>
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:.08em">{{ stampLabel }}</div>
+              <div style="font-family:'Courier Prime',monospace;font-size:6.5px;letter-spacing:.06em">{{ stampDate }}</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="position:relative;z-index:4;flex:none;padding:6px 18px 9px;background:#eae3d2;border-top:1px solid rgba(92,26,34,.4);overflow:hidden">
+      <div style="font-family:'Courier Prime',monospace;font-weight:700;font-size:10.5px;line-height:1.65;letter-spacing:.1em;color:#2a2320;white-space:nowrap">{{ mrz1 }}</div>
+      <div style="font-family:'Courier Prime',monospace;font-weight:700;font-size:10.5px;line-height:1.65;letter-spacing:.1em;color:#2a2320;white-space:nowrap">{{ mrz2 }}</div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ askingToken }}" hint-placeholder-val="{{ false }}">
+  <div sc-camel-on-click="{{ closeModal }}" style="position:absolute;inset:0;z-index:41;background:rgba(20,17,16,.8);display:flex;align-items:center;justify-content:center;padding:22px;animation:fadeIn .18s ease both">
+    <div sc-camel-on-click="{{ stop }}" style="width:100%;max-width:330px;background:#f3ede0;border:1px solid rgba(198,164,95,.7);padding:24px 20px 18px;text-align:center">
+      <div style="font-family:'EB Garamond',serif;font-size:9.5px;letter-spacing:.24em;color:#9c7c3c">HELP TOKEN</div>
+      <div style="margin-top:12px;font-size:18px;font-weight:700;color:#5c1a22">递出 Help Token？</div>
+      <div style="margin-top:11px;font-size:13px;font-weight:600;line-height:1.95;color:rgba(42,35,32,.75);text-wrap:pretty">全场只有一枚。递出后工作人员提供 Hint / Helper 或 Second Chance（二选一），并换取一张恩典卡。使用后不可再用。</div>
+      <div style="margin-top:18px;display:flex;flex-direction:column;gap:9px">
+        <button sc-camel-on-click="{{ useToken }}" style="padding:14px;background:#5c1a22;color:#e6cd91;font-family:'EB Garamond',serif;font-size:12px;letter-spacing:.24em;text-indent:.24em" style-active="opacity:.85">YES 确认使用</button>
+        <button sc-camel-on-click="{{ closeModal }}" style="padding:11px;font-family:'EB Garamond',serif;font-size:11px;letter-spacing:.16em;color:rgba(42,35,32,.55)">NOT YET 再撑一会儿</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ qrBig }}" hint-placeholder-val="{{ false }}">
+  <div sc-camel-on-click="{{ closeModal }}" style="position:absolute;inset:0;z-index:41;background:rgba(20,17,16,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;animation:fadeIn .18s ease both">
+    <div style="padding:14px;background:#fff">
+      <sc-if value="{{ qrReady }}" hint-placeholder-val="{{ false }}">
+        <div style="width:200px;height:200px">{{ qrBigImg }}</div>
+      </sc-if>
+    </div>
+    <div style="font-family:'Courier Prime',monospace;font-size:13px;letter-spacing:.18em;color:#e6cd91">{{ passportNo }}</div>
+    <div style="font-size:12.5px;color:rgba(240,226,196,.6)">出示给工作人员扫描记分</div>
+  </div>
+  </sc-if>
+
+</div>
+</div>

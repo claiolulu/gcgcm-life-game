@@ -1,0 +1,21 @@
+# 必须排除 node_modules：否则 COPY 会把宿主机（macOS）的原生二进制
+# 盖到容器里刚装好的 Linux 版本上，构建会挂。
+node_modules
+**/node_modules
+
+# 构建产物在镜像里重新生成
+dist
+**/dist
+
+# 运行时数据绝不能进镜像
+server/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+
+.git
+.env
+.DS_Store
+**/.DS_Store
+README.md
+*.log

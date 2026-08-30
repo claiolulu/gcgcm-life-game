@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.DS_Store
+**/.DS_Store
+
+# 运行时数据与备份（含选手信息，绝对不能进仓库）
+server/data/
+*.db
+*.db-wal
+*.db-shm
+
+# 解包 Claude Design 导出包时的临时产物：
+# 只是为了在本地对照原设计跑一遍，7MB 全是重复的字体和 React。
+# 真正需要的字体已经在 web/public/fonts/，转换器和源文件也都留着。
+design/preview/

@@ -1,0 +1,16 @@
+{
+  "name": "mini-life-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mini Life Game 人生护照系统 · GCGCM 迎新互动游戏",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix web install",
+    "icons": "node web/scripts/make-icons.mjs",
+    "build": "npm run icons && npm --prefix web run build",
+    "start": "npm --prefix server start",
+    "dev:server": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "test": "node server/test-flow.mjs && node server/test-concurrency.mjs && node server/test-readonly.mjs && node server/seed.mjs --force",
+    "seed": "node server/seed.mjs"
+  }
+}
