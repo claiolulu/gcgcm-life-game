@@ -474,9 +474,6 @@ export default function PassportBookView({ v }) {
                             {v.photo}
                             <div style={{position: "absolute", inset: "0", background: "linear-gradient(128deg,rgba(255,255,255,.34) 0 20%,transparent 32% 68%,rgba(255,255,255,.18) 80%)"}} />
                           </div>
-                          <div style={{marginTop: "5px", fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", textAlign: "center", color: "rgba(42,35,32,.55)"}}>
-                            PHOTO 贴照片
-                          </div>
                         </div>
                       </div>
                       <div style={{flex: "1", minWidth: "0", display: "flex", flexDirection: "column", gap: "11px", overflow: "auto", paddingBottom: "8px"}}>

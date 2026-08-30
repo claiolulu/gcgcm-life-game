@@ -158,18 +158,19 @@ def emit(n, scope, ind=0):
 # ------------------------------------------------------------------
 # 生成后的定制补丁。写在这里而不是手改产物，设计改版重跑也不会丢。
 # ------------------------------------------------------------------
-def remove_block_containing(jsx, needle, open_marker):
+def remove_block_containing(jsx, needle, open_marker=None):
     """
-    删掉「包含 needle、且以 open_marker 那一行开头」的整个 <div> 区块。
+    删掉包含 needle 的那个 <div> 区块。
 
-    先定位 needle，再向上找最近的 open_marker，然后按 <div/</div> 计数
-    找到配对的闭合标签。比写死一大段字符串耐改 —— 设计稿里这块的文案或
-    内层样式变了，删除依然成立。
+    open_marker 给了就向上找它那一行做起点；不给则取 needle 前面最近的
+    <div —— 对「只包一行文字」的叶子节点足够，也不用把一长串内联样式
+    抄进来。定位到起点后按 <div/</div> 计数找配对的闭合标签。
+    比写死一大段字符串耐改：设计稿里这块的文案或样式改了，删除依然成立。
     """
     i = jsx.find(needle)
     if i == -1:
         return jsx, False
-    start = jsx.rfind(open_marker, 0, i)
+    start = jsx.rfind(open_marker, 0, i) if open_marker else jsx.rfind('<div', 0, i)
     if start == -1:
         return jsx, False
     line_start = jsx.rfind('\n', 0, start) + 1
@@ -231,6 +232,13 @@ def apply_patches(jsx):
             n += 1
             break
     assert placed, "没找到证件照占位"
+
+    # 3) 去掉证件照下方的「PHOTO 贴照片」说明。
+    #    设计稿里那是给空占位框的指示语，现在框里已经是本人头像了，
+    #    再写「贴照片」反而像还没弄好。
+    jsx, hit = remove_block_containing(jsx, 'PHOTO 贴照片')
+    assert hit, "没找到「PHOTO 贴照片」说明"
+    n += 1
 
     # 2) 结语页：分享按钮旁边补一个「查看排名」，方便直接跳排行榜
     share_btn_end = '{v.shareLabel}\n'
