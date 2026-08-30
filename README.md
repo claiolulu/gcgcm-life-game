@@ -22,7 +22,9 @@ npm run build
 npm start
 ```
 
-打开 http://localhost:3000 。默认 PIN：工作人员 `2026`，管理员 `stm2026`（**正式活动前务必改掉**）。
+打开 http://localhost:3000 。本地开发的默认 PIN：工作人员 `2026`，管理员 `stm2026`。
+
+**这两个默认值只在开发环境生效。** 生产环境（`NODE_ENV=production`，Dockerfile 里已设）如果没有提供 `STAFF_PIN` / `ADMIN_PIN`，会随机生成一组并打印到启动日志里（`fly logs` 能看到）——因为这个仓库是公开的，写死默认值等于把总控台的钥匙贴在门上。正式部署请直接 `fly secrets set` 指定。
 
 开发模式下前后端分开跑（前端热更新）：
 

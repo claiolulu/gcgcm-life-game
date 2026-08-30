@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -118,8 +119,26 @@ export function seedSettings() {
   }
   if (!getSettingStmt.get('_secret')) setSetting('_secret', randomToken(32));
   if (!getSettingStmt.get('_epoch')) setSetting('_epoch', 1);
-  if (!getSettingStmt.get('_staffPin')) setSetting('_staffPin', process.env.STAFF_PIN || '2026');
-  if (!getSettingStmt.get('_adminPin')) setSetting('_adminPin', process.env.ADMIN_PIN || 'stm2026');
+
+  // 兜底 PIN。开发环境用固定值，测试脚本和 npm run seed 依赖它；
+  // 生产环境（NODE_ENV=production）绝不能有写死的默认值 —— 这个仓库是公开的，
+  // 写死等于把总控台的钥匙贴在门上。没设环境变量就随机生成并打到日志里，
+  // 部署方用 `fly logs` 能看到，正确做法仍然是 `fly secrets set`。
+  const prod = process.env.NODE_ENV === 'production';
+  if (!getSettingStmt.get('_staffPin')) {
+    setSetting('_staffPin', process.env.STAFF_PIN || (prod ? randomDigits(4) : '2026'));
+  }
+  if (!getSettingStmt.get('_adminPin')) {
+    setSetting('_adminPin', process.env.ADMIN_PIN || (prod ? randomDigits(8) : 'stm2026'));
+  }
+}
+
+/** 生产环境兜底 PIN 用的随机数字串 */
+function randomDigits(n) {
+  let out = '';
+  const bytes = crypto.randomBytes(n);
+  for (let i = 0; i < n; i++) out += String(bytes[i] % 10);
+  return out;
 }
 
 export const secret = () => getSetting('_secret');

@@ -519,8 +519,15 @@ server.listen(PORT, () => {
   console.log(`\n  🎲 Mini Life Game 人生护照系统`);
   console.log(`  → http://localhost:${PORT}`);
   console.log(`  → 状态：${s.gameState}｜已报名 ${stmts.countPlayers.get().n} 人`);
-  if (staffPin() === '2026' || adminPin() === 'stm2026') {
-    console.log(`  ⚠️  正在使用默认 PIN，正式活动前请设置 STAFF_PIN / ADMIN_PIN 环境变量\n`);
+  const usingEnv = !!(process.env.STAFF_PIN && process.env.ADMIN_PIN);
+  if (process.env.NODE_ENV === 'production' && !usingEnv) {
+    // 生产环境没设 secret：PIN 是随机生成的，只能从这里看到
+    console.log(`  ⚠️  没有设置 STAFF_PIN / ADMIN_PIN，已随机生成：`);
+    console.log(`      工作人员端 PIN = ${staffPin()}`);
+    console.log(`      管理员端  PIN = ${adminPin()}`);
+    console.log(`      建议改成自己好记的：fly secrets set STAFF_PIN=… ADMIN_PIN=…\n`);
+  } else if (staffPin() === '2026' || adminPin() === 'stm2026') {
+    console.log(`  ⚠️  正在使用开发用默认 PIN，正式部署请设置 STAFF_PIN / ADMIN_PIN\n`);
   } else {
     console.log('');
   }
