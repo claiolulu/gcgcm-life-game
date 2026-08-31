@@ -188,20 +188,11 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   // 而且会让人提前扎堆去自己看到的第一关。
   const routed = Array.isArray(me?.route) && me.route.length > 0;
   const rawStation = kind === 'visa' ? stations[cur.i] : null;
-  // 留白要把所有会泄底的字段都盖掉：关卡名、规则、类型、同工、地标。
-  // 只保留 id（盖章查询要用）和 landmarkKey（水印是装饰，留着页面才不空）。
-  const station = rawStation && !routed
-    ? {
-        id: rawStation.id,
-        landmarkKey: rawStation.landmarkKey,
-        name: '待公布',
-        en: 'to be assigned',
-        rule: `开场后这里会显示你的第 ${cur.i + 1} 站。顺序由后台统一排，把人摊开，省得都挤在同一关。`,
-        tag: '——',
-        staff: '——',
-        landmark: '',
-        blank: true,
-      }
+  // 关卡顺序公布之前，签证页整页不渲染（见视图里的 v.visaBlank），
+  // 只剩水印。留 landmarkKey 是因为水印挂在页面容器上、不在正文里。
+  const visaBlank = kind === 'visa' && !routed;
+  const station = visaBlank
+    ? { id: rawStation?.id, landmarkKey: rawStation?.landmarkKey }
     : rawStation;
   const visaScore = station ? done[station.id]?.points ?? null : null;
   const landscape = kind === 'data' || kind === 'visa';
@@ -277,8 +268,12 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 页脚不再印地标名称，水印本身已经足够表达
     watermarkName: '',
 
-    kicker: kickers[kind] || '',
-    corner: corners[kind] || '',
+    // 留空的签证页连页眉中间的抬头也不写 —— 那是这一页的标题，
+    // 页面既然空着就不该有标题；页眉其余部分（队伍、状态、分数）是
+    // 全书通用的导航，留着
+    kicker: visaBlank ? '' : (kickers[kind] || ''),
+    corner: visaBlank ? '' : (corners[kind] || ''),
+    visaBlank,
     pageNo: ui.overlay ? '——' : String(ui.page).padStart(2, '0'),
     label: ui.overlay === 'board' ? '排行 LEADERBOARD'
          : ui.overlay === 'guide' ? '玩法 HOW TO PLAY' : cur.label,

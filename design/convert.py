@@ -348,8 +348,8 @@ def apply_patches(jsx):
             # 绿 LIVE / 黄 RECONNECTING / 红 OFFLINE。
             # 原来是底部一条浮动药丸，占着位置又要人低头去看
             + indent + '<div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", '
-            'gap: "4px", whiteSpace: "nowrap", color: v.syncHex}}>\n'
-            + indent + '  <span style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + ss + '", letterSpacing: ".1em"}}>\n'
+            'gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>\n'
+            + indent + '  <span style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + ss + '", fontWeight: 700, letterSpacing: ".1em"}}>\n'
             + indent + '    {v.syncLabel}\n'
             + indent + '  </span>\n'
             + indent + '</div>\n'
@@ -391,6 +391,19 @@ def apply_patches(jsx):
     jsx = jsx.replace('gap: "12px", padding: "12px 16px 8px"', 'gap: "7px", padding: "12px 12px 8px"')
     jsx = jsx.replace('gap: "12px", padding: "9px 16px 7px"', 'gap: "7px", padding: "9px 12px 7px"')
     assert jsx != before, "没找到页眉容器"
+    n += 1
+
+    # 关卡顺序公布之前，签证页整页留空，只剩水印。
+    #
+    # 之前只是把关卡名换成「待公布」，但抬头、控制号、姓名、类型那一整套
+    # 还在，看着像「这一关的信息加载失败了」。真护照没盖章的签证页本来
+    # 就是空白的，空着反而对。
+    #
+    # 水印和页眉都在这一块之外，不受影响；翻页也照常 —— pageTap 挂在
+    # 更外层的页面容器上。
+    before = jsx
+    jsx = jsx.replace('{v.isVisa ? (\n', '{v.isVisa && !v.visaBlank ? (\n', 1)
+    assert jsx != before, "没找到签证页区块"
     n += 1
 
     # 5) 封面：去掉「OPEN 翻开」按钮，改成整页可点（见 bookVals 的 pageTap）。

@@ -78,8 +78,8 @@ export default function PassportBookView({ v }) {
                             <span style={{fontSize: "11.5px", opacity: .7}}>🪪 待分配</span>
                           )}
                         </button>
-                        <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", color: v.syncHex}}>
-                          <span style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".1em"}}>
+                        <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>
+                          <span style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", fontWeight: 700, letterSpacing: ".1em"}}>
                             {v.syncLabel}
                           </span>
                         </div>
@@ -461,8 +461,8 @@ export default function PassportBookView({ v }) {
                       <span style={{fontSize: "10px", opacity: .7}}>🪪 待分配</span>
                     )}
                   </button>
-                  <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", color: v.syncHex}}>
-                    <span style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", letterSpacing: ".1em"}}>
+                  <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>
+                    <span style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", fontWeight: 700, letterSpacing: ".1em"}}>
                       {v.syncLabel}
                     </span>
                   </div>
@@ -574,7 +574,7 @@ export default function PassportBookView({ v }) {
                     ) : null}
                   </>
                 ) : null}
-                {v.isVisa ? (
+                {v.isVisa && !v.visaBlank ? (
                   <>
                     <div onClick={v.stampTap} style={{position: "relative", zIndex: "4", flex: "1", minHeight: "0", display: "flex", flexDirection: "column", padding: "11px 18px 0", cursor: "pointer"}}>
                       <div style={{flex: "none", position: "relative", height: "44px", overflow: "hidden", background: "#ece5d6", border: "1px solid rgba(92,26,34,.35)"}}>
