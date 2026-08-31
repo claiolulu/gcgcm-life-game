@@ -632,15 +632,24 @@ function ManualAssignSheet({ open, onClose, players, picked, togglePick, onAssig
           })}
         </div>
 
-        <button className="btn btn--ghost btn--full" disabled={busy || picked.length === 0} onClick={onResetPin}>
-          🔑 重置密码为 {resetPin}
+        {/* 只在请求进行中禁用。原来没勾人时也 disabled，点了完全没反馈 ——
+            处理函数里那句「先勾选选手」的提示永远走不到。
+            人数写进按钮，为什么点不动一目了然。 */}
+        <button className="btn btn--ghost btn--full" disabled={!!busy} onClick={onResetPin}>
+          🔑 重置密码为 {resetPin}{picked.length > 0 ? `（${picked.length} 人）` : ''}
         </button>
         <div className="tiny dim" style={{ marginTop: -4 }}>
           有人忘了密码就用这个，让他用原编号找回，别重新报名 —— 重新报名会多出一个空号，分数也对不上。
         </div>
-        <button className="btn btn--ghost btn--full" disabled={busy || picked.length === 0} onClick={onUnassign}>
-          退回未分配
+        <button className="btn btn--ghost btn--full" disabled={!!busy} onClick={onUnassign}>
+          退回未分配{picked.length > 0 ? `（${picked.length} 人）` : ''}
         </button>
+        {picked.length === 0 && (
+          <div className="tiny dim" style={{ marginTop: -4 }}>
+            上面这两个都要先勾人。想退回已经分好队的人，先点搜索框右边的
+            「看全部」—— 默认只列出还没分配的。
+          </div>
+        )}
         <button className="btn btn--full" onClick={onClose}>完成</button>
       </div>
     </Sheet>
