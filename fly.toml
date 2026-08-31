@@ -1,51 +1,42 @@
-# Fly.io 部署配置
+# fly.toml app configuration file generated for gcgcm-life-game on 2026-08-31T15:47:11Z
 #
-# 首次部署（按顺序）：
-#   fly auth login
-#   fly apps create gcgcm-life-game
-#   fly volumes create mlg_data --size 1 --region lhr --yes   # lhr = 伦敦，离格拉斯哥最近
-#   fly deploy
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# 正式活动前务必改掉默认 PIN：
-#   fly secrets set STAFF_PIN=你们的PIN ADMIN_PIN=只有负责人知道的PIN
-#   （set 之后会自动重启，PIN 存在数据库里，改完要重置一次或删库才生效 ——
-#     见 README「换掉默认 PIN」一节）
 
-app = "gcgcm-life-game"
-primary_region = "lhr"
+app = 'gcgcm-life-game'
+primary_region = 'ams'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  PORT = "3000"
-  MLG_DATA_DIR = "/data"
+  MLG_DATA_DIR = '/data'
+  PORT = '3000'
 
-# SQLite 必须挂持久卷，否则每次重启数据全没
-[mounts]
-  source = "mlg_data"
-  destination = "/data"
+[[mounts]]
+  source = 'mlg_data'
+  destination = '/data'
 
 [http_service]
-  internal_port = 3000
-  force_https = true          # 摄像头和 Service Worker 都要求安全上下文
-  auto_stop_machines = false  # 活动当天绝对不能休眠
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
 
   [http_service.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 200
     soft_limit = 150
 
-# WebSocket（socket.io）需要粘性到同一台机器；单机部署最省心
-[[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+[checks]
+  [checks.health]
+    port = 3000
+    type = 'http'
+    interval = '30s'
+    timeout = '5s'
+    path = '/healthz'
 
-[checks.health]
-  type = "http"
-  port = 3000
-  path = "/healthz"
-  interval = "30s"
-  timeout = "5s"
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
