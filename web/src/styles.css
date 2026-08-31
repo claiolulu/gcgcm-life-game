@@ -704,34 +704,34 @@ html.book-locked body {
 /* ---------------------------------------------------------------
    护照翻页
 
-   护照是左侧装订的：向后翻＝抓住右缘往左掀，绕书脊（左边）转；
-   向前翻是镜像。
+   真正的翻页要同时有两层：掀起来的那一页底下，露出的必须是下一页本身，
+   不是空的内封。所以翻页瞬间把当前页克隆一份成静态 DOM（.book-ghost），
+   React 那一层立刻换成新页：
 
-   屏幕上同时只有一页，所以拆成两段：旧页转出去 → 换内容 → 新页从
-   底下升上来。转到 96° 时页面已经侧对着观众看不见了，内容正好在
-   那一瞬间换掉。
+     向后翻  克隆页盖在上面转走，底下静止的就是新页
+     向前翻  克隆页留在底下静止，React 那层从 96° 转回来盖上去
 
-   转轴方向：向后翻绕左缘（书脊）正向转，页面带着透视往里倒、右侧露出
-   内封的暗红；新页从反向的 -96° 升上来，像是压在下面那一页翻上来。
-   向前翻整个镜像，轴换到右缘。
+   两个方向共用同一段关键帧，向前翻只是 animation-direction: reverse ——
+   动作本来就该是互为倒放的。
 
-   只动 transform 和 opacity —— 这两个能交给合成器，不触发重排重绘。
-   本来想用 filter: brightness() 做受光变化，但那要对整屏图层逐帧
-   跑一遍着色器，现场那些旧安卓机吃不消。
+   转轴固定在左缘：书脊不会动，正反向都绕它转。
+
+   只动 transform，交给合成器。本来想用 filter: brightness() 做受光变化，
+   但那要对整屏图层逐帧跑着色器，现场那些旧安卓机吃不消。
    --------------------------------------------------------------- */
-@keyframes bookFlipOutFwd {
-  from { transform: rotateY(0deg);   opacity: 1; }
-  to   { transform: rotateY(96deg);  opacity: .55; }
+.book-flip {
+  transform-origin: left center;   /* 书脊 */
+  backface-visibility: hidden;     /* 转过 90° 就别露出背面的镜像内容 */
+  will-change: transform;
 }
-@keyframes bookFlipInFwd {
-  from { transform: rotateY(-96deg); opacity: .55; }
-  to   { transform: rotateY(0deg);   opacity: 1; }
+
+/* 克隆出来的静态副本：不接受点击，边缘加一道阴影，压出纸张的厚度 */
+.book-ghost {
+  pointer-events: none;
+  box-shadow: 0 0 34px rgba(0, 0, 0, .5);
 }
-@keyframes bookFlipOutBack {
-  from { transform: rotateY(0deg);   opacity: 1; }
-  to   { transform: rotateY(-96deg); opacity: .55; }
-}
-@keyframes bookFlipInBack {
-  from { transform: rotateY(96deg);  opacity: .55; }
-  to   { transform: rotateY(0deg);   opacity: 1; }
+
+@keyframes bookPeel {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(96deg); }
 }

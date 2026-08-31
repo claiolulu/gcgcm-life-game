@@ -245,12 +245,14 @@ def apply_patches(jsx):
     #    必须单独包一层：横版页（资料页、关卡页）在竖屏下自身已经
     #    rotate(90deg)，把 rotateY 加到同一个元素上会和它复合，
     #    转出来的方向是歪的。
+    #    翻页时 PassportBook 会克隆这一层做静态副本（见 .book-ghost），
+    #    class 名是它找这一层的依据，别改。
     open_anchor = '          {v.isPortrait ? (\n'
     assert open_anchor in jsx, "没找到竖版页起点"
     jsx = jsx.replace(
         open_anchor,
-        '          <div style={{position: "absolute", inset: "0", transformOrigin: v.flipOrigin, '
-        'animation: v.pageAnim, backfaceVisibility: "hidden", willChange: "transform"}}>\n' + open_anchor,
+        '          <div className="book-flip" style={{position: "absolute", inset: "0", '
+        'animation: v.pageAnim}}>\n' + open_anchor,
         1)
 
     close_anchor = '          {v.askingToken ? (\n'

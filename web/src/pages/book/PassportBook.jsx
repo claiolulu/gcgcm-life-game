@@ -5,7 +5,7 @@ import Avatar from '../../components/Avatar.jsx';
 
 import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages } from './bookVals.js';
-import { FLIP_OUT_MS, FLIP_IN_MS } from './bookVals.js';
+import { FLIP_MS, FLIP_EASE } from './bookVals.js';
 import { useConfig } from '../../lib/config.js';
 import { usePlayer, refreshMe } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
@@ -63,21 +63,46 @@ export default function PassportBook() {
       && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
   );
 
-  useEffect(() => () => flipTimers.current.forEach(clearTimeout), []);
+  useEffect(() => () => {
+    flipTimers.current.forEach(clearTimeout);
+    document.querySelectorAll('.book-ghost').forEach((g) => g.remove());
+  }, []);
 
   /**
    * 记「正在前往哪一页」，而不是「现在在哪一页」。
    *
-   * 翻页要 400ms，期间 page 还是旧值。如果按 page 算下一站，
-   * 快速双击的第二下会算出和当前目标相同的页，等于白点。
-   * 存在 ref 里而不是 state：move/goto 只是读它算方向，
-   * 没必要因此每翻一页就换掉函数标识，那会让下游的 useMemo 全部重算。
+   * 翻页要 420ms，期间 page 已经是新值但动画还没走完。按 page 算下一站
+   * 在单层实现里会错位；存 target 最稳妥。
+   * 用 ref 不用 state：move/goto 只是读它算方向，没必要因此每翻一页
+   * 就换掉函数标识，那会让下游的 useMemo 全部重算。
    */
   const targetRef = useRef(0);
   useEffect(() => { if (!flipping.current) targetRef.current = page; }, [page]);
 
   /**
-   * 翻到某一页：旧页转出去 → 换内容 → 新页升上来。
+   * 把当前这一页克隆成一张静止的纸。
+   *
+   * 视图里没有 <canvas>（二维码是 toDataURL 出来的 <img>），所以
+   * cloneNode 拿到的就是像素一致的副本。要清掉的只有两样：
+   * data-tour 锚点（新手引导用 querySelector 找，会摸到副本上），
+   * 以及 id（同页出现重复 id）。
+   */
+  const makeGhost = (live) => {
+    const g = live.cloneNode(true);
+    g.classList.add('book-ghost');
+    g.querySelectorAll('[data-tour]').forEach((el) => el.removeAttribute('data-tour'));
+    g.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+    g.setAttribute('aria-hidden', 'true');
+    return g;
+  };
+
+  /**
+   * 翻到某一页。
+   *
+   * 两层：一层是 React 渲染的实时页，一层是克隆出来的旧页。
+   *   向后翻 —— 旧页盖在上面转走，露出底下已经换好的新页
+   *   向前翻 —— 旧页留在底下不动，实时页倒放着盖回去
+   * 两个方向共用 bookPeel 这一段关键帧。
    */
   const flipTo = useCallback((dest, dir) => {
     const to = Math.max(0, Math.min(pageCount - 1, dest));
@@ -86,7 +111,7 @@ export default function PassportBook() {
 
     if (reduceMotion.current) { targetRef.current = to; setPage(to); return; }
 
-    // 翻页途中再点：每一下都累加到目标页上，但只排一次动画 ——
+    // 翻页途中再点：每一下都累加到目标页，但只排一次动画 ——
     // 手指停下时正好落在你点到的那一页，中间不补动画。
     //
     // 另外两种做法都不行：直接忽略的话，习惯性双击会丢一次；
@@ -95,22 +120,35 @@ export default function PassportBook() {
     targetRef.current = to;
     if (flipping.current) { pending.current = { dest: to, dir }; return; }
 
+    const live = document.querySelector('.book-flip:not(.book-ghost)');
+    const stage = live?.parentElement;
+    // 结构对不上就老实换页，宁可没动画也不能卡住
+    if (!live || !stage) { setPage(to); return; }
+
+    stage.querySelectorAll('.book-ghost').forEach((g) => g.remove());
+    const ghost = makeGhost(live);
+
+    if (dir > 0) {
+      // 后面的兄弟节点盖在前面的上面，不用动 z-index ——
+      // 舞台里那两个弹层没设层级，改了反而会被压到页面底下
+      stage.appendChild(ghost);
+      ghost.style.animation = `bookPeel ${FLIP_MS}ms ${FLIP_EASE} both`;
+    } else {
+      stage.insertBefore(ghost, live);
+    }
+
     flipping.current = true;
-    setFlip({ dir, phase: 'out' });
+    setPage(to);
+    setFlip({ dir });
+
     flipTimers.current.push(setTimeout(() => {
-      setPage(to);
-      setFlip({ dir, phase: 'in' });
-    }, FLIP_OUT_MS));
-    flipTimers.current.push(setTimeout(() => {
+      ghost.remove();
       setFlip(null);
       flipping.current = false;
       const q = pending.current;
       pending.current = null;
-      if (q) {
-        targetRef.current = to;   // 先退回这一段的终点，排队的那次才算得对
-        flipTo(q.dest, q.dir);
-      }
-    }, FLIP_OUT_MS + FLIP_IN_MS));
+      if (q) { targetRef.current = to; flipTo(q.dest, q.dir); }
+    }, FLIP_MS));
   }, [pageCount]);
 
   const move = useCallback((d) => {

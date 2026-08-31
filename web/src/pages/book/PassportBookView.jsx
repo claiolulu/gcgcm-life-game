@@ -9,7 +9,7 @@ export default function PassportBookView({ v }) {
   return (
       <div style={{height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(130% 100% at 50% 0%,#26201d,#141110 70%)", fontFamily: "'Noto Serif SC','EB Garamond',serif"}}>
         <div style={{width: "100%", maxWidth: v.stageMax, height: "100dvh", position: "relative", overflow: "hidden", background: "#5c1a22", containerType: "size", perspective: "1500px"}}>
-          <div style={{position: "absolute", inset: "0", transformOrigin: v.flipOrigin, animation: v.pageAnim, backfaceVisibility: "hidden", willChange: "transform"}}>
+          <div className="book-flip" style={{position: "absolute", inset: "0", animation: v.pageAnim}}>
           {v.isPortrait ? (
             <>
               <div style={{position: "absolute", inset: "0", display: "flex", flexDirection: "column", animation: "pageIn .25s ease both"}}>

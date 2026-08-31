@@ -6,12 +6,9 @@
  * 真正的写入只发生在工作人员端。
  */
 
-/**
- * 翻页两段动画的时长。
- * 出场比入场快一点：掀起来是使劲，落下去是顺势，这样手感更像翻纸。
- */
-export const FLIP_OUT_MS = 170;
-export const FLIP_IN_MS = 230;
+/** 翻页动画时长。两个方向共用同一段关键帧，向前翻是倒放。 */
+export const FLIP_MS = 420;
+export const FLIP_EASE = 'cubic-bezier(.42,0,.35,1)';
 
 /* --------------------------- Code 39 条码 --------------------------- */
 
@@ -188,12 +185,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
   const noop = () => {};
 
-  // 翻到 96° 时页面侧对观众、已经看不见，内容正好在那一瞬间换掉
-  const flipName = ui.flip
-    ? (ui.flip.phase === 'out'
-        ? (ui.flip.dir > 0 ? 'bookFlipOutFwd' : 'bookFlipOutBack')
-        : (ui.flip.dir > 0 ? 'bookFlipInFwd' : 'bookFlipInBack'))
-    : null;
+  // 向后翻时动的是克隆出来的旧页（PassportBook 直接改它的 style），
+  // React 这一层静止不动、当作被揭开后露出的下一页。
+  // 向前翻反过来：旧页留在底下不动，这一层倒放着盖回去。
+  const backFlip = ui.flip && ui.flip.dir < 0;
 
   return {
     /* ---- 版式 ---- */
@@ -213,12 +208,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     isGuide: kind === 'guide',
     isBoard: kind === 'board',
     isClosing: kind === 'closing',
-    // 绕书脊转：向后翻掀右缘（轴在左），向前翻镜像
-    flipOrigin: ui.flip ? (ui.flip.dir > 0 ? 'left center' : 'right center') : 'center',
-    pageAnim: flipName
-      ? `${flipName} ${ui.flip.phase === 'out' ? FLIP_OUT_MS : FLIP_IN_MS}ms `
-        + `${ui.flip.phase === 'out' ? 'cubic-bezier(.4,0,.9,.45)' : 'cubic-bezier(.15,.6,.3,1)'} both`
-      : 'none',
+    pageAnim: backFlip ? `bookPeel ${FLIP_MS}ms ${FLIP_EASE} reverse both` : 'none',
 
     paper: TONES.cream,
     // 关掉设计稿那层放射状底纹，只留地标水印，页面更干净
