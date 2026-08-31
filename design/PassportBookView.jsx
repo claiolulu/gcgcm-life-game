@@ -61,14 +61,14 @@ export default function PassportBookView({ v }) {
                       <div style={{position: "absolute", inset: "0", pointerEvents: "none", opacity: v.guilloche, background: "repeating-conic-gradient(from 0deg at 22% 28%,rgba(92,26,34,.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 78% 74%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(92,26,34,.035) 0 1px,transparent 1px 6px)"}} />
                       <div style={{position: "absolute", left: "6%", right: "6%", top: "14%", bottom: "16%", pointerEvents: "none", opacity: ".13", backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
                       <div style={{position: "absolute", left: "0", top: "0", bottom: "0", width: "30px", pointerEvents: "none", zIndex: "2", background: "linear-gradient(90deg,rgba(60,40,30,.2),transparent)"}} />
-                      <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "7px", padding: "12px 12px 8px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
-                        <button onClick={v.goBoard} data-tour="board" style={{flex: "none", width: "34px", height: "34px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
+                      <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "6px", padding: "12px 10px 8px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
+                        <button onClick={v.goBoard} data-tour="board" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
                           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" stroke-linejoin="round">
                             <path d="M8 4h8v5a4 4 0 01-8 0V4z" />
                             <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                           </svg>
                         </button>
-                        <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "34px", padding: "0 5px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.5)"}}>
+                        <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "30px", padding: "0 5px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.5)"}}>
                           {v.teamBadge ? (
                             <>
                               <span style={{fontSize: "11.5px"}}>{v.teamBadge.symbol}</span>
@@ -91,20 +91,20 @@ export default function PassportBookView({ v }) {
                             {v.corner}
                           </div>
                         </div>
-                        <div style={{flex: "none", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: "#5c1a22"}}>
-                          <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "15px", fontWeight: 700}}>
+                        <div style={{flex: "none", display: "flex", alignItems: "baseline", gap: "2px", marginRight: "6px", lineHeight: 1, color: "#5c1a22"}}>
+                          <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "19px", fontWeight: 700}}>
                             {v.totalPad}
                           </div>
-                          <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".14em", opacity: .55}}>
+                          <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".08em", opacity: .5}}>
                             PTS
                           </div>
                         </div>
-                        <button onClick={v.goGrace} data-tour="grace" style={{flex: "none", width: "34px", height: "34px", borderRadius: "50%", border: "1px solid rgba(156,124,60,.75)", background: "radial-gradient(circle at 36% 30%,#e6cd91,#b9913f)", display: "flex", alignItems: "center", justifyContent: "center", filter: v.coinFilter}} style-active="transform:translateY(1px)">
+                        <button onClick={v.goGrace} data-tour="grace" style={{flex: "none", width: "30px", height: "30px", borderRadius: "50%", border: "1px solid rgba(156,124,60,.75)", background: "radial-gradient(circle at 36% 30%,#e6cd91,#b9913f)", display: "flex", alignItems: "center", justifyContent: "center", filter: v.coinFilter}} style-active="transform:translateY(1px)">
                           <span style={{fontFamily: "'EB Garamond',serif", fontSize: "12px", color: "#5c1a22"}}>
                             G
                           </span>
                         </button>
-                        <button onClick={v.goGuide} data-tour="guide" style={{flex: "none", width: "34px", height: "34px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "15px", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
+                        <button onClick={v.goGuide} data-tour="guide" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "15px", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
                           ?
                         </button>
                       </div>
@@ -444,8 +444,8 @@ export default function PassportBookView({ v }) {
                 <div style={{position: "absolute", inset: "0", pointerEvents: "none", opacity: v.guilloche, background: "repeating-conic-gradient(from 0deg at 18% 30%,rgba(92,26,34,.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 82% 70%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(92,26,34,.032) 0 1px,transparent 1px 6px)"}} />
                 <div style={{position: "absolute", right: "3%", top: "12%", width: "40%", bottom: "14%", pointerEvents: "none", opacity: ".11", backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
                 <div style={{position: "absolute", left: "0", right: "0", bottom: "0", height: "30px", pointerEvents: "none", zIndex: "2", background: "linear-gradient(0deg,rgba(60,40,30,.18),transparent)"}} />
-                <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "7px", padding: "9px 12px 7px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
-                  <button onClick={v.goBoard} data-tour="board" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
+                <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "6px", padding: "9px 10px 7px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
+                  <button onClick={v.goBoard} style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" stroke-linejoin="round">
                       <path d="M8 4h8v5a4 4 0 01-8 0V4z" />
                       <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
@@ -475,20 +475,20 @@ export default function PassportBookView({ v }) {
                       {v.corner}
                     </div>
                   </div>
-                  <div style={{flex: "none", display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1, color: "#5c1a22"}}>
-                    <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "13px", fontWeight: 700}}>
+                  <div style={{flex: "none", display: "flex", alignItems: "baseline", gap: "2px", marginRight: "6px", lineHeight: 1, color: "#5c1a22"}}>
+                    <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "16px", fontWeight: 700}}>
                       {v.totalPad}
                     </div>
-                    <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", letterSpacing: ".14em", opacity: .55}}>
+                    <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", letterSpacing: ".08em", opacity: .5}}>
                       PTS
                     </div>
                   </div>
-                  <button onClick={v.goGrace} data-tour="grace" style={{flex: "none", width: "30px", height: "30px", borderRadius: "50%", border: "1px solid rgba(156,124,60,.75)", background: "radial-gradient(circle at 36% 30%,#e6cd91,#b9913f)", display: "flex", alignItems: "center", justifyContent: "center", filter: v.coinFilter}} style-active="transform:translateY(1px)">
+                  <button onClick={v.goGrace} style={{flex: "none", width: "30px", height: "30px", borderRadius: "50%", border: "1px solid rgba(156,124,60,.75)", background: "radial-gradient(circle at 36% 30%,#e6cd91,#b9913f)", display: "flex", alignItems: "center", justifyContent: "center", filter: v.coinFilter}} style-active="transform:translateY(1px)">
                     <span style={{fontFamily: "'EB Garamond',serif", fontSize: "11px", color: "#5c1a22"}}>
                       G
                     </span>
                   </button>
-                  <button onClick={v.goGuide} data-tour="guide" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "14px", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
+                  <button onClick={v.goGuide} style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "14px", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
                     ?
                   </button>
                 </div>

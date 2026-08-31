@@ -368,15 +368,16 @@ def apply_patches(jsx):
             continue
         line_start = jsx.rfind('\n', 0, i) + 1
         indent = jsx[line_start:i]
-        fs = '15px' if size == '34px' else '13px'
-        sub = '7.5px' if size == '34px' else '7px'
+        # 分数和 PTS 排一行、字号加大，右边留出间距把它从恩典代币旁边推开
+        fs = '19px' if size == '34px' else '16px'
+        sub = '8px' if size == '34px' else '7px'
         score = (
-            indent + '<div style={{flex: "none", display: "flex", flexDirection: "column", alignItems: "center", '
-            'lineHeight: 1, color: "#5c1a22"}}>\n'
+            indent + '<div style={{flex: "none", display: "flex", alignItems: "baseline", gap: "2px", '
+            'marginRight: "6px", lineHeight: 1, color: "#5c1a22"}}>\n'
             + indent + '  <div style={{fontFamily: "\'Courier Prime\',monospace", fontSize: "' + fs + '", fontWeight: 700}}>\n'
             + indent + '    {v.totalPad}\n'
             + indent + '  </div>\n'
-            + indent + '  <div style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + sub + '", letterSpacing: ".14em", opacity: .55}}>\n'
+            + indent + '  <div style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + sub + '", letterSpacing: ".08em", opacity: .5}}>\n'
             + indent + '    PTS\n'
             + indent + '  </div>\n'
             + indent + '</div>\n'
@@ -384,13 +385,20 @@ def apply_patches(jsx):
         jsx = jsx[:line_start] + score + jsx[line_start:]
         n += 1
 
-    # 页眉现在挤了七样东西（奖杯 / 队伍 / 状态 / 页名 / 分数 / 恩典 / 帮助），
-    # 375px 的手机上中间的页名会被压成「WE…」。把元素间距收窄，
-    # 空间还给页名 —— 那是唯一会变的信息，被截断最亏。
+    # 页眉挤了七样东西（奖杯 / 队伍 / 状态 / 页名 / 分数 / 恩典 / 帮助），
+    # 375px 的手机上正好填满，中间的页名会被压成「WE…」。
+    # 把间距、内边距、图标按钮都收一收，空间还给页名 ——
+    # 那是唯一会变的信息，被截断最亏。
+    #
+    # 这一段必须放在所有按 "34px"/"30px" 匹配图标按钮的补丁之后，
+    # 否则那些锚点会失配。
     before = jsx
-    jsx = jsx.replace('gap: "12px", padding: "12px 16px 8px"', 'gap: "7px", padding: "12px 12px 8px"')
-    jsx = jsx.replace('gap: "12px", padding: "9px 16px 7px"', 'gap: "7px", padding: "9px 12px 7px"')
+    jsx = jsx.replace('gap: "12px", padding: "12px 16px 8px"', 'gap: "6px", padding: "12px 10px 8px"')
+    jsx = jsx.replace('gap: "12px", padding: "9px 16px 7px"', 'gap: "6px", padding: "9px 10px 7px"')
     assert jsx != before, "没找到页眉容器"
+    # 三个圆按钮各缩 4px。34→30 仍然点得到，换来页名 12px 的活路
+    jsx = jsx.replace('width: "34px", height: "34px"', 'width: "30px", height: "30px"')
+    jsx = jsx.replace('height: "34px", padding: "0 5px"', 'height: "30px", padding: "0 5px"')
     n += 1
 
     # 关卡顺序公布之前，签证页整页留空，只剩水印。
