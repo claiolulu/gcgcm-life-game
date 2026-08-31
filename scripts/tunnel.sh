@@ -14,6 +14,9 @@
 #
 # 用法：  ./scripts/tunnel.sh
 # 停止：  Ctrl-C（服务和隧道一起收）
+# 注意：中文注释和提示里凡是紧挨着变量的地方一律写 ${VAR} 带花括号。
+# 写成 $PORT）—— 后面跟全角括号 —— bash 会把那几个字节算进变量名，
+# set -u 下直接报 "unbound variable"，而且报错信息里是一堆乱码，很难看出来。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,7 +37,7 @@ PORT="${PORT:-3000}"
 echo "→ 构建前端…"
 (cd web && npm run build >/dev/null)
 
-echo "→ 启动服务（:$PORT）…"
+echo "→ 启动服务（:${PORT}）…"
 (cd server && MLG_DATA_DIR=./data PORT="$PORT" node src/index.js) &
 SERVER_PID=$!
 
