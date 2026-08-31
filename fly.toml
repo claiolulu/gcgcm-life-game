@@ -1,5 +1,11 @@
 # Fly.io 部署配置
 #
+# ⚠️ 不要用 `fly launch` 重新生成这个文件。它会把 internal_port 改成默认的
+#    8080，而本应用监听 3000 —— 一旦不一致，机器内部的健康检查照常通过、
+#    fly status 显示健康，但 Fly 的代理往 8080 转发会被拒，外面只看到超时。
+#    2026-08-31 就是这么被坑了一次（见 PR #1）。要改配置直接编辑本文件，
+#    然后 `fly deploy`。
+#
 # 首次部署（按顺序）：
 #   fly auth login
 #   fly apps create gcgcm-life-game
@@ -35,7 +41,9 @@ primary_region = "ams"
   # 但 Fly 的代理往 8080 转发会被拒，外面只看到超时 —— 很难查。
   internal_port = 3000
   force_https = true          # 摄像头和 Service Worker 都要求安全上下文
-  auto_stop_machines = false  # 活动当天绝对不能休眠
+  # 'off' 是 flyctl 现在生成的写法，比布尔值 false 更保险。
+  # 活动当天绝对不能休眠。
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
 
