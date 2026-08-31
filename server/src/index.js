@@ -18,6 +18,7 @@ import {
 import {
   playerState, roster, leaderboard, rankOf, applyOp, drawIdentities,
   assignTeam, clearIdentities,
+  assignRoutes, assignRouteFor, syncTeamRoutes, stationLoad,
 } from './game.js';
 import {
   formatPlayerId, canonCode, extractCode, isValidPin, randomPin, uid, randomToken,
@@ -172,6 +173,10 @@ app.post('/api/register', (req, res) => {
   }
   if (!player) return res.status(500).json({ error: '编号分配失败，请重试' });
 
+  // 已经开赛还在报名（同工手动开了通道），立刻按当前各关的排队情况
+  // 给他排一条路线，从最空的那一关切入。赛前不排 —— 等宣布开始时统一排。
+  if (settings.gameState !== 'lobby') assignRouteFor(player.id);
+
   broadcast('register');
 
   const row = stmts.playerById.get(player.id);
@@ -314,6 +319,8 @@ app.post('/api/staff/sync', staffAuth('staff'), (req, res) => {
     full: since <= 0,
     epoch: serverEpoch,
     settings,
+    // 各关忙闲：搭现有响应的顺风车，不额外发请求。八个数，可以忽略不计
+    load: stationLoad(),
     serverTs: Date.now(),
   });
 });
@@ -342,6 +349,9 @@ app.post('/api/admin/draw', staffAuth('admin'), (req, res) => {
   // mode='fill' 只补分配还没有身份的人（陆续有人报名时用）；'all' 全部重新洗牌
   const mode = req.body?.mode === 'all' ? 'all' : 'fill';
   const result = drawIdentities({ ...(req.body?.ratios || {}), mode });
+  // 已经开赛时才需要处理：编队变了，同队的人必须走同一条路线，
+  // 否则 Duo/Trio 会被指向不同的关卡。只修不一致的队，不动其他人。
+  if (getSettings().gameState === 'running') syncTeamRoutes();
   broadcast('draw');
   // 把更新后的花名册一起带回去，管理端就不用再发一次同步请求了
   res.json({ ...result, players: roster(0), epoch: epoch(), serverTs: Date.now() });
@@ -356,6 +366,7 @@ app.post('/api/admin/team', staffAuth('admin'), (req, res) => {
     startStation: req.body?.startStation || null,
   });
   if (!result.ok) return res.status(400).json({ error: result.message });
+    if (getSettings().gameState === 'running') syncTeamRoutes();
   broadcast('team');
   res.json({ ...result, players: roster(0), epoch: epoch(), serverTs: Date.now() });
 });
@@ -394,6 +405,7 @@ app.post('/api/admin/unassign', staffAuth('admin'), (req, res) => {
 
 app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {
   const patch = req.body || {};
+  const before = getSettings();
   const allowed = [
     'gameState', 'scoreTiers', 'maxStationScore', 'lifeEventThresholds',
     'helpTokens', 'registrationOpen', 'leaderboardPublic', 'showFullNames',
@@ -405,6 +417,17 @@ app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {
   // 不指望现场有人记得多点一下那个开关。
   if (patch.gameState && patch.gameState !== 'lobby') {
     setSetting('registrationOpen', false);
+  }
+
+  // 宣布开始的那一刻才排关卡顺序 —— 排早了后面还有人报名，人数一变
+  // 分配就不均了。赛前签证页是空的，从这里开始才按各人的顺序显示。
+  if (patch.gameState === 'running' && before.gameState !== 'running') {
+    // onlyMissing 默认为真：第一次开赛时人人都没有路线，等于全场排一遍；
+    // 中途切回「入场」放人进来再切回来时，只补新人，不动已经在跑的人。
+    const r = assignRoutes();
+    if (r.groups > 0) {
+      console.log(`[route] ${r.mode === 'bulk' ? '开赛' : '补发'}：为 ${r.groups} 组 / ${r.players} 人排定关卡顺序`);
+    }
   }
   broadcast('settings');
   res.json({ settings: getSettings() });

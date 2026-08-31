@@ -17,6 +17,7 @@ import { onTick } from './realtime.js';
 const listeners = new Set();
 
 const state = {
+  load: [],            // 各关忙闲（waiting / done），由 /api/staff/sync 带回
   session: getStaffSession(),
   players: [],
   outbox: [],
@@ -283,6 +284,8 @@ export async function flush({ full = false } = {}) {
       } else {
         mergeRoster(res.players || [], res.full);
       }
+      // 各关忙闲，总控台用来看哪里堵了。搭同步的顺风车，没有额外请求
+      if (Array.isArray(res.load)) state.load = res.load;
       state.lastSync = res.serverTs;
       state.lastSyncedAt = Date.now();
       state.online = true;

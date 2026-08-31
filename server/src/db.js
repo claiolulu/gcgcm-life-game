@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS players (
   team_color    TEXT,
   team_symbol   TEXT,
   start_station TEXT,
+  -- 关卡访问顺序：8 个 station id 的 JSON 数组。开赛时由后台按负载排出来，
+  -- 空表示还没排（赛前签证页留白）。见 game.js 的 assignRoutes()
+  route         TEXT NOT NULL DEFAULT '',
   tokens_total  INTEGER NOT NULL DEFAULT 1,
   modifiers     TEXT NOT NULL DEFAULT '[]',
   notes         TEXT NOT NULL DEFAULT '',
@@ -87,7 +90,7 @@ CREATE TABLE IF NOT EXISTS awards (
     console.log('[db] 已为 players 表添加 pin 列');
   }
   // 老库没有姓/名两列。空字符串表示报名时没填，护照上按 name 猜。
-  for (const col of ['surname', 'given']) {
+  for (const col of ['surname', 'given', 'route']) {
     if (!cols.includes(col)) {
       db.exec(`ALTER TABLE players ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
       console.log(`[db] 已为 players 表添加 ${col} 列`);
@@ -187,6 +190,9 @@ export const stmts = {
   setModifiers: db.prepare('UPDATE players SET modifiers = ?, updated_at = ? WHERE id = ?'),
   // 姓/名单独更新：updatePlayerFields 被记分、编队等多处复用，
   // 往那条里塞字段会逼所有调用点都传，不值得
+  // 路线单独更新，理由同 setNameParts：不往被多处复用的
+  // updatePlayerFields 里塞字段，免得所有调用点都得传
+  setRoute: db.prepare('UPDATE players SET route = ?, start_station = ?, updated_at = ? WHERE id = ?'),
   setNameParts: db.prepare(
     'UPDATE players SET surname = ?, given = ?, updated_at = ? WHERE id = ?',
   ),
@@ -205,6 +211,11 @@ export const stmts = {
       (@id, @player_id, @kind, @station_id, @card_id, @points, @label, @note, @operator, @meta, @client_ts, @created_at)
   `),
   eventById: db.prepare('SELECT * FROM events WHERE id = ?'),
+  // 一次取回所有已盖章的（选手, 关卡）对：算各关排队人数时用，
+  // 免得对着 50 个人各查一次
+  allStationPairs: db.prepare(
+    "SELECT player_id, station_id FROM events WHERE kind = 'station' AND station_id IS NOT NULL",
+  ),
   eventsByPlayer: db.prepare('SELECT * FROM events WHERE player_id = ? ORDER BY created_at ASC'),
   allEvents: db.prepare('SELECT * FROM events ORDER BY created_at ASC'),
   stationEvent: db.prepare(

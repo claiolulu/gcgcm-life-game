@@ -13,6 +13,11 @@ export default function Admin() {
   const { config } = useConfig();
   const staff = useStaff();
   const token = staff.session?.token;
+  // 各关忙闲随同步一起来，只有 id 和数字；名字图标从配置里补
+  const load = useMemo(() => {
+    const meta = new Map((config?.stations || []).map((st) => [st.id, st]));
+    return (staff.load || []).map((x) => ({ ...x, ...(meta.get(x.id) || { name: x.id, icon: '📍' }) }));
+  }, [staff.load, config]);
 
   const [busy, setBusy] = useState(null);
   const [drawResult, setDrawResult] = useState(null);
@@ -276,6 +281,40 @@ export default function Admin() {
         </div>
         <div className="tiny dim">{stateMeta[settings.gameState]?.hint}</div>
       </div>
+
+      {/* 各关忙闲 */}
+      {load.length > 0 && settings.gameState === 'running' && (
+        <div className="card stack" style={{ marginBottom: 12 }}>
+          <div className="section-title">📍 各关排队情况</div>
+          <div className="tiny dim">
+            「在等」是下一站指向这一关的人数。开赛时后台已经把大家摊开了，
+            这里只是用来盯有没有意外堵住 —— 某一关持续高于其他关，
+            多半是那边流程卡了，可以派人去看看。
+          </div>
+          <div className="stack-sm">
+            {[...load].sort((a, b) => b.waiting - a.waiting).map((st) => {
+              const max = Math.max(1, ...load.map((x) => x.waiting));
+              const hot = st.waiting >= 4 && st.waiting === max;
+              return (
+                <div key={st.id} className="row" style={{ gap: 8, alignItems: 'center' }}>
+                  <div style={{ flex: 'none', width: 92 }} className="small">
+                    {st.icon} {st.name}
+                  </div>
+                  <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,.07)', borderRadius: 999 }}>
+                    <div style={{
+                      width: `${Math.round((st.waiting / max) * 100)}%`, height: '100%', borderRadius: 999,
+                      background: hot ? 'var(--red)' : 'var(--gold)', transition: 'width .3s ease',
+                    }} />
+                  </div>
+                  <div className="tiny" style={{ flex: 'none', width: 86, textAlign: 'right', color: hot ? 'var(--red)' : undefined }}>
+                    在等 {st.waiting} · 完成 {st.done}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 身份分配 */}
       <div className="card stack" style={{ marginBottom: 12 }}>

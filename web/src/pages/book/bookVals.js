@@ -72,6 +72,23 @@ const GUIDE = [
   { n: 5, cn: '结业颁奖', en: 'AWARDS',      body: '除最高积分奖外，另颁 The Connector、The Creative 等迎新向奖项，最后进入福音反思环节。' },
 ];
 
+/**
+ * 按后台排定的顺序重排关卡。
+ *
+ * 开赛时后台会给每人（每队）算一条路线，把 50 个人摊到 8 个关卡上，
+ * 免得全挤在同一个门口。签证页就按这个顺序装订 —— 翻到第几页就是第几站。
+ *
+ * 赛前 route 是空的，这时保持配置里的原始顺序（页面本身也会留白）。
+ */
+export function orderStations(stations, route) {
+  if (!Array.isArray(route) || route.length === 0) return stations;
+  const byId = new Map(stations.map((st) => [st.id, st]));
+  const ordered = route.map((id) => byId.get(id)).filter(Boolean);
+  // 后台的关卡表要是和客户端缓存的对不上（改过配置），把漏掉的补在后面
+  for (const st of stations) if (!route.includes(st.id)) ordered.push(st);
+  return ordered.length === stations.length ? ordered : stations;
+}
+
 /** 页码表：封面 → 欢迎 → 导航 → 资料页 → 八张签证 → 恩典站 → 结语 */
 export function buildPages(stations) {
   return [
@@ -133,7 +150,8 @@ function mrzLine(n, { surname, given, passportNo, identity, total }) {
  *  actions    { move, goto, setOverlay, setModal, share }
  */
 export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
-  const stations = config?.stations || [];
+  // 关卡表按后台排定的路线重排，页码和内容才对得上
+  const stations = orderStations(config?.stations || [], me?.route);
   const pages = buildPages(stations);
   const cur = pages[ui.page] || pages[0];
   const kind = ui.overlay || cur.kind;
@@ -166,7 +184,25 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   const surname = (me?.surname || '').trim() || guessed.surname;
   const given = (me?.given || '').trim() || guessed.given;
 
-  const station = kind === 'visa' ? stations[cur.i] : null;
+  // 赛前签证页留白：关卡顺序还没排，写上具体关卡等于给了错的信息，
+  // 而且会让人提前扎堆去自己看到的第一关。
+  const routed = Array.isArray(me?.route) && me.route.length > 0;
+  const rawStation = kind === 'visa' ? stations[cur.i] : null;
+  // 留白要把所有会泄底的字段都盖掉：关卡名、规则、类型、同工、地标。
+  // 只保留 id（盖章查询要用）和 landmarkKey（水印是装饰，留着页面才不空）。
+  const station = rawStation && !routed
+    ? {
+        id: rawStation.id,
+        landmarkKey: rawStation.landmarkKey,
+        name: '待公布',
+        en: 'to be assigned',
+        rule: `开场后这里会显示你的第 ${cur.i + 1} 站。顺序由后台统一排，把人摊开，省得都挤在同一关。`,
+        tag: '——',
+        staff: '——',
+        landmark: '',
+        blank: true,
+      }
+    : rawStation;
   const visaScore = station ? done[station.id]?.points ?? null : null;
   const landscape = kind === 'data' || kind === 'visa';
 

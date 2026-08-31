@@ -76,6 +76,8 @@ export function playerState(player, settings = getSettings()) {
     teamColor: player.team_color,
     teamSymbol: player.team_symbol,
     startStation: player.start_station,
+    // 关卡访问顺序。赛前是空的，签证页据此留白（见 bookVals 的 buildPages）
+    route: safeJSON(player.route, null),
     teammates,
     notes: player.notes,
     modifiers: safeJSON(player.modifiers, []),
@@ -379,6 +381,231 @@ export function applyOp(op, settings = getSettings()) {
  *   陆续有人报名时按这个模式点一下就行，不会把现场已经找到队友的人打散。
  * mode='all'：全部重新洗牌。
  */
+/* ============================ 关卡路线 ============================ */
+
+/**
+ * 每个人（每一队）拿一条自己的关卡顺序，目的只有一个：别让 50 个人
+ * 同时挤在同一关门口。
+ *
+ * 排法是「起点 + 步长」：8 个关卡围成一圈，第 n 队从第 n 个关卡出发，
+ * 每次往前迈 step 格。step 取和 8 互质的数（1/3/5/7），这样任意步长都能
+ * 走遍全部 8 关，而且起点相同的两队走第二关时就分开了 —— 光轮换起点的话，
+ * 大家会排着队整体平移，第一关分开了，后面每一关又撞在一起。
+ *
+ * 8 个起点 × 4 种步长 = 32 条互不相同的路线，50 人分成的队数远小于这个数。
+ */
+const ROUTE_STEPS = [1, 3, 5, 7];
+
+export function buildRoute(startIdx, stepIdx = 0) {
+  const n = STATIONS.length;
+  const step = ROUTE_STEPS[((stepIdx % ROUTE_STEPS.length) + ROUTE_STEPS.length) % ROUTE_STEPS.length];
+  const start = ((startIdx % n) + n) % n;
+  return Array.from({ length: n }, (_, i) => STATIONS[(start + i * step) % n].id);
+}
+
+/**
+ * 每个关卡「马上会有多少人来」。
+ *
+ * 不是看已完成人数 —— 完成得多既可能是人多也可能是流程快，分不出忙闲。
+ * 真正有用的是各人路线上「下一个还没盖章的关卡」，把这些数一数，
+ * 就是此刻每个关卡门口在等的人。后来的人从最少的那一关插进去。
+ */
+export function stationPressure() {
+  const load = new Map(STATIONS.map((st) => [st.id, 0]));
+
+  // 一次取回全部盖章记录，再在内存里按人归拢
+  const doneBy = new Map();
+  for (const row of stmts.allStationPairs.all()) {
+    if (!doneBy.has(row.player_id)) doneBy.set(row.player_id, new Set());
+    doneBy.get(row.player_id).add(row.station_id);
+  }
+
+  for (const p of stmts.allPlayers.all()) {
+    const route = safeJSON(p.route, null);
+    if (!Array.isArray(route) || route.length === 0) continue;
+    const done = doneBy.get(p.id) || new Set();
+    const next = route.find((id) => !done.has(id));
+    if (next && load.has(next)) load.set(next, load.get(next) + 1);
+  }
+  return load;
+}
+
+/** 当前最空的那个关卡在 STATIONS 里的下标 */
+function leastBusyIdx() {
+  const load = stationPressure();
+  let best = 0;
+  let bestN = Infinity;
+  STATIONS.forEach((st, i) => {
+    const n = load.get(st.id) ?? 0;
+    if (n < bestN) { bestN = n; best = i; }
+  });
+  return best;
+}
+
+/** 同队的人必须走同一条路线 —— 他们是绑在一起行动的 */
+function groupsForRouting(players) {
+  const byTeam = new Map();
+  const groups = [];
+  for (const p of players) {
+    if (p.team_id) {
+      if (!byTeam.has(p.team_id)) { byTeam.set(p.team_id, []); groups.push(byTeam.get(p.team_id)); }
+      byTeam.get(p.team_id).push(p);
+    } else {
+      groups.push([p]);   // solo 或还没编队的，各自一组
+    }
+  }
+  return groups;
+}
+
+function writeRoute(members, route, now) {
+  for (const m of members) {
+    stmts.setRoute.run(JSON.stringify(route), route[0] || null, now, m.id);
+  }
+}
+
+/**
+ * 排关卡顺序。
+ *
+ * 两种情形，做法不一样：
+ *
+ *   开场（场上还没有人有路线）—— 起点轮着来、每转完一圈换一种步长，
+ *     8 个关卡开局人数严格均等。
+ *
+ *   补发（已经有人在跑了）—— 逐个从「当前最空的关卡」切入，每发一条
+ *     重算一次忙闲，连着来两个人也会被分到不同的关。中途放人进来
+ *     （主持人临时切回入场再切回来）走的就是这条路。
+ *
+ * onlyMissing 默认为真：切回「进行中」时只补新人，绝不动已经在跑的人 ——
+ * 把闯了三关的人的顺序重排一遍，他手上正在排的队就白排了。
+ * 要整场重排请显式传 onlyMissing: false（对应总控台的「全部重新洗牌」）。
+ */
+export function assignRoutes({ onlyMissing = true } = {}) {
+  const now = Date.now();
+  const all = stmts.allPlayers.all();
+  const allGroups = groupsForRouting(all);
+  const hadRoutes = all.some((p) => safeJSON(p.route, null));
+  const groups = onlyMissing
+    ? allGroups.filter((g) => !safeJSON(g[0].route, null))
+    : allGroups;
+  if (groups.length === 0) return { groups: 0, players: 0, mode: 'noop' };
+
+  // 打散一下，免得编号相邻的人永远拿到相邻的起点
+  const shuffled = groups
+    .map((g) => ({ g, k: Math.random() }))
+    .sort((a, b) => a.k - b.k)
+    .map((x) => x.g);
+
+  const n = STATIONS.length;
+  const bulk = !hadRoutes || !onlyMissing;
+
+  if (bulk) {
+    const tx = db.transaction(() => {
+      shuffled.forEach((members, idx) => {
+        writeRoute(members, buildRoute(idx % n, Math.floor(idx / n)), now);
+      });
+    });
+    tx();
+  } else {
+    // 补发要逐条写：下一条的起点取决于上一条写完之后的忙闲，
+    // 所以不能放进同一个事务里一次算完
+    for (const members of shuffled) {
+      writeRoute(members, buildRoute(leastBusyIdx(), Math.floor(Math.random() * ROUTE_STEPS.length)), now);
+    }
+  }
+
+  return {
+    groups: shuffled.length,
+    players: shuffled.reduce((a, g) => a + g.length, 0),
+    mode: bulk ? 'bulk' : 'fill',
+  };
+}
+
+/**
+ * 各关卡的忙闲，给总控台看的。
+ *   waiting  下一站是它的人数（正在往这儿走或已经在排队）
+ *   done     已经在这一关盖过章的人数
+ * 跟着现有的同步响应一起下发，不额外发请求。
+ */
+export function stationLoad() {
+  const waiting = stationPressure();
+  const done = new Map(STATIONS.map((st) => [st.id, 0]));
+  for (const row of stmts.allStationPairs.all()) {
+    if (done.has(row.station_id)) done.set(row.station_id, done.get(row.station_id) + 1);
+  }
+  // 只发 id 和两个数字。关卡名和图标客户端从 /api/config 已经拿到了，
+  // 再发一遍是白花的流量 —— 这个响应每几秒就要来一次
+  return STATIONS.map((st) => ({
+    id: st.id,
+    waiting: waiting.get(st.id) ?? 0,
+    done: done.get(st.id) ?? 0,
+  }));
+}
+
+/**
+ * 编队变动之后，把同一队的人拉到同一条路线上。
+ *
+ * 不能直接重排全场：已经闯了几关的人会突然拿到一份全新顺序，
+ * 手上正在排的队白排了。所以只动「队内路线不一致」的队，
+ * 并且以队里走得最远的那个人的路线为准 —— 他投入最多，别让他重走。
+ */
+export function syncTeamRoutes() {
+  const now = Date.now();
+
+  const doneCount = new Map();
+  for (const row of stmts.allStationPairs.all()) {
+    doneCount.set(row.player_id, (doneCount.get(row.player_id) || 0) + 1);
+  }
+
+  const teams = new Map();
+  for (const p of stmts.allPlayers.all()) {
+    if (!p.team_id) continue;
+    if (!teams.has(p.team_id)) teams.set(p.team_id, []);
+    teams.get(p.team_id).push(p);
+  }
+
+  let fixed = 0;
+  const tx = db.transaction(() => {
+    for (const members of teams.values()) {
+      const routes = members.map((m) => m.route || '');
+      if (routes.every((r) => r && r === routes[0])) continue;   // 已经一致
+
+      // 以走得最远的人为准；全队都没路线就按当前最空的关卡新排一条
+      const lead = members
+        .filter((m) => safeJSON(m.route, null))
+        .sort((a, b) => (doneCount.get(b.id) || 0) - (doneCount.get(a.id) || 0))[0];
+      const route = lead
+        ? safeJSON(lead.route, null)
+        : buildRoute(leastBusyIdx(), Math.floor(Math.random() * ROUTE_STEPS.length));
+
+      writeRoute(members, route, now);
+      fixed++;
+    }
+  });
+  tx();
+
+  // 还没编队但也没路线的散人（比如刚被退回未分配又重新加入）
+  const orphans = stmts.allPlayers.all().filter((p) => !p.team_id && !safeJSON(p.route, null));
+  for (const o of orphans) assignRouteFor(o.id);
+
+  return { teams: fixed, orphans: orphans.length };
+}
+
+/**
+ * 给中途加入的人排路线：从当前最空的关卡切入。
+ * 已经开赛的场上各关忙闲不均，让新人去补最空的那一关，
+ * 比按固定顺序发一条更能压住排队。
+ */
+export function assignRouteFor(playerId) {
+  const p = stmts.playerById.get(playerId);
+  if (!p) return null;
+  const members = p.team_id
+    ? stmts.playersByTeam.all(p.team_id)
+    : [p];
+  const route = buildRoute(leastBusyIdx(), Math.floor(Math.random() * ROUTE_STEPS.length));
+  writeRoute(members, route, Date.now());
+  return route;
+}
+
 export function drawIdentities({ solo = 0.30, duo = 0.36, trio = 0.34, mode = 'fill' } = {}) {
   const everyone = stmts.allPlayers.all();
   const pool = mode === 'all' ? everyone : everyone.filter((p) => !p.identity);

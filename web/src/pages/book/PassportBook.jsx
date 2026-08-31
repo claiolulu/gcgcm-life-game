@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import Avatar from '../../components/Avatar.jsx';
 
 import PassportBookView from './PassportBookView.jsx';
-import { buildVals, buildPages } from './bookVals.js';
+import { buildVals, buildPages, orderStations } from './bookVals.js';
 import { FLIP_MS, FLIP_EASE } from './bookVals.js';
 import { useConfig } from '../../lib/config.js';
 import { usePlayer, refreshMe } from '../../lib/player.js';
@@ -49,7 +49,12 @@ export default function PassportBook() {
   );
 
   const stations = config?.stations || [];
-  const pages = useMemo(() => buildPages(stations), [stations]);
+  // 关卡按后台排定的路线重新装订：翻到第几张签证页就是第几站
+  const routedStations = useMemo(
+    () => orderStations(stations, me?.route),
+    [stations, me?.route],
+  );
+  const pages = useMemo(() => buildPages(routedStations), [routedStations]);
   const pageCount = pages.length;
 
   /* ------------------------------ 翻页 ------------------------------ */
