@@ -260,15 +260,6 @@ def apply_patches(jsx):
     jsx = jsx.replace(close_anchor, '          </div>\n' + close_anchor, 1)
     n += 1
 
-    # 页眉顶部留出实时同步条的位置。
-    # 同步状态从底部挪到顶部（底部要腾给二维码），那条药丸浮在页眉上方，
-    # 不加这段间距就会压住关卡名。
-    before = jsx
-    jsx = jsx.replace('padding: "12px 16px 8px"', 'padding: "26px 16px 8px"')
-    jsx = jsx.replace('padding: "9px 16px 7px"', 'padding: "23px 16px 7px"')
-    assert jsx != before, "没找到页眉的内边距"
-    n += 1
-
     # 5) 舞台加透视，翻页才有近大远小。
     #    stage 里的两个弹层都是 position:absolute，不会被 perspective
     #    变成包含块坑到（fixed 定位才会）。
@@ -332,10 +323,13 @@ def apply_patches(jsx):
         end = close + len('</button>\n')
         line_start = jsx.rfind('\n', 0, i4) + 1
         indent = jsx[line_start:i4]
-        fs = '13px' if size == '34px' else '11.5px'
+        # 队名字号压小一点：页眉一共要塞七样东西，徽章是最大的非弹性元素，
+        # 它多占一分，中间的页名就被截一分
+        fs = '11.5px' if size == '34px' else '10px'
+        ss = '8px' if size == '34px' else '7px'      # 状态字号，比队名再小一号
         badge = (
             indent + '<button onClick={v.goTeam} data-tour="team" title="我的队友" '
-            'style={{flex: "none", height: "' + size + '", padding: "0 9px", '
+            'style={{flex: "none", height: "' + size + '", padding: "0 5px", '
             'border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, '
             'display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", '
             'whiteSpace: "nowrap", lineHeight: 1, '
@@ -350,6 +344,15 @@ def apply_patches(jsx):
             + indent + '    <span style={{fontSize: "' + fs + '", opacity: .7}}>🪪 待分配</span>\n'
             + indent + '  )}\n'
             + indent + '</button>\n'
+            # 同步状态紧挨着队伍徽章：只有英文单词 + 颜色，
+            # 绿 LIVE / 黄 RECONNECTING / 红 OFFLINE。
+            # 原来是底部一条浮动药丸，占着位置又要人低头去看
+            + indent + '<div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", '
+            'gap: "4px", whiteSpace: "nowrap", color: v.syncHex}}>\n'
+            + indent + '  <span style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + ss + '", letterSpacing: ".1em"}}>\n'
+            + indent + '    {v.syncLabel}\n'
+            + indent + '  </span>\n'
+            + indent + '</div>\n'
         )
         jsx = jsx[:end] + badge + jsx[end:]
         n += 1
@@ -380,6 +383,15 @@ def apply_patches(jsx):
         )
         jsx = jsx[:line_start] + score + jsx[line_start:]
         n += 1
+
+    # 页眉现在挤了七样东西（奖杯 / 队伍 / 状态 / 页名 / 分数 / 恩典 / 帮助），
+    # 375px 的手机上中间的页名会被压成「WE…」。把元素间距收窄，
+    # 空间还给页名 —— 那是唯一会变的信息，被截断最亏。
+    before = jsx
+    jsx = jsx.replace('gap: "12px", padding: "12px 16px 8px"', 'gap: "7px", padding: "12px 12px 8px"')
+    jsx = jsx.replace('gap: "12px", padding: "9px 16px 7px"', 'gap: "7px", padding: "9px 12px 7px"')
+    assert jsx != before, "没找到页眉容器"
+    n += 1
 
     # 5) 封面：去掉「OPEN 翻开」按钮，改成整页可点（见 bookVals 的 pageTap）。
     #    原地留一行很淡的提示，否则没人知道要点。

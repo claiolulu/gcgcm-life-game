@@ -11,7 +11,7 @@ import { usePlayer, refreshMe } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
 import { kvGet, kvSet } from '../../lib/idb.js';
 import { onTick } from '../../lib/realtime.js';
-import { ago, useLocalState } from '../../components/ui.jsx';
+import { useLocalState } from '../../components/ui.jsx';
 import TeamPanel from './TeamPanel.jsx';
 import Tour from './Tour.jsx';
 
@@ -24,7 +24,7 @@ import Tour from './Tour.jsx';
 export default function PassportBook() {
   const nav = useNavigate();
   const { config } = useConfig();
-  const { me, rank, of, online, connected, lastSyncedAt, loading } = usePlayer();
+  const { me, rank, of, online, connected, loading } = usePlayer();
 
   const [page, setPage] = useState(0);
   const [overlay, setOverlay] = useState(null);   // null | 'board' | 'guide'
@@ -343,6 +343,8 @@ export default function PassportBook() {
       me, rank, of, config, board,
       ui: {
         page, overlay, modal, vpLandscape, shared, flip,
+        // 同步状态：绿 LIVE / 黄 RECONNECTING / 红 OFFLINE，显示在页眉队伍徽章右边
+        sync: !online ? 'offline' : connected ? 'live' : 'reconnecting',
         qrThumb: qr.thumb, qrBigImg: qr.big, checking,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
@@ -359,7 +361,7 @@ export default function PassportBook() {
         startTour: () => setTourOpen(true),
       },
     });
-  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, flip, qr, checking,
+  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, flip, online, connected, qr, checking,
       move, goto, share, checkStamp]);
 
   if (loading && !me) {
@@ -428,7 +430,6 @@ export default function PassportBook() {
       {/* 我们自己的一条底栏：页码跳转 + 同步状态。
           必须放在底部而不是顶部 —— 横版页是整页旋转的，顶部浮层会盖住
           页面最左侧一列文字的开头。 */}
-      <BookBar online={online} connected={connected} at={lastSyncedAt} />
 
       {/* 随时可扫的二维码：同工拿着手机走过来就扫，选手不用先翻到资料页。
           放在翻页层之外，所以横版页旋转 90° 时它照样是正的 —— 歪着的码扫不了。 */}
@@ -552,43 +553,3 @@ function LifeEventPrompt({ open, count, onClose }) {
   );
 }
 
-function BookBar({ online, connected, at }) {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 10_000);
-    return () => clearInterval(t);
-  }, []);
-
-  const live = online && connected;
-  const status = live ? 'LIVE 实时同步' : online ? `更新于 ${ago(at)}` : `离线 · ${ago(at)}的数据`;
-
-  // 只剩一条同步状态。页码点撤掉了 —— 护照本来就是一页页翻的，
-  // 点左右边缘或用方向键即可；排行榜、恩典站、玩法、队友都在页眉有入口。
-  //
-  // 放在顶部：底下要腾给随时可扫的二维码。页眉的上内边距已经
-  // 相应加大（见 convert.py），不会压住关卡名。
-  return (
-    <div style={{
-      position: 'fixed', left: 0, right: 0,
-      top: 'calc(env(safe-area-inset-top,0px) + 4px)',
-      zIndex: 20, display: 'flex', justifyContent: 'center',
-      pointerEvents: 'none',
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        padding: '2px 9px', borderRadius: 999,
-        background: 'rgba(20,17,16,.5)',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        fontFamily: "'EB Garamond',serif", fontSize: 9, letterSpacing: '.14em',
-        color: live ? 'rgba(230,205,145,.8)' : 'rgba(230,205,145,.62)',
-        whiteSpace: 'nowrap',
-      }}>
-        <span style={{
-          width: 4, height: 4, borderRadius: '50%',
-          background: live ? '#7fd8a8' : online ? '#e6cd91' : '#d98a8a',
-        }} />
-        {status}
-      </div>
-    </div>
-  );
-}

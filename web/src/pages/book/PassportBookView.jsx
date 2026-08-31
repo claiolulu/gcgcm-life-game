@@ -61,23 +61,28 @@ export default function PassportBookView({ v }) {
                       <div style={{position: "absolute", inset: "0", pointerEvents: "none", opacity: v.guilloche, background: "repeating-conic-gradient(from 0deg at 22% 28%,rgba(92,26,34,.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 78% 74%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(92,26,34,.035) 0 1px,transparent 1px 6px)"}} />
                       <div style={{position: "absolute", left: "6%", right: "6%", top: "14%", bottom: "16%", pointerEvents: "none", opacity: ".13", backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
                       <div style={{position: "absolute", left: "0", top: "0", bottom: "0", width: "30px", pointerEvents: "none", zIndex: "2", background: "linear-gradient(90deg,rgba(60,40,30,.2),transparent)"}} />
-                      <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "12px", padding: "26px 16px 8px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
+                      <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "7px", padding: "12px 12px 8px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
                         <button onClick={v.goBoard} data-tour="board" style={{flex: "none", width: "34px", height: "34px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
                           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" stroke-linejoin="round">
                             <path d="M8 4h8v5a4 4 0 01-8 0V4z" />
                             <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                           </svg>
                         </button>
-                        <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "34px", padding: "0 9px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.5)"}}>
+                        <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "34px", padding: "0 5px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.5)"}}>
                           {v.teamBadge ? (
                             <>
-                              <span style={{fontSize: "13px"}}>{v.teamBadge.symbol}</span>
-                              <span style={{fontSize: "13px", letterSpacing: ".08em", fontFamily: "'EB Garamond',serif"}}>{v.teamBadge.en}</span>
+                              <span style={{fontSize: "11.5px"}}>{v.teamBadge.symbol}</span>
+                              <span style={{fontSize: "11.5px", letterSpacing: ".08em", fontFamily: "'EB Garamond',serif"}}>{v.teamBadge.en}</span>
                             </>
                           ) : (
-                            <span style={{fontSize: "13px", opacity: .7}}>🪪 待分配</span>
+                            <span style={{fontSize: "11.5px", opacity: .7}}>🪪 待分配</span>
                           )}
                         </button>
+                        <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", color: v.syncHex}}>
+                          <span style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".1em"}}>
+                            {v.syncLabel}
+                          </span>
+                        </div>
                         <div style={{flex: "1", minWidth: "0", textAlign: "center"}}>
                           <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".18em", color: "#5c1a22", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}>
                             {v.kicker}
@@ -439,23 +444,28 @@ export default function PassportBookView({ v }) {
                 <div style={{position: "absolute", inset: "0", pointerEvents: "none", opacity: v.guilloche, background: "repeating-conic-gradient(from 0deg at 18% 30%,rgba(92,26,34,.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 82% 70%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(92,26,34,.032) 0 1px,transparent 1px 6px)"}} />
                 <div style={{position: "absolute", right: "3%", top: "12%", width: "40%", bottom: "14%", pointerEvents: "none", opacity: ".11", backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
                 <div style={{position: "absolute", left: "0", right: "0", bottom: "0", height: "30px", pointerEvents: "none", zIndex: "2", background: "linear-gradient(0deg,rgba(60,40,30,.18),transparent)"}} />
-                <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "12px", padding: "23px 16px 7px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
+                <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "7px", padding: "9px 12px 7px", borderBottom: "1px solid rgba(92,26,34,.4)"}}>
                   <button onClick={v.goBoard} data-tour="board" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(92,26,34,.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5c1a22"}} style-active="background:rgba(92,26,34,.1)">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" stroke-linejoin="round">
                       <path d="M8 4h8v5a4 4 0 01-8 0V4z" />
                       <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                     </svg>
                   </button>
-                  <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "30px", padding: "0 9px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.5)"}}>
+                  <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "30px", padding: "0 5px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.5)"}}>
                     {v.teamBadge ? (
                       <>
-                        <span style={{fontSize: "11.5px"}}>{v.teamBadge.symbol}</span>
-                        <span style={{fontSize: "11.5px", letterSpacing: ".08em", fontFamily: "'EB Garamond',serif"}}>{v.teamBadge.en}</span>
+                        <span style={{fontSize: "10px"}}>{v.teamBadge.symbol}</span>
+                        <span style={{fontSize: "10px", letterSpacing: ".08em", fontFamily: "'EB Garamond',serif"}}>{v.teamBadge.en}</span>
                       </>
                     ) : (
-                      <span style={{fontSize: "11.5px", opacity: .7}}>🪪 待分配</span>
+                      <span style={{fontSize: "10px", opacity: .7}}>🪪 待分配</span>
                     )}
                   </button>
+                  <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", color: v.syncHex}}>
+                    <span style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", letterSpacing: ".1em"}}>
+                      {v.syncLabel}
+                    </span>
+                  </div>
                   <div style={{flex: "1", minWidth: "0", display: "flex", alignItems: "baseline", justifyContent: "center", gap: "12px"}}>
                     <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".18em", color: "#5c1a22", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>
                       {v.kicker}

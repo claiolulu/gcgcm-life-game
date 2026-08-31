@@ -232,6 +232,14 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
         grace: 'cathedral', guide: 'wellington', board: 'university',
         closing: null }[kind] || null;
 
+  // 同步状态：只用英文单词 + 颜色，一眼分辨，也不占地方
+  const SYNC = {
+    live:         { label: 'LIVE',         hex: '#2f8f5b' },
+    reconnecting: { label: 'RECONNECTING', hex: '#b8860b' },
+    offline:      { label: 'OFFLINE',      hex: '#b0343c' },
+  };
+  const syncMeta = SYNC[ui.sync] || SYNC.live;
+
   const noop = () => {};
 
   // 向后翻时动的是克隆出来的旧页（PassportBook 直接改它的 style），
@@ -258,6 +266,9 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     isBoard: kind === 'board',
     isClosing: kind === 'closing',
     pageAnim: backFlip ? `bookPeel ${FLIP_MS}ms ${FLIP_EASE} reverse both` : 'none',
+
+    syncLabel: syncMeta.label,
+    syncHex: syncMeta.hex,
 
     paper: TONES.cream,
     // 关掉设计稿那层放射状底纹，只留地标水印，页面更干净
