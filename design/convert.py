@@ -260,6 +260,15 @@ def apply_patches(jsx):
     jsx = jsx.replace(close_anchor, '          </div>\n' + close_anchor, 1)
     n += 1
 
+    # 页眉顶部留出实时同步条的位置。
+    # 同步状态从底部挪到顶部（底部要腾给二维码），那条药丸浮在页眉上方，
+    # 不加这段间距就会压住关卡名。
+    before = jsx
+    jsx = jsx.replace('padding: "12px 16px 8px"', 'padding: "26px 16px 8px"')
+    jsx = jsx.replace('padding: "9px 16px 7px"', 'padding: "23px 16px 7px"')
+    assert jsx != before, "没找到页眉的内边距"
+    n += 1
+
     # 5) 舞台加透视，翻页才有近大远小。
     #    stage 里的两个弹层都是 position:absolute，不会被 perspective
     #    变成包含块坑到（fixed 定位才会）。
@@ -334,7 +343,8 @@ def apply_patches(jsx):
             + indent + '  {v.teamBadge ? (\n'
             + indent + '    <>\n'
             + indent + '      <span style={{fontSize: "' + fs + '"}}>{v.teamBadge.symbol}</span>\n'
-            + indent + '      <span style={{fontSize: "' + fs + '", letterSpacing: ".02em"}}>{v.teamBadge.name}队</span>\n'
+            # 颜色名用英文：场内喊「RED」比喊「赤队」快，颜色本身已经写在边框和字色上了
+            + indent + '      <span style={{fontSize: "' + fs + '", letterSpacing: ".08em", fontFamily: "\'EB Garamond\',serif"}}>{v.teamBadge.en}</span>\n'
             + indent + '    </>\n'
             + indent + '  ) : (\n'
             + indent + '    <span style={{fontSize: "' + fs + '", opacity: .7}}>🪪 待分配</span>\n'
@@ -342,6 +352,33 @@ def apply_patches(jsx):
             + indent + '</button>\n'
         )
         jsx = jsx[:end] + badge + jsx[end:]
+        n += 1
+
+    # 5) 页眉：恩典代币（G）左边补一个当前总分。
+    #    翻到任何一页都要能一眼看到自己多少分 —— 原来只有资料页和结语页有，
+    #    闯关途中最想看的时候反而看不到。
+    for size in ('34px', '30px'):
+        # 注意：data-tour 属性是后面的补丁才加上去的，这里不能拿它当锚点
+        marker = '<button onClick={v.goGrace} style={{flex: "none", width: "' + size + '"'
+        i = jsx.find(marker)
+        if i == -1:
+            continue
+        line_start = jsx.rfind('\n', 0, i) + 1
+        indent = jsx[line_start:i]
+        fs = '15px' if size == '34px' else '13px'
+        sub = '7.5px' if size == '34px' else '7px'
+        score = (
+            indent + '<div style={{flex: "none", display: "flex", flexDirection: "column", alignItems: "center", '
+            'lineHeight: 1, color: "#5c1a22"}}>\n'
+            + indent + '  <div style={{fontFamily: "\'Courier Prime\',monospace", fontSize: "' + fs + '", fontWeight: 700}}>\n'
+            + indent + '    {v.totalPad}\n'
+            + indent + '  </div>\n'
+            + indent + '  <div style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + sub + '", letterSpacing: ".14em", opacity: .55}}>\n'
+            + indent + '    PTS\n'
+            + indent + '  </div>\n'
+            + indent + '</div>\n'
+        )
+        jsx = jsx[:line_start] + score + jsx[line_start:]
         n += 1
 
     # 5) 封面：去掉「OPEN 翻开」按钮，改成整页可点（见 bookVals 的 pageTap）。

@@ -69,7 +69,15 @@ export default function TeamPanel({ open, onClose, identity, badge, teammates, s
                   background: `${badge.hex}14`,
                 }}>
                   <div style={{ fontSize: 46, lineHeight: 1, color: badge.hex }}>{badge.symbol}</div>
-                  <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '.1em', color: badge.hex }}>
+                  {/* 英文在上、中文在下：页眉徽章只放得下英文，
+                      这里两个都给出来，免得对不上号 */}
+                  <div style={{
+                    fontSize: 15, fontWeight: 700, letterSpacing: '.16em',
+                    fontFamily: "'EB Garamond',serif", color: badge.hex,
+                  }}>
+                    {badge.en}
+                  </div>
+                  <div style={{ fontSize: 14, letterSpacing: '.1em', color: badge.hex, opacity: .85 }}>
                     {badge.name}队
                   </div>
                 </div>

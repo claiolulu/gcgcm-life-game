@@ -12,7 +12,10 @@
 #     见 README「换掉默认 PIN」一节）
 
 app = "gcgcm-life-game"
-primary_region = "lhr"
+# 卷建在了 ams，机器必须和卷同区，所以这里跟着写 ams。
+# 想换回伦敦得先把卷删掉在 lhr 重建（库是空的就没损失）：
+#   fly volumes destroy <id> && fly volumes create mlg_data --size 1 --region lhr --yes
+primary_region = "ams"
 
 [build]
   dockerfile = "Dockerfile"
@@ -27,6 +30,9 @@ primary_region = "lhr"
   destination = "/data"
 
 [http_service]
+  # 必须和应用实际监听的端口一致。fly launch 会把它改成默认的 8080，
+  # 一旦不一致，健康检查（从机器内部访问 3000）照常通过，
+  # 但 Fly 的代理往 8080 转发会被拒，外面只看到超时 —— 很难查。
   internal_port = 3000
   force_https = true          # 摄像头和 Service Worker 都要求安全上下文
   auto_stop_machines = false  # 活动当天绝对不能休眠

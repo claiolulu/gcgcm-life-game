@@ -152,7 +152,13 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   // 队伍：颜色 + 符号是场内互相辨认的凭据，队友名单是真正好用的那一半
   const colorMeta = (config?.groupColors || []).find((c) => c.key === me?.teamColor) || null;
   const teamBadge = colorMeta && me?.teamSymbol
-    ? { name: colorMeta.name, hex: colorMeta.hex, symbol: me.teamSymbol, teamId: me.teamId }
+    ? {
+        name: colorMeta.name,          // 中文单字，队友面板里用
+        // 页眉徽章用英文：场内隔着人群喊「RED」比喊「赤队」快，
+        // 而且颜色本身已经写在边框和字色上了，中文字反倒挤位置
+        en: String(colorMeta.key || '').toUpperCase(),
+        hex: colorMeta.hex, symbol: me.teamSymbol, teamId: me.teamId,
+      }
     : null;
   const teammates = me?.teammates || [];
   // 自己填的优先；只填了一个也认，另一个仍然用猜的补上
@@ -332,6 +338,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     ],
     doneCount,
     totalPad: String(total).padStart(2, '0'),
+    pendingLifeEvents: me?.pendingLifeEvents ?? 0,
     pct: maxTotal ? Math.min(100, Math.round((total / maxTotal) * 100)) : 0,
     shareLabel: ui.shared ? 'COPIED 已复制' : 'SHARE 分享我的护照',
     share: actions.share,

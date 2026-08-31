@@ -249,6 +249,52 @@ export default function PassportBook() {
     return () => { off(); clearInterval(timer); };
   }, [loadBoard]);
 
+  /* --------------------------- 水印预取 --------------------------- */
+  /**
+   * 地标水印没有放进 Service Worker 的预缓存（见 vite.config.js 里的
+   * globIgnores）—— 那样会让安装包大一截，弱网下装不完就整个离线能力都没有。
+   * 代价是每翻到一页才现去下载，手机上肉眼可见地慢半拍。
+   *
+   * 折中：开场之后趁空闲把它们全拉一遍，运行时的 CacheFirst 规则会存下来。
+   * 一共十来张、约 260KB，等真翻到那一页时已经在缓存里了。
+   * 失败无所谓，水印只是底纹。
+   */
+  useEffect(() => {
+    const keys = (config?.stations || []).map((st) => st.landmarkKey)
+      .concat(['cathedral', 'university', 'wellington'])
+      .filter(Boolean);
+    if (keys.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      for (const k of [...new Set(keys)]) {
+        if (cancelled) return;
+        try { await fetch(`/wm/${k}.png`, { cache: 'force-cache' }); } catch { /* 装饰性资源，失败就算了 */ }
+      }
+    };
+    const id = window.requestIdleCallback
+      ? window.requestIdleCallback(run, { timeout: 4000 })
+      : setTimeout(run, 1500);
+    return () => {
+      cancelled = true;
+      if (window.cancelIdleCallback) window.cancelIdleCallback(id); else clearTimeout(id);
+    };
+  }, [config]);
+
+  /* ------------------------- 欠盲盒的提醒 ------------------------- */
+  /**
+   * 总分跨过红线就必须去场地中央抽人生盲盒。服务端已经算好还欠几次
+   * （pendingLifeEvents），但选手端一直只在导航栏点了个小红点 —— 正在闯关的人
+   * 根本不会注意到，于是一路欠着跑到散场。
+   *
+   * 改成弹一次，并且把下一步写清楚：去哪、找谁、抽完才能继续。
+   * 同一个欠款次数只弹一次，抽完之后次数变了才会再弹。
+   */
+  // 名字别用 pending —— 翻页队列已经占了那个标识符
+  const eventsDue = me?.pendingLifeEvents ?? 0;
+  const [lifeEventSeen, setLifeEventSeen] = useLocalState('mlg.lifeEventSeen', 0);
+  const lifeEventDue = eventsDue > 0 && eventsDue !== lifeEventSeen;
+
   /* --------------------------- 主动查盖章 --------------------------- */
   /**
    * 在还没盖章的签证页上点一下 = 主动查一次是不是已经被记分。
@@ -378,6 +424,31 @@ export default function PassportBook() {
           必须放在底部而不是顶部 —— 横版页是整页旋转的，顶部浮层会盖住
           页面最左侧一列文字的开头。 */}
       <BookBar online={online} connected={connected} at={lastSyncedAt} />
+
+      {/* 随时可扫的二维码：同工拿着手机走过来就扫，选手不用先翻到资料页。
+          放在翻页层之外，所以横版页旋转 90° 时它照样是正的 —— 歪着的码扫不了。 */}
+      {qr.thumb && (
+        <button
+          onClick={() => setModal('qr')}
+          title="放大二维码"
+          style={{
+            position: 'fixed', zIndex: 21,
+            right: 'calc(env(safe-area-inset-right,0px) + 10px)',
+            bottom: 'calc(env(safe-area-inset-bottom,0px) + 10px)',
+            width: 52, height: 52, padding: 4,
+            background: '#fff', border: '1px solid rgba(92,26,34,.45)', borderRadius: 3,
+            boxShadow: '0 4px 14px rgba(0,0,0,.35)', cursor: 'pointer', lineHeight: 0,
+          }}
+        >
+          <div style={{ width: '100%', height: '100%' }}>{qr.thumb}</div>
+        </button>
+      )}
+
+      <LifeEventPrompt
+        open={lifeEventDue}
+        count={eventsDue}
+        onClose={() => setLifeEventSeen(eventsDue)}
+      />
     </div>
   );
 }
@@ -399,6 +470,83 @@ function BookSplash({ text }) {
   );
 }
 
+/**
+ * 欠人生盲盒的提醒。
+ *
+ * 只说「你触发了事件」没用 —— 人正站在关卡前，需要知道现在该干什么。
+ * 所以把下一步写死：停下、去场地中央、找同工、抽完才继续。
+ */
+function LifeEventPrompt({ open, count, onClose }) {
+  if (!open) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 80,
+        background: 'rgba(20,17,16,.74)',
+        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18,
+        animation: 'fadeIn .2s ease both',
+        fontFamily: "'Noto Serif SC','EB Garamond',serif",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 360,
+          background: '#f3ede0', color: '#2a2320',
+          border: '1px solid #b9913f', borderRadius: 2,
+          padding: '24px 20px 18px', textAlign: 'center',
+          boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+          animation: 'pageIn .25s ease both',
+        }}
+      >
+        <div style={{ fontSize: 40, lineHeight: 1 }}>🎲</div>
+        <div style={{
+          marginTop: 10, fontFamily: "'EB Garamond',serif", fontSize: 10,
+          letterSpacing: '.24em', textIndent: '.24em', color: 'rgba(92,26,34,.6)',
+        }}>
+          LIFE EVENT 人生盲盒
+        </div>
+        <div style={{ marginTop: 8, fontSize: 18, fontWeight: 700 }}>
+          你的总分跨过红线了
+        </div>
+
+        <div style={{
+          marginTop: 14, padding: '12px 14px', textAlign: 'left',
+          border: '1px solid rgba(198,164,95,.55)', background: 'rgba(198,164,95,.12)',
+          borderRadius: 2, fontSize: 13.5, lineHeight: 1.9,
+        }}>
+          <b>现在要做的：</b>
+          <div style={{ marginTop: 4 }}>1. 停下手上的关卡，先别去下一关</div>
+          <div>2. 去<b>场地正中央</b>的人生盲盒站</div>
+          <div>3. 找同工出示这本护照，抽一张卡</div>
+          <div>4. 抽完再继续闯关</div>
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.8, color: 'rgba(42,35,32,.7)' }}>
+          可能天降横财，也可能一夜归零。
+          {count > 1 && (
+            <><br /><b style={{ color: '#8b1e2d' }}>你已经欠了 {count} 次，要连抽 {count} 张。</b></>
+          )}
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', marginTop: 16, padding: '13px',
+            background: '#5c1a22', border: '1px solid rgba(198,164,95,.6)', borderRadius: 2,
+            color: '#e6cd91', fontFamily: "'EB Garamond',serif",
+            fontSize: 12, letterSpacing: '.2em', textIndent: '.2em', cursor: 'pointer',
+          }}
+        >
+          知道了，这就去
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function BookBar({ online, connected, at }) {
   const [, tick] = useState(0);
   useEffect(() => {
@@ -411,10 +559,13 @@ function BookBar({ online, connected, at }) {
 
   // 只剩一条同步状态。页码点撤掉了 —— 护照本来就是一页页翻的，
   // 点左右边缘或用方向键即可；排行榜、恩典站、玩法、队友都在页眉有入口。
+  //
+  // 放在顶部：底下要腾给随时可扫的二维码。页眉的上内边距已经
+  // 相应加大（见 convert.py），不会压住关卡名。
   return (
     <div style={{
       position: 'fixed', left: 0, right: 0,
-      bottom: 'calc(env(safe-area-inset-bottom,0px) + 6px)',
+      top: 'calc(env(safe-area-inset-top,0px) + 4px)',
       zIndex: 20, display: 'flex', justifyContent: 'center',
       pointerEvents: 'none',
     }}>
