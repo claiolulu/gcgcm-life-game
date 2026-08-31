@@ -66,6 +66,9 @@ export function playerState(player, settings = getSettings()) {
     // 排行榜另建对象，不会带出去。
     pin: player.pin || '',
     name: player.name,
+    // 报名时选填；留空前端按 name 猜
+    surname: player.surname || '',
+    given: player.given || '',
     avatar: safeJSON(player.avatar, {}),
     contact: player.contact,
     identity: player.identity,

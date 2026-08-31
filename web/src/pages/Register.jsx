@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AvatarEditor from '../components/AvatarEditor.jsx';
 import Avatar, { randomAvatar } from '../components/Avatar.jsx';
 import { Sheet, useToast } from '../components/ui.jsx';
 import { useConfig } from '../lib/config.js';
+import { splitName } from './book/bookVals.js';
 import { register, restore } from '../lib/player.js';
 
 /** 预填一个随机 4 位密码：选手想改就改，不想改也不用多按键 */
@@ -25,10 +26,14 @@ export default function Register() {
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [given, setGiven] = useState('');
   const [contact, setContact] = useState('');
   const [avatar, setAvatar] = useState(() => randomAvatar());
   const [pin, setPin] = useState(() => suggestPin());
   const [busy, setBusy] = useState(false);
+  // 护照上姓/名的默认猜法，同时用作两个输入框的占位提示
+  const guess = useMemo(() => splitName(name), [name]);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [dupe, setDupe] = useState(null);   // 同名提醒：{ existing: [{code}] }
 
@@ -38,7 +43,13 @@ export default function Register() {
     if (!name.trim()) return toast('请先填写你的名字', 'err');
     setBusy(true);
     try {
-      await register({ name: name.trim(), contact: contact.trim(), avatar, pin, confirmNew: confirmNew === true });
+      await register({
+        name: name.trim(),
+        surname: surname.trim(),
+        given: given.trim(),
+        contact: contact.trim(),
+        avatar, pin, confirmNew: confirmNew === true,
+      });
       toast('护照已生成，欢迎来到 Mini Life Game', 'ok');
       nav('/passport', { replace: true });
     } catch (err) {
@@ -91,6 +102,38 @@ export default function Register() {
                   onKeyDown={(e) => e.key === 'Enter' && name.trim() && setStep(1)}
                 />
                 <div className="tiny dim">这个名字会显示在排行榜上</div>
+              </div>
+
+              {/* 护照资料页要分开印姓和名。留空就按上面的名字猜
+                  （中文取首字为姓），但复姓、双名、有中间名的都会猜错，
+                  所以给个地方自己填。 */}
+              <div className="field">
+                <label className="label">护照上的姓 / 名（选填）</label>
+                <div className="row" style={{ gap: 8 }}>
+                  <input
+                    id="surname"
+                    className="input grow"
+                    value={surname}
+                    onChange={(e) => setSurname(e.target.value)}
+                    placeholder={guess.surname || '姓 SURNAME'}
+                    maxLength={24}
+                    aria-label="护照上的姓"
+                  />
+                  <input
+                    id="given"
+                    className="input grow"
+                    value={given}
+                    onChange={(e) => setGiven(e.target.value)}
+                    placeholder={guess.given || '名 GIVEN NAMES'}
+                    maxLength={24}
+                    aria-label="护照上的名"
+                  />
+                </div>
+                <div className="tiny dim">
+                  {name.trim() && !surname.trim() && !given.trim()
+                    ? `不填就印成「${guess.surname || '—'} / ${guess.given || '—'}」`
+                    : '只印在护照资料页上，排行榜仍用上面的名字'}
+                </div>
               </div>
 
               <div className="field">

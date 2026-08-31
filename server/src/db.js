@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS players (
   canon         TEXT NOT NULL,
   token         TEXT NOT NULL,
   name          TEXT NOT NULL,
+  -- 护照资料页印的姓 / 名。报名时选填，留空就按 name 猜（中文取首字为姓）。
+  surname       TEXT NOT NULL DEFAULT '',
+  given         TEXT NOT NULL DEFAULT '',
   avatar        TEXT NOT NULL DEFAULT '{}',
   contact       TEXT NOT NULL DEFAULT '',
   identity      TEXT,
@@ -82,6 +85,13 @@ CREATE TABLE IF NOT EXISTS awards (
   if (!cols.includes('pin')) {
     db.exec("ALTER TABLE players ADD COLUMN pin TEXT NOT NULL DEFAULT ''");
     console.log('[db] 已为 players 表添加 pin 列');
+  }
+  // 老库没有姓/名两列。空字符串表示报名时没填，护照上按 name 猜。
+  for (const col of ['surname', 'given']) {
+    if (!cols.includes(col)) {
+      db.exec(`ALTER TABLE players ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
+      console.log(`[db] 已为 players 表添加 ${col} 列`);
+    }
   }
 }
 
@@ -158,8 +168,8 @@ export const adminPin = () => String(process.env.ADMIN_PIN || getSetting('_admin
 
 export const stmts = {
   insertPlayer: db.prepare(`
-    INSERT INTO players (id, code, canon, pin, token, name, avatar, contact, tokens_total, created_at, updated_at)
-    VALUES (@id, @code, @canon, @pin, @token, @name, @avatar, @contact, @tokens_total, @created_at, @updated_at)
+    INSERT INTO players (id, code, canon, pin, token, name, surname, given, avatar, contact, tokens_total, created_at, updated_at)
+    VALUES (@id, @code, @canon, @pin, @token, @name, @surname, @given, @avatar, @contact, @tokens_total, @created_at, @updated_at)
   `),
   // 顺序编号：取当前最大号 +1。放在事务里分配，配合 code 的 UNIQUE 约束防并发撞号。
   maxCodeNum: db.prepare("SELECT COALESCE(MAX(CAST(code AS INTEGER)), 0) AS n FROM players"),
@@ -175,6 +185,11 @@ export const stmts = {
   countPlayers: db.prepare('SELECT COUNT(*) AS n FROM players'),
   touchPlayer: db.prepare('UPDATE players SET updated_at = ? WHERE id = ?'),
   setModifiers: db.prepare('UPDATE players SET modifiers = ?, updated_at = ? WHERE id = ?'),
+  // 姓/名单独更新：updatePlayerFields 被记分、编队等多处复用，
+  // 往那条里塞字段会逼所有调用点都传，不值得
+  setNameParts: db.prepare(
+    'UPDATE players SET surname = ?, given = ?, updated_at = ? WHERE id = ?',
+  ),
   updatePlayerFields: db.prepare(`
     UPDATE players SET name = @name, avatar = @avatar, contact = @contact,
       notes = @notes, identity = @identity, team_id = @team_id, team_color = @team_color,

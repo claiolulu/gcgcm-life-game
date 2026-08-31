@@ -131,6 +131,9 @@ app.post('/api/register', (req, res) => {
   const avatar = JSON.stringify(req.body?.avatar ?? {});
   if (avatar.length > 2000) return res.status(400).json({ error: '头像数据异常' });
   const contact = String(req.body?.contact || '').trim().slice(0, 64);
+  // 护照资料页印的姓 / 名，选填。两个都留空就交给前端按 name 猜。
+  const surname = String(req.body?.surname || '').trim().slice(0, 24);
+  const given = String(req.body?.given || '').trim().slice(0, 24);
 
   // 选手自己挑的 4 位密码；没填或不合法就随机给一个
   const pin = isValidPin(req.body?.pin) ? String(req.body.pin) : randomPin();
@@ -148,6 +151,8 @@ app.post('/api/register', (req, res) => {
       pin,
       token: randomToken(24),
       name,
+      surname,
+      given,
       avatar,
       contact,
       tokens_total: settings.helpTokens ?? 1,
@@ -234,6 +239,16 @@ app.post('/api/me', playerAuth, (req, res) => {
   const name = String(req.body?.name ?? p.name).trim().slice(0, 24) || p.name;
   const avatar = JSON.stringify(req.body?.avatar ?? safeJSON(p.avatar, {}));
   const contact = String(req.body?.contact ?? p.contact).trim().slice(0, 64);
+
+  // 护照上的姓/名。报名时填错了总得能自己改，不然只能找同工。
+  // 没传就保持原样（前端只在编辑弹层里传）。
+  if (req.body?.surname !== undefined || req.body?.given !== undefined) {
+    stmts.setNameParts.run(
+      String(req.body?.surname ?? p.surname).trim().slice(0, 24),
+      String(req.body?.given ?? p.given).trim().slice(0, 24),
+      Date.now(), p.id,
+    );
+  }
 
   stmts.updatePlayerFields.run({
     id: p.id, name, avatar, contact, notes: p.notes,

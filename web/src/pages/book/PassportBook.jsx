@@ -36,6 +36,9 @@ export default function PassportBook() {
   // 抽到身份后自动弹一次队友面板 —— 这是选手最需要立刻知道的事
   const [seenTeam, setSeenTeam] = useLocalState('mlg.teamSeen', null);
   const [tourOpen, setTourOpen] = useState(false);
+  // 自动引导要等人先把封面翻开。否则新用户一进来就被拽到导航页，
+  // 连封面都没看见，还以为程序坏了。
+  const [opened, setOpened] = useState(false);
   // 第一次打开护照自动走一遍引导，之后只在点 ? 时再看
   const [tourDone, setTourDone] = useLocalState('mlg.tourDone', false);
   const [board, setBoard] = useState([]);
@@ -78,6 +81,7 @@ export default function PassportBook() {
    */
   const targetRef = useRef(0);
   useEffect(() => { if (!flipping.current) targetRef.current = page; }, [page]);
+  useEffect(() => { if (page > 0) setOpened(true); }, [page]);
 
   /**
    * 把当前这一页克隆成一张静止的纸。
@@ -159,6 +163,20 @@ export default function PassportBook() {
     if (i < 0) return;
     flipTo(i, i >= targetRef.current ? 1 : -1);
   }, [flipTo]);
+
+  /**
+   * 直接跳页，不走翻页动画。
+   * 新手引导用 —— 它要测量高亮框在屏幕上的位置，页面要是正在 3D 旋转，
+   * 量到的是转到一半的坐标，光圈就会满屏乱窜。
+   */
+  const jump = useCallback((i) => {
+    if (i < 0) return;
+    const to = Math.max(0, Math.min(pageCount - 1, i));
+    setOverlay(null);
+    if (to === targetRef.current) return;
+    targetRef.current = to;
+    setPage(to);
+  }, [pageCount]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -338,9 +356,9 @@ export default function PassportBook() {
       <PassportBookView v={v} />
 
       <Tour
-        open={tourOpen || !tourDone}
+        open={tourOpen || (!tourDone && opened)}
         steps={tourSteps}
-        onGoPage={goto}
+        onGoPage={jump}
         onClose={() => { setTourOpen(false); setTourDone(true); }}
       />
 

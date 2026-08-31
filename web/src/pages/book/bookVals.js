@@ -92,7 +92,11 @@ export function buildPages(stations) {
 
 const clean = (s, fb) => (String(s || '') || fb).toUpperCase().replace(/[^A-Z0-9]/g, '') || fb;
 
-/** 我们只收一个名字，按护照惯例拆成姓 / 名：中文取首字为姓，西文按空格拆 */
+/**
+ * 报名时没填姓 / 名的话，按护照惯例从整个名字猜：
+ * 中文取首字为姓，西文按空格拆，最后一段当姓。
+ * 猜错很正常（复姓、双名、中间名），所以报名页允许自己填，填了就以填的为准。
+ */
 export function splitName(full) {
   const name = String(full || '').trim();
   if (!name) return { surname: '', given: '' };
@@ -151,7 +155,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     ? { name: colorMeta.name, hex: colorMeta.hex, symbol: me.teamSymbol, teamId: me.teamId }
     : null;
   const teammates = me?.teammates || [];
-  const { surname, given } = splitName(me?.name);
+  // 自己填的优先；只填了一个也认，另一个仍然用猜的补上
+  const guessed = splitName(me?.name);
+  const surname = (me?.surname || '').trim() || guessed.surname;
+  const given = (me?.given || '').trim() || guessed.given;
 
   const station = kind === 'visa' ? stations[cur.i] : null;
   const visaScore = station ? done[station.id]?.points ?? null : null;

@@ -527,6 +527,7 @@ export default function Admin() {
 function ManualAssignSheet({ open, onClose, players, picked, togglePick, onAssign, onUnassign, onResetPin, busy, colors, resetPin }) {
   const [q, setQ] = useState('');
   const [onlyUnassigned, setOnlyUnassigned] = useState(true);
+  const unassignedCount = useMemo(() => players.filter((p) => !p.identity).length, [players]);
 
   const list = useMemo(() => {
     const kw = q.trim().toLowerCase();
@@ -550,12 +551,15 @@ function ManualAssignSheet({ open, onClose, players, picked, togglePick, onAssig
 
         <div className="row" style={{ gap: 8 }}>
           <input className="input grow" value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜名字或编号…" />
+          {/* 按钮写的是「点了会怎样」，不是「现在是什么」。
+              原来反过来写，读着像「点它就只看未分配」，一点却变成了看全部。
+              带上人数，当前在看哪一批一眼就知道。 */}
           <button
-            className={`btn btn--sm ${onlyUnassigned ? 'btn--primary' : 'btn--ghost'}`}
+            className="btn btn--sm btn--ghost"
             onClick={() => setOnlyUnassigned((v) => !v)}
             style={{ whiteSpace: 'nowrap' }}
           >
-            {onlyUnassigned ? '只看未分配' : '看全部'}
+            {onlyUnassigned ? `看全部 ${players.length} 人` : `只看未分配 ${unassignedCount} 人`}
           </button>
         </div>
 

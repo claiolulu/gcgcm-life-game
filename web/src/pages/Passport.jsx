@@ -6,6 +6,7 @@ import QRCard from '../components/QRCard.jsx';
 import { NetBar, Score, Sheet, StampGrid, useToast, useConfirm, useLocalState, ago } from '../components/ui.jsx';
 import { useConfig } from '../lib/config.js';
 import { usePlayer, updateProfile, signOut } from '../lib/player.js';
+import { splitName } from './book/bookVals.js';
 
 export default function Passport() {
   const nav = useNavigate();
@@ -346,7 +347,11 @@ function EditSheet({ open, onClose, me }) {
   const toast = useToast();
   const ask = useConfirm();
   const [name, setName] = useState(me.name);
+  const [surname, setSurname] = useState(me.surname || '');
+  const [given, setGiven] = useState(me.given || '');
   const [avatar, setAvatar] = useState(me.avatar);
+  // 两个输入框的占位提示：不填的话护照上会印成什么
+  const guess = useMemo(() => splitName(name), [name]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -356,7 +361,7 @@ function EditSheet({ open, onClose, me }) {
   async function save() {
     setBusy(true);
     try {
-      await updateProfile({ name: name.trim(), avatar });
+      await updateProfile({ name: name.trim(), surname: surname.trim(), given: given.trim(), avatar });
       toast('已保存', 'ok');
       onClose();
     } catch (err) {
@@ -373,6 +378,20 @@ function EditSheet({ open, onClose, me }) {
         <div className="field">
           <label className="label">名字</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={24} />
+        </div>
+        <div className="field">
+          <label className="label">护照上的姓 / 名（选填）</label>
+          <div className="row" style={{ gap: 8 }}>
+            <input
+              className="input grow" value={surname} maxLength={24} aria-label="护照上的姓"
+              onChange={(e) => setSurname(e.target.value)} placeholder={guess.surname || '姓'}
+            />
+            <input
+              className="input grow" value={given} maxLength={24} aria-label="护照上的名"
+              onChange={(e) => setGiven(e.target.value)} placeholder={guess.given || '名'}
+            />
+          </div>
+          <div className="tiny dim">留空就按上面的名字猜，复姓、双名容易猜错</div>
         </div>
         <div className="tiny dim">游戏一旦开始，护照信息就会锁定，不能再改。</div>
         <button className="btn btn--primary btn--full" disabled={busy} onClick={save}>
