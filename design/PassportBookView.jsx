@@ -13,11 +13,6 @@ export default function PassportBookView({ v }) {
           {v.isPortrait ? (
             <>
               <div style={{position: "absolute", inset: "0", display: "flex", flexDirection: "column", animation: "pageIn .25s ease both"}}>
-                {!v.isCover && (
-                <button onClick={v.openQr} title="放大二维码" style={{position: "absolute", right: "10px", bottom: "10px", zIndex: 6, width: "44px", height: "44px", padding: "3px", background: "#fff", border: "1px solid rgba(92,26,34,.4)", lineHeight: 0, boxShadow: "0 2px 8px rgba(60,40,30,.25)"}}>
-                  <div style={{width: "100%", height: "100%"}}>{v.qrThumb}</div>
-                </button>
-                )}
                 {v.isCover ? (
                   <>
                     <div onClick={v.pageTap} style={{cursor: "pointer", flex: "1", minHeight: "0", position: "relative", background: "linear-gradient(155deg,#6b2129 0%,#5c1a22 45%,#48131a 100%)", padding: "34px 30px 26px", display: "flex", flexDirection: "column", alignItems: "center"}}>
@@ -446,11 +441,9 @@ export default function PassportBookView({ v }) {
           {v.isLandscape ? (
             <>
               <div onClick={v.pageTap} style={{position: "absolute", left: "50%", top: "50%", width: v.lsW, height: v.lsH, transform: v.lsTransform, display: "flex", flexDirection: "column", background: v.paper, overflow: "hidden", animation: "pageIn .25s ease both"}}>
-                {!v.isCover && (
-                <button onClick={v.openQr} title="放大二维码" style={{position: "absolute", right: "10px", bottom: "10px", zIndex: 6, width: "38px", height: "38px", padding: "3px", background: "#fff", border: "1px solid rgba(92,26,34,.4)", lineHeight: 0, boxShadow: "0 2px 8px rgba(60,40,30,.25)"}}>
+                <button onClick={v.openQr} title="放大二维码" style={{position: "absolute", right: "10px", bottom: "10px", zIndex: 6, width: "30px", height: "30px", padding: "3px", background: "#fff", border: "1px solid rgba(92,26,34,.4)", lineHeight: 0, boxShadow: "0 2px 8px rgba(60,40,30,.25)"}}>
                   <div style={{width: "100%", height: "100%"}}>{v.qrThumb}</div>
                 </button>
-                )}
                 <div style={{position: "absolute", inset: "0", pointerEvents: "none", opacity: v.guilloche, background: "repeating-conic-gradient(from 0deg at 18% 30%,rgba(92,26,34,.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 82% 70%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(92,26,34,.032) 0 1px,transparent 1px 6px)"}} />
                 <div style={{position: "absolute", right: "3%", top: "12%", width: "40%", bottom: "14%", pointerEvents: "none", opacity: ".11", backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
                 <div style={{position: "absolute", left: "0", right: "0", bottom: "0", height: "30px", pointerEvents: "none", zIndex: "2", background: "linear-gradient(0deg,rgba(60,40,30,.18),transparent)"}} />

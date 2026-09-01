@@ -414,19 +414,16 @@ def apply_patches(jsx):
     assert jsx != before, "没找到签证页区块"
     n += 1
 
-    # 每一页的右下角嵌一枚二维码，同工走过来直接扫。
+    # 横版页（资料页、关卡页）的右下角嵌一枚二维码，同工走过来直接扫。
     #
-    # 放在页面「里面」而不是屏幕上：横版页（资料页、关卡页）在竖屏下
-    # 整体旋转 90°，嵌在页里的码会跟着转 —— 这没问题，QR 本身是
-    # 旋转不变的，三个定位角让扫描器自己判断方向。
-    # 放在页面外面反而不对：那是一张浮在护照上的贴纸，不像护照的一部分。
+    # 只有横版页要加 —— 设计稿在竖版页的页脚本来就画了一枚小的，
+    # 再加就是右下角并排两个。
     #
-    # 封面不放（合着的护照没有可扫的东西），所以挂在两种版式的
-    # 页面容器上而不是舞台上。
-    # 封面不放：合着的护照没有可扫的东西。竖版容器把封面也包在里面，
-    # 所以这里要显式排掉
+    # 放在页面「里面」而不是屏幕上：横版页在竖屏下整体旋转 90°，
+    # 嵌在页里的码会跟着转。这没问题，QR 本身旋转不变，三个定位角
+    # 就是给扫描器判断方向用的。放在页面外面反而不对 ——
+    # 那是一张浮在护照上的贴纸，不像护照的一部分。
     qr_corner = (
-        '{!v.isCover && (\n'
         '<button onClick={v.openQr} title="放大二维码" '
         'style={{position: "absolute", right: "10px", bottom: "10px", zIndex: 6, '
         'width: "%s", height: "%s", padding: "3px", background: "#fff", '
@@ -434,20 +431,7 @@ def apply_patches(jsx):
         'boxShadow: "0 2px 8px rgba(60,40,30,.25)"}}>\n'
         '  <div style={{width: "100%%", height: "100%%"}}>{v.qrThumb}</div>\n'
         '</button>\n'
-        ')}\n'
     )
-
-    # 竖版页：容器是 position:absolute inset:0 的那一层
-    marker = ('<div style={{position: "absolute", inset: "0", display: "flex", '
-              'flexDirection: "column", animation: "pageIn .25s ease both"}}>\n')
-    i = jsx.find(marker)
-    assert i != -1, "没找到竖版页容器"
-    end = i + len(marker)
-    line_start = jsx.rfind('\n', 0, i) + 1
-    indent = jsx[line_start:i] + '  '
-    body = (qr_corner % ('44px', '44px')).replace('\n', '\n' + indent).rstrip() + '\n'
-    jsx = jsx[:end] + indent + body + jsx[end:]
-    n += 1
 
     # 横版页：容器带 lsTransform，页面自身已经转了 90°
     marker = 'transform: v.lsTransform, display: "flex", flexDirection: "column"'
@@ -456,7 +440,7 @@ def apply_patches(jsx):
     end = jsx.find('>\n', i) + len('>\n')
     line_start = jsx.rfind('\n', 0, i) + 1
     indent = jsx[line_start:jsx.find('<', line_start)] + '  '
-    body = (qr_corner % ('38px', '38px')).replace('\n', '\n' + indent).rstrip() + '\n'
+    body = (qr_corner % ('30px', '30px')).replace('\n', '\n' + indent).rstrip() + '\n'
     jsx = jsx[:end] + indent + body + jsx[end:]
     n += 1
 
