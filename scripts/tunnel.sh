@@ -59,7 +59,15 @@ done
 
 echo "→ 开隧道…"
 LOG="$(mktemp -t mlg-tunnel)"
-cloudflared tunnel --url "http://localhost:$PORT" --no-autoupdate > "$LOG" 2>&1 &
+# --edge-ip-version 4：强制走 IPv4。
+#   IPv6 出站有问题的网络下，cloudflared 会连上 Cloudflare 的 v6 边缘，
+#   然后卡在 "control stream encountered a failure" 的重连死循环里 ——
+#   地址照样打印出来，隧道其实是坏的，最难查的就是这种。
+#   在这台机器上实测：加了这个参数零报错，不加就一直重连。
+#
+# 如果场地的网络还拦 UDP/7844（QUIC），再加 --protocol http2 退回 TCP。
+cloudflared tunnel --url "http://localhost:${PORT}" --no-autoupdate \
+  --edge-ip-version 4 > "$LOG" 2>&1 &
 TUNNEL_PID=$!
 
 # 地址是 cloudflared 自己打到日志里的，等它出现
@@ -73,6 +81,40 @@ done
 if [ -z "$URL" ]; then
   echo "✗ 没等到隧道地址，日志在 $LOG"
   tail -20 "$LOG"
+  exit 1
+fi
+
+# 光有地址不算数：连不上的坏隧道照样会把地址打印出来。
+# 真去外网绕一圈打一下自己，通了才敢说成功。
+#
+# 先等 10 秒再查：cloudflared 打印地址的那一刻，这个新域名的 DNS
+# 还没生效。查早了会失败，而失败结果会被负缓存（NXDOMAIN 通常缓存
+# 60 秒），之后所有重试都命中那个缓存，隧道明明是通的也一直报错。
+echo "→ 校验隧道（等 DNS 生效）…"
+sleep 10
+OK=""
+for _ in $(seq 1 12); do
+  # -4 强制 IPv4：IPv6 出站有问题的机器上，校验本身会失败
+  if curl -4 -fsS --max-time 15 "$URL/healthz" >/dev/null 2>&1; then OK=1; break; fi
+  sleep 6
+done
+
+if [ -z "$OK" ]; then
+  cat <<MSG
+
+✗ 隧道地址出来了，但从外网打不通：
+    $URL
+
+  多半是网络环境的问题。日志在 $LOG，最后几行：
+MSG
+  grep -E "ERR|error" "$LOG" | tail -5
+  cat <<'MSG'
+
+  常见原因和对策：
+    · IPv6 有问题 —— 脚本已经强制 IPv4，还不行就往下看
+    · 场地拦 UDP/7844（QUIC）—— 在 cloudflared 那行加 --protocol http2
+    · 公司/学校网络整个拦 Cloudflare —— 换个网络（手机热点最快）
+MSG
   exit 1
 fi
 
