@@ -22,3 +22,4 @@ __pycache__/
 *.pyc
 scripts/.tunnel-url
 scripts/.tunnel-host
+server/data-test/

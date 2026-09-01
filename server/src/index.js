@@ -102,13 +102,20 @@ app.get('/api/config', (_req, res) => {
 
 app.post('/api/register', (req, res) => {
   const settings = getSettings();
-  // 选手端是纯展示端：只有「入场 / 报名中」这一个阶段允许它写入。
-  // 这一道闸是服务端强制的，不依赖前端隐藏按钮，也不依赖同工记得关开关。
-  if (settings.gameState !== 'lobby') {
-    return res.status(403).json({ error: '游戏已经开始，报名通道已关闭' });
-  }
+  // 报名只看「开放报名」这一个开关，不再额外卡游戏阶段。
+  //
+  // 原来是「非 lobby 一律拒绝」，但现场真实需求是：开场之后陆续还有人来，
+  // 同工手动把开关打开就该能报名 —— 状态切走时开关会自动关掉（见
+  // /api/admin/settings），所以默认仍然是关的，打开是一次明确的决定。
+  //
+  // 改名换头像仍然只限 lobby（见 POST /api/me）：那会影响排行榜上的
+  // 显示，中途变身不合适。报名是新增一个人，没有这个问题。
   if (!settings.registrationOpen) {
-    return res.status(403).json({ error: '报名通道已关闭，请找 Reception 的同工' });
+    return res.status(403).json({
+      error: settings.gameState === 'lobby'
+        ? '报名通道已关闭，请找 Reception 的同工'
+        : '游戏已经开始。想让人中途加入，请同工在总控台打开「开放报名」',
+    });
   }
 
   const name = String(req.body?.name || '').trim().slice(0, 24);

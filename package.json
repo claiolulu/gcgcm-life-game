@@ -10,7 +10,7 @@
     "start": "npm --prefix server start",
     "dev:server": "npm --prefix server run dev",
     "dev:web": "npm --prefix web run dev",
-    "test": "node server/test-flow.mjs && node server/test-concurrency.mjs && node server/test-readonly.mjs && node server/seed.mjs --force",
+    "test": "node server/run-tests.mjs",
     "seed": "node server/seed.mjs"
   }
 }
