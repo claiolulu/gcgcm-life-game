@@ -118,6 +118,9 @@ MSG
   exit 1
 fi
 
+# 地址每次重启都变，落一份到固定位置，忘了是哪个就 cat 这个文件
+echo "$URL" > scripts/.tunnel-url
+
 echo
 echo "════════════════════════════════════════════"
 echo "  $URL"
@@ -129,8 +132,13 @@ q.toString(process.argv[1], { type: 'terminal', small: true }).then(s => console
 " "$URL"
 echo "  ↑ 扫这个进报名页。工作人员端在 $URL/staff"
 echo
-echo "  地址每次重开都会变，但选手护照上的二维码编的是编号（MLG:01），"
-echo "  不是网址 —— 换地址不影响任何人已经生成的护照。"
+echo "  ⚠️  这个地址每次重开脚本都会变，旧地址立刻失效。"
+echo "     旧地址的页面还能打开（Service Worker 在发缓存），但一操作就报"
+echo "     「网络连接不上」—— 看着像网站坏了，其实只是地址过期了。"
+echo "     地址也存在 scripts/.tunnel-url，忘了就 cat 一下。"
+echo
+echo "  选手护照上的二维码编的是编号（MLG:01）不是网址，"
+echo "  所以换地址不影响任何人已经生成的护照。"
 echo
 echo "  Ctrl-C 停止。数据在 server/data/game.db，停了也还在。"
 echo

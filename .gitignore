@@ -20,3 +20,4 @@ design/wm/contact-sheet.png
 design/wm/inspect.png
 __pycache__/
 *.pyc
+scripts/.tunnel-url
