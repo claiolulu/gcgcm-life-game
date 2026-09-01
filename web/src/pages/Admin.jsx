@@ -16,33 +16,6 @@ export default function Admin() {
   // 距离活动结束还有多少分钟。没法自动知道，给个可调的估值
   const [minutesLeft, setMinutesLeft] = useLocalState('mlg.minutesLeft', 33);
 
-  /**
-   * 容量体检：按「组数 × 8 关」的需求对上「各关每分钟能过几组」的供给。
-   *
-   * 全在客户端算 —— 关卡耗时在 /api/config 里本来就有，组数从花名册数，
-   * 不用为这个多发一次请求。
-   */
-  const capacity = useMemo(() => {
-    const sts = (config?.stations || []).filter((st) => st.minutes);
-    if (sts.length === 0 || players.length === 0) return null;
-
-    const teams = new Set();
-    let loners = 0;
-    for (const p of players) { if (p.teamId) teams.add(p.teamId); else loners++; }
-    const groups = teams.size + loners;
-
-    const per = sts.map((st) => ({
-      name: st.name, cap: Math.floor(minutesLeft / st.minutes),
-    }));
-    const total = per.reduce((a, x) => a + x.cap, 0);
-    return {
-      groups, minutes: minutesLeft, total,
-      avg: groups > 0 ? Math.round((total / groups) * 10) / 10 : 0,
-      // 接待不下一半队伍的就是瓶颈，值得当场加人手
-      tight: per.filter((x) => x.cap < groups * 0.5).sort((a, b) => a.cap - b.cap),
-    };
-  }, [config, players, minutesLeft]);
-
   // 各关忙闲随同步一起来，只有 id 和数字；名字图标从配置里补
   const load = useMemo(() => {
     const meta = new Map((config?.stations || []).map((st) => [st.id, st]));
@@ -62,6 +35,38 @@ export default function Admin() {
   const resetPin = config?.resetPin || '3927';
   const players = useMemo(() => allPlayers(), [staff.players, staff.outbox]); // eslint-disable-line
   const board = useMemo(() => leaderboardLocal(), [staff.players, staff.outbox]); // eslint-disable-line
+
+  /**
+   * 容量体检：按「组数 × 8 关」的需求对上「各关每分钟能过几组」的供给。
+   *
+   * 全在客户端算 —— 关卡耗时在 /api/config 里本来就有，组数从花名册数，
+   * 不用为这个多发一次请求。
+   */
+  const capacity = useMemo(() => {
+    const sts = (config?.stations || []).filter((st) => st.minutes);
+    if (sts.length === 0 || players.length === 0) return null;
+
+    const teams = new Set();
+    let loners = 0;
+    for (const p of players) { if (p.teamId) teams.add(p.teamId); else loners++; }
+    const groups = teams.size + loners;
+
+    const per = sts.map((st) => ({
+      name: st.name, cap: Math.floor(minutesLeft / st.minutes),
+    }));
+    const total = per.reduce((a, x) => a + x.cap, 0);
+    // 人少的时候供给远大于需求，算出来会是「每组跑得完 18 关」这种
+    // 显然不对的数 —— 一共就 8 关，封顶
+    const avgRaw = groups > 0 ? total / groups : 0;
+    return {
+      groups, minutes: minutesLeft, total,
+      avg: Math.round(Math.min(avgRaw, sts.length) * 10) / 10,
+      enough: avgRaw >= sts.length,
+      // 接待不下一半队伍的就是瓶颈，值得当场加人手
+      tight: per.filter((x) => x.cap < groups * 0.5).sort((a, b) => a.cap - b.cap),
+    };
+  }, [config, players, minutesLeft]);
+
 
   useEffect(() => {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
@@ -328,7 +333,8 @@ export default function Admin() {
             }}>
               <b>容量体检</b>：场上 {capacity.groups} 组，按各关耗时估算，
               剩余 {capacity.minutes} 分钟内合计能接待约 <b>{capacity.total}</b> 组次
-              —— 平均每组跑得完 <b>{capacity.avg}</b> 关。
+              —— 平均每组跑得完 <b>{capacity.avg}</b> 关
+              {capacity.enough ? '（八关都跑得完）' : '，八关跑不完'}。
               {' '}
               <button
                 className="btn btn--sm btn--ghost"
