@@ -444,6 +444,34 @@ def apply_patches(jsx):
     jsx = jsx[:end] + indent + body + jsx[end:]
     n += 1
 
+    # 让开手机的安全区（刘海 / 状态栏 / 底部横条）。
+    #
+    # index.html 里是 viewport-fit=cover + black-translucent + standalone，
+    # 三个叠在一起页面会一直铺到状态栏底下。App 自己的 .page 用
+    # calc(var(--safe-top) + 14px) 处理过，但护照册这一层是设计稿直出的，
+    # 两层都写死 100dvh，于是页眉被状态栏压住 —— 时间和电量图标盖在
+    # 队伍徽章和分数上。加到主屏幕之后尤其明显。
+    #
+    # 外层留出上下安全区，内层的舞台改成占满外层剩余高度。
+    before = jsx
+    jsx = jsx.replace(
+        '<div style={{height: "100dvh", display: "flex", alignItems: "center", '
+        'justifyContent: "center", background: "radial-gradient(',
+        '<div style={{height: "100dvh", boxSizing: "border-box", '
+        'paddingTop: "env(safe-area-inset-top, 0px)", '
+        'paddingBottom: "env(safe-area-inset-bottom, 0px)", '
+        'display: "flex", alignItems: "center", '
+        'justifyContent: "center", background: "radial-gradient(',
+        1)
+    assert jsx != before, "没找到最外层容器"
+    before = jsx
+    jsx = jsx.replace(
+        'maxWidth: v.stageMax, height: "100dvh", position: "relative"',
+        'maxWidth: v.stageMax, height: "100%", position: "relative"',
+        1)
+    assert jsx != before, "没找到舞台容器"
+    n += 1
+
     # 5) 封面：去掉「OPEN 翻开」按钮，改成整页可点（见 bookVals 的 pageTap）。
     #    原地留一行很淡的提示，否则没人知道要点。
     i5 = jsx.find('OPEN 翻开')

@@ -7,8 +7,8 @@ import React from 'react';
  */
 export default function PassportBookView({ v }) {
   return (
-      <div style={{height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(130% 100% at 50% 0%,#26201d,#141110 70%)", fontFamily: "'Noto Serif SC','EB Garamond',serif"}}>
-        <div style={{width: "100%", maxWidth: v.stageMax, height: "100dvh", position: "relative", overflow: "hidden", background: "#5c1a22", containerType: "size", perspective: "1500px"}}>
+      <div style={{height: "100dvh", boxSizing: "border-box", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(130% 100% at 50% 0%,#26201d,#141110 70%)", fontFamily: "'Noto Serif SC','EB Garamond',serif"}}>
+        <div style={{width: "100%", maxWidth: v.stageMax, height: "100%", position: "relative", overflow: "hidden", background: "#5c1a22", containerType: "size", perspective: "1500px"}}>
           <div className="book-flip" style={{position: "absolute", inset: "0", animation: v.pageAnim}}>
           {v.isPortrait ? (
             <>
