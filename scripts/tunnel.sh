@@ -105,6 +105,21 @@ done
 
 echo "→ 开隧道…"
 LOG="$(mktemp -t mlg-tunnel)"
+# 有 named tunnel 就用固定域名，没有就退回随机地址。
+#
+# named tunnel 需要一次性配置（见 README）：域名托管到 Cloudflare、
+# cloudflared tunnel login、tunnel create、route dns。配好之后地址永久固定，
+# 进程重启、换网络都不变 —— 随机地址每次重开都作废，很折腾。
+# 固定域名存在 scripts/.tunnel-host 里，配好之后就一直用它。
+# 那个文件是执行 `cloudflared tunnel route dns` 时一并写下的。
+TUNNEL_NAME="${TUNNEL_NAME:-gcgcm-life-game}"
+HOST_FILE="scripts/.tunnel-host"
+NAMED=""
+if [ -f "$HOME/.cloudflared/cert.pem" ] && [ -s "$HOST_FILE" ] \
+   && cloudflared tunnel list 2>/dev/null | grep -qw "$TUNNEL_NAME"; then
+  NAMED="$(tr -d '[:space:]' < "$HOST_FILE")"
+fi
+
 # --edge-ip-version 4：强制走 IPv4。
 #   IPv6 出站有问题的网络下，cloudflared 会连上 Cloudflare 的 v6 边缘，
 #   然后卡在 "control stream encountered a failure" 的重连死循环里 ——
@@ -112,17 +127,32 @@ LOG="$(mktemp -t mlg-tunnel)"
 #   在这台机器上实测：加了这个参数零报错，不加就一直重连。
 #
 # 如果场地的网络还拦 UDP/7844（QUIC），再加 --protocol http2 退回 TCP。
-cloudflared tunnel --url "http://localhost:${PORT}" --no-autoupdate \
-  --edge-ip-version 4 > "$LOG" 2>&1 &
+if [ -n "$NAMED" ]; then
+  echo "  （固定域名 ${NAMED}，named tunnel: ${TUNNEL_NAME}）"
+  cloudflared tunnel --no-autoupdate --edge-ip-version 4 \
+    run --url "http://localhost:${PORT}" "$TUNNEL_NAME" > "$LOG" 2>&1 &
+else
+  cloudflared tunnel --url "http://localhost:${PORT}" --no-autoupdate \
+    --edge-ip-version 4 > "$LOG" 2>&1 &
+fi
 TUNNEL_PID=$!
 
 # 地址是 cloudflared 自己打到日志里的，等它出现
 URL=""
-for _ in $(seq 1 60); do
-  URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG" | head -1 || true)"
-  [ -n "$URL" ] && break
-  sleep 0.5
-done
+if [ -n "$NAMED" ]; then
+  URL="https://${NAMED}"
+  # 固定域名不会出现在日志里，改为等隧道真的连上
+  for _ in $(seq 1 40); do
+    grep -q "Registered tunnel connection" "$LOG" && break
+    sleep 0.5
+  done
+else
+  for _ in $(seq 1 60); do
+    URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG" | head -1 || true)"
+    [ -n "$URL" ] && break
+    sleep 0.5
+  done
+fi
 
 if [ -z "$URL" ]; then
   echo "✗ 没等到隧道地址，日志在 $LOG"
@@ -178,10 +208,14 @@ q.toString(process.argv[1], { type: 'terminal', small: true }).then(s => console
 " "$URL"
 echo "  ↑ 扫这个进报名页。工作人员端在 $URL/staff"
 echo
+if [ -n "$NAMED" ]; then
+  echo "  这是固定域名，重开脚本不会变。"
+else
 echo "  ⚠️  这个地址每次重开脚本都会变，旧地址立刻失效。"
 echo "     旧地址的页面还能打开（Service Worker 在发缓存），但一操作就报"
 echo "     「网络连接不上」—— 看着像网站坏了，其实只是地址过期了。"
 echo "     地址也存在 scripts/.tunnel-url，忘了就 cat 一下。"
+fi
 echo
 echo "  选手护照上的二维码编的是编号（MLG:01）不是网址，"
 echo "  所以换地址不影响任何人已经生成的护照。"
