@@ -5,7 +5,7 @@ import Avatar, { randomAvatar } from '../components/Avatar.jsx';
 import { Sheet, useToast } from '../components/ui.jsx';
 import { useConfig } from '../lib/config.js';
 import { splitName } from './book/bookVals.js';
-import { register, restore } from '../lib/player.js';
+import { register, restore, lookup, changePin } from '../lib/player.js';
 
 /** 预填一个随机 4 位密码：选手想改就改，不想改也不用多按键 */
 function suggestPin() {
@@ -265,7 +265,16 @@ export default function Register() {
   );
 }
 
-/** 清了缓存 / 换了手机：编号 + 4 位密码找回护照 */
+/**
+ * 清了缓存 / 换了手机 / 忘了密码：在这里找回护照。
+ *
+ * 三件事：
+ *   · 编号想不起来 —— 输名字片段找，找到直接填进去
+ *   · 编号 + 密码 —— 正常找回
+ *   · 密码不好记 —— 用原密码换一个，换完直接进护照
+ *
+ * 按名字查只回编号和姓名，不回密码；这两样排行榜上本来就是公开的。
+ */
 export function RestoreSheet({ open, onClose }) {
   const nav = useNavigate();
   const toast = useToast();
@@ -273,11 +282,36 @@ export function RestoreSheet({ open, onClose }) {
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const [q, setQ] = useState('');
+  const [matches, setMatches] = useState(null);   // null = 还没查过
+  const [seeking, setSeeking] = useState(false);
+
+  const [changing, setChanging] = useState(false);
+  const [newPin, setNewPin] = useState('');
+
+  async function find() {
+    const kw = q.trim();
+    if (kw.length < 2) return toast('至少输两个字', 'warn');
+    setSeeking(true);
+    try {
+      setMatches(await lookup(kw));
+    } catch (err) {
+      toast(err.message || '查找失败', 'err');
+    } finally {
+      setSeeking(false);
+    }
+  }
+
   async function go() {
     setBusy(true);
     try {
-      await restore({ code: code.trim(), pin: pin.trim() });
-      toast('护照已找回', 'ok');
+      if (changing) {
+        await changePin({ code: code.trim(), pin: pin.trim(), newPin: newPin.trim() });
+        toast('密码已改，护照也找回来了', 'ok');
+      } else {
+        await restore({ code: code.trim(), pin: pin.trim() });
+        toast('护照已找回', 'ok');
+      }
       onClose?.();
       nav('/passport', { replace: true });
     } catch (err) {
@@ -287,12 +321,55 @@ export function RestoreSheet({ open, onClose }) {
     }
   }
 
+  const ready = code.trim() && pin.length === 4 && (!changing || newPin.length === 4);
+
   return (
     <Sheet open={open} onClose={onClose} title="找回我的护照">
       <div className="stack">
         <div className="small muted">
-          输入你的编号和 4 位密码。都想不起来的话，找 Reception 的同工，他们查得到。
+          输入你的编号和 4 位密码。编号想不起来就用下面的名字查。
         </div>
+
+        {/* 用名字找编号 */}
+        <div className="field">
+          <label className="label">想不起编号？输名字找一下</label>
+          <div className="row" style={{ gap: 8 }}>
+            <input
+              className="input grow"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="名字里的两个字就行"
+              maxLength={24}
+              enterKeyHint="search"
+              onKeyDown={(e) => e.key === 'Enter' && find()}
+            />
+            <button className="btn btn--sm" disabled={seeking} onClick={find}>
+              {seeking ? '查…' : '查找'}
+            </button>
+          </div>
+
+          {matches !== null && (
+            matches.length === 0 ? (
+              <div className="tiny dim">没找到。换个写法试试，或者找 Reception 的同工。</div>
+            ) : (
+              <div className="stack-sm" style={{ marginTop: 6 }}>
+                {matches.map((m) => (
+                  <button
+                    key={m.code}
+                    className={`btn btn--sm ${code === m.code ? 'btn--primary' : 'btn--ghost'}`}
+                    style={{ justifyContent: 'flex-start' }}
+                    onClick={() => { setCode(m.code); toast(`已填入 ${m.code} 号`, 'ok'); }}
+                  >
+                    {m.code} 号 · {m.name}
+                  </button>
+                ))}
+                <div className="tiny dim">点一下就填进下面的编号栏。还是要输密码。</div>
+              </div>
+            )
+          )}
+        </div>
+
+        <div className="divider" />
 
         <div className="field">
           <label className="label">编号</label>
@@ -307,7 +384,7 @@ export function RestoreSheet({ open, onClose }) {
         </div>
 
         <div className="field">
-          <label className="label">4 位密码</label>
+          <label className="label">{changing ? '原来的 4 位密码' : '4 位密码'}</label>
           <input
             className="input input--code"
             value={pin}
@@ -317,17 +394,43 @@ export function RestoreSheet({ open, onClose }) {
             autoComplete="off"
             maxLength={4}
             enterKeyHint="go"
-            onKeyDown={(e) => e.key === 'Enter' && code && pin.length === 4 && go()}
+            onKeyDown={(e) => e.key === 'Enter' && ready && go()}
           />
         </div>
 
-        <button
-          className="btn btn--primary btn--full"
-          disabled={busy || !code.trim() || pin.length !== 4}
-          onClick={go}
-        >
-          {busy ? '查找中…' : '找回护照'}
+        {changing && (
+          <div className="field">
+            <label className="label">改成新的 4 位密码</label>
+            <input
+              className="input input--code"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="0000"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={4}
+              enterKeyHint="go"
+              onKeyDown={(e) => e.key === 'Enter' && ready && go()}
+            />
+            <div className="tiny dim">改完直接进护照，不用再登一次。</div>
+          </div>
+        )}
+
+        <button className="btn btn--primary btn--full" disabled={busy || !ready} onClick={go}>
+          {busy ? '处理中…' : changing ? '改密码并进护照' : '找回护照'}
         </button>
+
+        <button
+          className="btn btn--ghost btn--full"
+          onClick={() => { setChanging((v) => !v); setNewPin(''); }}
+        >
+          {changing ? '← 不改了，只找回护照' : '顺便把密码改成好记的'}
+        </button>
+
+        <div className="tiny dim">
+          原密码也想不起来了：找 Reception 的同工，他们可以帮你重置。别重新报名 ——
+          会多出一个空号，分数也对不上。
+        </div>
       </div>
     </Sheet>
   );

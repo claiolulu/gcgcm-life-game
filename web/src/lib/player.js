@@ -93,10 +93,12 @@ export async function refreshMe() {
   return state.me;
 }
 
-export async function register({ name, avatar, contact, pin, confirmNew }) {
+export async function register({ name, surname, given, avatar, contact, pin, confirmNew }) {
   const res = await api('/api/register', {
     method: 'POST',
-    body: { name, avatar, contact, pin, confirmNew },
+    // surname / given 是护照资料页上的姓和名，报名时选填。
+    // 早先这里漏了没透传，UI 上填了也传不到服务端
+    body: { name, surname, given, avatar, contact, pin, confirmNew },
     timeout: 12000,
   });
   const session = { token: res.token, playerId: res.player.id, code: res.player.code };
@@ -114,6 +116,32 @@ export async function register({ name, avatar, contact, pin, confirmNew }) {
 
 export async function restore({ code, pin }) {
   const res = await api('/api/restore', { method: 'POST', body: { code, pin }, timeout: 12000 });
+  const session = { token: res.token, playerId: res.player.id, code: res.player.code };
+  setPlayerSession(session);
+  state.session = session;
+  state.me = res.player;
+  state.rank = res.rank;
+  state.of = res.of;
+  state.lastSyncedAt = Date.now();
+  state.stale = false;
+  await cacheMe(res);
+  notify();
+  return res.player;
+}
+
+/** 忘了编号：用名字或编号片段找。只回编号和姓名，不回密码 */
+export async function lookup(q) {
+  const res = await api('/api/lookup', { method: 'POST', body: { q }, timeout: 8000 });
+  return res.matches || [];
+}
+
+/**
+ * 用原密码改一个好记的。
+ * 服务端改完直接返回 token，所以顺手把人也登录了 —— 忘了密码来改密码的人，
+ * 十有八九下一步就是要进护照。
+ */
+export async function changePin({ code, pin, newPin }) {
+  const res = await api('/api/pin', { method: 'POST', body: { code, pin, newPin }, timeout: 12000 });
   const session = { token: res.token, playerId: res.player.id, code: res.player.code };
   setPlayerSession(session);
   state.session = session;

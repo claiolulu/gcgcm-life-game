@@ -27,16 +27,16 @@ const j = async (url, opts = {}) => {
 
 /* 10 位选手。avatar 的三个配饰槽位（hat / face / extra）刻意各不相同。 */
 const PEOPLE = [
-  { name: '林小满', pin: '2580', avatar: { bg: 2, skin: 2, hair: 3, hairColor: 0, eyes: 5, mouth: 0, outfit: 1, hat: 4, face: 2, extra: 2, bgp: 3 } },
-  { name: '陈子墨', pin: '1470', avatar: { bg: 0, skin: 1, hair: 0, hairColor: 1, eyes: 0, mouth: 1, outfit: 0, hat: 2, face: 1, extra: 1, bgp: 1 } },
-  { name: '王诗涵', pin: '3690', avatar: { bg: 6, skin: 0, hair: 5, hairColor: 4, eyes: 2, mouth: 5, outfit: 3, hat: 7, face: 0, extra: 3, bgp: 4 } },
-  { name: '张远航', pin: '1122', avatar: { bg: 5, skin: 3, hair: 1, hairColor: 0, eyes: 1, mouth: 2, outfit: 6, hat: 8, face: 3, extra: 0, bgp: 5 } },
-  { name: '刘思睿', pin: '8520', avatar: { bg: 1, skin: 4, hair: 8, hairColor: 2, eyes: 4, mouth: 0, outfit: 4, hat: 0, face: 2, extra: 2, bgp: 2 } },
-  { name: '黄嘉怡', pin: '7410', avatar: { bg: 7, skin: 1, hair: 2, hairColor: 6, eyes: 2, mouth: 3, outfit: 5, hat: 1, face: 0, extra: 4, bgp: 6 } },
-  { name: '吴承翰', pin: '9630', avatar: { bg: 3, skin: 5, hair: 6, hairColor: 0, eyes: 0, mouth: 4, outfit: 7, hat: 3, face: 4, extra: 1, bgp: 7 } },
-  { name: '徐雨桐', pin: '2468', avatar: { bg: 4, skin: 2, hair: 4, hairColor: 5, eyes: 5, mouth: 0, outfit: 2, hat: 6, face: 1, extra: 3, bgp: 8 } },
-  { name: '孙亦泽', pin: '1357', avatar: { bg: 2, skin: 0, hair: 9, hairColor: 3, eyes: 3, mouth: 2, outfit: 0, hat: 5, face: 0, extra: 0, bgp: 0 } },
-  { name: '何欣然', pin: '4826', avatar: { bg: 5, skin: 3, hair: 7, hairColor: 7, eyes: 2, mouth: 1, outfit: 3, hat: 9, face: 3, extra: 2, bgp: 10 } },
+  { name: '林小满', pin: '3927', avatar: { bg: 2, skin: 2, hair: 3, hairColor: 0, eyes: 5, mouth: 0, outfit: 1, hat: 4, face: 2, extra: 2, bgp: 3 } },
+  { name: '陈子墨', pin: '3927', avatar: { bg: 0, skin: 1, hair: 0, hairColor: 1, eyes: 0, mouth: 1, outfit: 0, hat: 2, face: 1, extra: 1, bgp: 1 } },
+  { name: '王诗涵', pin: '3927', avatar: { bg: 6, skin: 0, hair: 5, hairColor: 4, eyes: 2, mouth: 5, outfit: 3, hat: 7, face: 0, extra: 3, bgp: 4 } },
+  { name: '张远航', pin: '3927', avatar: { bg: 5, skin: 3, hair: 1, hairColor: 0, eyes: 1, mouth: 2, outfit: 6, hat: 8, face: 3, extra: 0, bgp: 5 } },
+  { name: '刘思睿', pin: '3927', avatar: { bg: 1, skin: 4, hair: 8, hairColor: 2, eyes: 4, mouth: 0, outfit: 4, hat: 0, face: 2, extra: 2, bgp: 2 } },
+  { name: '黄嘉怡', pin: '3927', avatar: { bg: 7, skin: 1, hair: 2, hairColor: 6, eyes: 2, mouth: 3, outfit: 5, hat: 1, face: 0, extra: 4, bgp: 6 } },
+  { name: '吴承翰', pin: '3927', avatar: { bg: 3, skin: 5, hair: 6, hairColor: 0, eyes: 0, mouth: 4, outfit: 7, hat: 3, face: 4, extra: 1, bgp: 7 } },
+  { name: '徐雨桐', pin: '3927', avatar: { bg: 4, skin: 2, hair: 4, hairColor: 5, eyes: 5, mouth: 0, outfit: 2, hat: 6, face: 1, extra: 3, bgp: 8 } },
+  { name: '孙亦泽', pin: '3927', avatar: { bg: 2, skin: 0, hair: 9, hairColor: 3, eyes: 3, mouth: 2, outfit: 0, hat: 5, face: 0, extra: 0, bgp: 0 } },
+  { name: '何欣然', pin: '3927', avatar: { bg: 5, skin: 3, hair: 7, hairColor: 7, eyes: 2, mouth: 1, outfit: 3, hat: 9, face: 3, extra: 2, bgp: 10 } },
 ];
 
 /* 谁在哪一关拿了多少分。留白的关卡就是还没挑战。 */

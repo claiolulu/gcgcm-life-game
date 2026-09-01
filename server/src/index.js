@@ -205,6 +205,82 @@ function noteRestoreFail(key) {
   restoreFails.set(key, rec);
 }
 
+// 查编号的限流：按 IP 计，一分钟 20 次。防的是有人拿它当花名册批量导出。
+const lookupHits = new Map();
+
+function lookupGate(ip) {
+  const now = Date.now();
+  const rec = lookupHits.get(ip) || { n: 0, reset: now + 60_000 };
+  if (now > rec.reset) { rec.n = 0; rec.reset = now + 60_000; }
+  rec.n++;
+  lookupHits.set(ip, rec);
+  return rec.n > 20;
+}
+
+/**
+ * 忘了编号：用名字找。
+ *
+ * 只回编号和姓名 —— 这两样排行榜上本来就是公开的，所以这个接口
+ * 不比现状多暴露任何东西。密码绝不回，找到编号之后照样要输密码。
+ *
+ * 要求至少 2 个字符、最多回 6 条：不给「空查询把全场名单拖走」的机会。
+ */
+app.post('/api/lookup', (req, res) => {
+  if (lookupGate(req.ip)) {
+    return res.status(429).json({ error: '查得太频繁了，歇一会儿再试' });
+  }
+  const q = String(req.body?.q ?? '').trim().slice(0, 24);
+  if (q.length < 2) return res.json({ matches: [] });
+
+  const digits = q.replace(/\D/g, '');
+  const lower = q.toLowerCase();
+  const matches = stmts.allPlayers.all()
+    .filter((p) => {
+      if (digits && (p.code === digits || canonCode(p.code) === canonCode(digits))) return true;
+      return String(p.name || '').toLowerCase().includes(lower);
+    })
+    .slice(0, 6)
+    .map((p) => ({ code: p.code, name: p.name }));
+
+  res.json({ matches });
+});
+
+/**
+ * 用原密码改成一个好记的。
+ *
+ * 不需要先登录 —— 知道原密码本身就是身份证明，而且忘了密码的人
+ * 本来就登不进去。改完直接把 token 一起返回，省得再输一遍。
+ *
+ * 和找回护照共用同一个防爆破计数：4 位密码只有一万种，
+ * 这个接口同样能拿来试密码，不限速等于开后门。
+ */
+app.post('/api/pin', (req, res) => {
+  const input = extractCode(req.body?.code);
+  const pin = String(req.body?.pin ?? '').replace(/\D/g, '');
+  const next = String(req.body?.newPin ?? '').replace(/\D/g, '');
+  if (!input) return res.status(400).json({ error: '请输入你的编号' });
+  if (!isValidPin(next)) return res.status(400).json({ error: '新密码要是 4 位数字' });
+
+  const key = canonCode(input);
+  const wait = restoreGate(key);
+  if (wait) return res.status(429).json({ error: `试错太多次了，请 ${wait} 秒后再试` });
+
+  const player = stmts.playerByCode.get(input) || stmts.playersByCanon.all(key)[0];
+  if (!player) {
+    noteRestoreFail(key);
+    return res.status(404).json({ error: `没有找到 ${input} 号选手` });
+  }
+  if (player.pin && player.pin !== pin) {
+    noteRestoreFail(key);
+    return res.status(403).json({ error: '原密码不对' });
+  }
+
+  stmts.setPin.run(next, Date.now(), player.id);
+  restoreFails.delete(key);
+  const fresh = stmts.playerById.get(player.id);
+  res.json({ token: fresh.token, player: playerState(fresh), ...rankOf(fresh.id) });
+});
+
 app.post('/api/restore', (req, res) => {
   const input = extractCode(req.body?.code);
   const pin = String(req.body?.pin ?? '').replace(/\D/g, '');
