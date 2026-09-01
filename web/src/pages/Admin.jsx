@@ -67,6 +67,51 @@ export default function Admin() {
     };
   }, [config, players, minutesLeft]);
 
+  /**
+   * 每一组的关卡顺序，给主持人看的。
+   *
+   * 同队共用一条路线，所以按 team_id 归拢；solo 和还没编队的各算一组。
+   * 每关标出已完成 / 下一站，一眼能看出谁卡在哪儿。
+   */
+  const routes = useMemo(() => {
+    const meta = new Map((config?.stations || []).map((st) => [st.id, st]));
+    const hexOf = new Map((config?.groupColors || []).map((c) => [c.key, c.hex]));
+    const byGroup = new Map();
+    for (const p of players) {
+      if (!Array.isArray(p.route) || p.route.length === 0) continue;
+      const key = p.teamId || `solo:${p.id}`;
+      if (!byGroup.has(key)) {
+        byGroup.set(key, {
+          key,
+          teamId: p.teamId,
+          color: p.teamColor,
+          symbol: p.teamSymbol,
+          identity: p.identity,
+          hex: hexOf.get(p.teamColor),
+          members: [],
+          route: p.route,
+          done: new Set(),
+        });
+      }
+      const g = byGroup.get(key);
+      g.members.push(p);
+      // 同队各人的盖章可能有先后，取并集当作这一组的进度
+      for (const id of Object.keys(p.stations || {})) g.done.add(id);
+    }
+    return [...byGroup.values()].map((g) => ({
+      ...g,
+      label: g.members.map((m) => m.name).join(' · '),
+      codes: g.members.map((m) => m.code).join('/'),
+      steps: g.route.map((id) => ({
+        id,
+        name: meta.get(id)?.name || id,
+        icon: meta.get(id)?.icon || '',
+        done: g.done.has(id),
+      })),
+    })).sort((a, b) => a.codes.localeCompare(b.codes));
+  }, [players, config]);
+
+
 
   useEffect(() => {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
@@ -371,6 +416,54 @@ export default function Admin() {
                   </div>
                   <div className="tiny" style={{ flex: 'none', width: 86, textAlign: 'right', color: hot ? 'var(--red)' : undefined }}>
                     在等 {st.waiting} · 完成 {st.done}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 每组的关卡顺序 */}
+      {routes.length > 0 && (
+        <div className="card stack" style={{ marginBottom: 12 }}>
+          <div className="section-title">🗺 每组的关卡顺序</div>
+          <div className="tiny dim">
+            同队共用一条路线。划掉的是已经盖过章的，<b style={{ color: 'var(--gold)' }}>高亮</b>的是下一站
+            —— 有人来问「我该去哪」，或者想知道谁卡住了，看这里。
+          </div>
+          <div className="stack-sm" style={{ maxHeight: '46vh', overflowY: 'auto' }}>
+            {routes.map((g) => {
+              const nextIdx = g.steps.findIndex((x) => !x.done);
+              return (
+                <div key={g.key} style={{
+                  padding: '7px 9px', border: '1px solid rgba(255,255,255,.09)', borderRadius: 4,
+                }}>
+                  <div className="row" style={{ gap: 6, alignItems: 'baseline' }}>
+                    <span className="small bold">{g.label}</span>
+                    <span className="tiny dim">{g.codes} 号</span>
+                    {g.identity && (
+                      <span className="tiny" style={{ color: g.hex || 'var(--dim)' }}>
+                        {g.symbol} {String(g.identity).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                    {g.steps.map((st, i) => (
+                      <span
+                        key={st.id}
+                        className="tiny"
+                        style={{
+                          padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap',
+                          background: i === nextIdx ? 'rgba(230,205,145,.18)' : 'transparent',
+                          border: i === nextIdx ? '1px solid var(--gold)' : '1px solid transparent',
+                          color: st.done ? 'rgba(255,255,255,.28)' : i === nextIdx ? 'var(--gold)' : undefined,
+                          textDecoration: st.done ? 'line-through' : 'none',
+                        }}
+                      >
+                        {i + 1}.{st.icon}{st.name}
+                      </span>
+                    ))}
                   </div>
                 </div>
               );

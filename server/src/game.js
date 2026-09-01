@@ -405,36 +405,46 @@ const MINUTES = new Map(STATIONS.map((st) => [st.id, Number(st.minutes) || 2]));
 
 /**
  * 模拟排班，返回每组的关卡顺序。
- * groups 只用来知道有几组、每组几个人；顺序本身与人无关。
  *
- * busyUntil 可以传入初始值（中途加人时用当前各关的排队情况预热），
- * 不传就是全场从零开始。
+ * 关键是**按步推进**，不是一次排完一整组：
+ * 先给所有组各排第 1 站，再排第 2 站，以此类推。
+ *
+ * 一次排完一组的话会排成一列纵队 —— 第一组把 8 个关卡按顺序占满，
+ * 第二组开工时发现全都占着，最早空出来的还是第一关，于是也从那儿开始，
+ * 所有人拿到一模一样的路线，开场全挤在同一个门口。
+ * 这个错我犯过一次，现场表现就是「有的关排长队、有的一个人没有」。
+ *
+ * 每一步里按「这组什么时候有空」排序依次挑，谁先空谁先挑，
+ * 挑的是「最早能轮到它」的那一关：max(这组空闲时间, 该关空闲时间) 最小。
+ *
+ * busyUntil 可传入初始值（中途加人时用当前各关排队情况预热）。
  */
 function scheduleRoutes(groupCount, busyUntil = new Map()) {
   const ids = STATIONS.map((st) => st.id);
-  const free = new Map(ids.map((id) => [id, busyUntil.get(id) || 0]));
-  const routes = [];
+  const stationFree = new Map(ids.map((id) => [id, busyUntil.get(id) || 0]));
+  const groupFree = new Array(groupCount).fill(0);
+  const left = Array.from({ length: groupCount }, () => new Set(ids));
+  const routes = Array.from({ length: groupCount }, () => []);
 
-  for (let g = 0; g < groupCount; g++) {
-    const left = new Set(ids);
-    let now = 0;
-    const route = [];
+  for (let step = 0; step < ids.length; step++) {
+    // 谁先空谁先挑。同时空的按组号，保证结果可复现
+    const order = Array.from({ length: groupCount }, (_, g) => g)
+      .sort((a, b) => groupFree[a] - groupFree[b] || a - b);
 
-    while (left.size > 0) {
+    for (const g of order) {
       let best = null;
       let bestStart = Infinity;
-      for (const id of left) {
-        // 这一组最早能被这个关卡服务上的时刻
-        const start = Math.max(now, free.get(id));
+      for (const id of left[g]) {
+        const start = Math.max(groupFree[g], stationFree.get(id));
         if (start < bestStart - 1e-9) { bestStart = start; best = id; }
       }
-      route.push(best);
-      left.delete(best);
+      if (best == null) continue;
+      routes[g].push(best);
+      left[g].delete(best);
       const done = bestStart + MINUTES.get(best);
-      free.set(best, done);
-      now = done;
+      stationFree.set(best, done);
+      groupFree[g] = done;
     }
-    routes.push(route);
   }
   return routes;
 }
