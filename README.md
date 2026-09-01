@@ -96,6 +96,15 @@ PIN 的取值是**环境变量优先、其次才是数据库里存的值**。这
 
 ### 方案 C：Cloudflare Tunnel（备用 / 测试用）
 
+**固定域名版（推荐，已配好）**：本项目已经建好 named tunnel `gcgcm-life-game`，绑在 **https://game.claiolulu.com**。直接 `./scripts/tunnel.sh` 就用这个地址，重启进程、重启电脑、换网络都不变。
+
+脚本靠三个条件判断走固定域名还是随机地址：`~/.cloudflared/cert.pem` 存在、`scripts/.tunnel-host` 里有域名、且该 named tunnel 确实存在。任一不满足就退回随机地址。
+
+换一台机器跑要先把授权带过去 —— 凭据在 `~/.cloudflared/`（`cert.pem` 和 `<隧道ID>.json`），拷过去，或者在那台机器上重新 `cloudflared tunnel login`。
+
+从零配一个新域名：域名 DNS 托管到 Cloudflare（注册商那边的 nameserver 换成 Cloudflare 给的两个，**只留这两个**，混着原来的会一直激活不了）→ `cloudflared tunnel login` → `cloudflared tunnel create <名字>` → `cloudflared tunnel route dns <名字> <域名>` → 把域名写进 `scripts/.tunnel-host`。
+
+
 云端还没落实，或者当天云端出意外要马上切备份：
 
 ```bash
