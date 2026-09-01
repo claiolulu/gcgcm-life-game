@@ -37,6 +37,22 @@ PORT="${PORT:-3000}"
 echo "→ 构建前端…"
 (cd web && npm run build >/dev/null)
 
+# 端口被上一次跑剩的服务占着的话，这次的服务会绑不上、立刻死掉。
+# 麻烦在于后面的校验照样能通过 —— 回应的是那个旧进程 —— 于是地址
+# 打印出来、脚本走到最后一行 wait 时才发现自己的服务早没了，
+# 一退出就把隧道也收掉。表现就是「地址有了但打不开」。
+if lsof -tiTCP:"${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "→ 端口 ${PORT} 被占着（多半是上次跑剩的），先收掉…"
+  pkill -f "node src/index.js" 2>/dev/null || true
+  sleep 2
+  if lsof -tiTCP:"${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "✗ 端口 ${PORT} 仍被占用，不是本项目的服务。占用它的是："
+    lsof -iTCP:"${PORT}" -sTCP:LISTEN -n -P | tail -n +2
+    echo "  换个端口：PORT=3100 ./scripts/tunnel.sh"
+    exit 1
+  fi
+fi
+
 echo "→ 启动服务（:${PORT}）…"
 (cd server && MLG_DATA_DIR=./data PORT="$PORT" node src/index.js) &
 SERVER_PID=$!
@@ -53,7 +69,14 @@ trap cleanup EXIT INT TERM
 
 # 等服务真的起来再开隧道，否则隧道会先报一串 502
 for _ in $(seq 1 40); do
-  if curl -fsS "http://localhost:$PORT/healthz" >/dev/null 2>&1; then break; fi
+  # 先确认自己的进程还在 —— 只看端口有没有回应是不够的，
+  # 别的进程占着端口时也会回应，那就白等一场
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "✗ 服务启动失败。最后几行日志："
+    (cd server && tail -5 ../server/data/*.log 2>/dev/null) || true
+    exit 1
+  fi
+  if curl -fsS "http://localhost:${PORT}/healthz" >/dev/null 2>&1; then break; fi
   sleep 0.5
 done
 
