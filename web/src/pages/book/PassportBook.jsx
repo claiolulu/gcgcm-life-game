@@ -431,25 +431,6 @@ export default function PassportBook() {
           必须放在底部而不是顶部 —— 横版页是整页旋转的，顶部浮层会盖住
           页面最左侧一列文字的开头。 */}
 
-      {/* 随时可扫的二维码：同工拿着手机走过来就扫，选手不用先翻到资料页。
-          放在翻页层之外，所以横版页旋转 90° 时它照样是正的 —— 歪着的码扫不了。 */}
-      {qr.thumb && (
-        <button
-          onClick={() => setModal('qr')}
-          title="放大二维码"
-          style={{
-            position: 'fixed', zIndex: 21,
-            right: 'calc(env(safe-area-inset-right,0px) + 10px)',
-            bottom: 'calc(env(safe-area-inset-bottom,0px) + 10px)',
-            width: 52, height: 52, padding: 4,
-            background: '#fff', border: '1px solid rgba(92,26,34,.45)', borderRadius: 3,
-            boxShadow: '0 4px 14px rgba(0,0,0,.35)', cursor: 'pointer', lineHeight: 0,
-          }}
-        >
-          <div style={{ width: '100%', height: '100%' }}>{qr.thumb}</div>
-        </button>
-      )}
-
       <LifeEventPrompt
         open={lifeEventDue}
         count={eventsDue}
