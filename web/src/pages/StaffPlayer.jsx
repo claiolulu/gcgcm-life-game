@@ -4,6 +4,7 @@ import Avatar from '../components/Avatar.jsx';
 import { NetBar, Sheet, Score, useToast, ago } from '../components/ui.jsx';
 import { useConfig, drawCardLocally } from '../lib/config.js';
 import { useStaff, getPlayer, queueOp, leaderboardLocal } from '../lib/staff.js';
+import { describeModifier } from '../lib/modifiers.js';
 
 export default function StaffPlayer() {
   const { id } = useParams();
@@ -128,14 +129,31 @@ export default function StaffPlayer() {
           </div>
         )}
 
-        {player.modifiers?.map((m) => (
-          <div key={m.id} className="card card--tight row" style={{ gap: 9, borderColor: 'rgba(247,201,72,0.45)' }}>
-            <span style={{ fontSize: 20 }}>🌀</span>
-            <div className="grow">
-              <div className="small bold" style={{ color: 'var(--yellow)' }}>{m.label}</div>
-              <div className="tiny muted">{m.text}</div>
+        {/* 状态分两类：要你核实的和系统自动处理的。
+            长得一样的话，同工扫一眼分不出哪条需要他动作 ——
+            「下一关要带个新朋友」不核实就等于这张卡白抽了。 */}
+        {player.modifiers?.map(describeModifier).map((m) => (
+          m.kind === 'check' ? (
+            <div key={m.id} className="alert-redline">
+              <div style={{ fontSize: 26 }}>{m.icon}</div>
+              <div className="grow">
+                <div className="bold small">要你核实 · {m.label}</div>
+                <div className="tiny" style={{ opacity: 0.9 }}>{m.text}</div>
+                {m.action && (
+                  <div className="tiny bold" style={{ marginTop: 4 }}>{m.action}</div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div key={m.id} className="card card--tight row" style={{ gap: 9, borderColor: 'rgba(247,201,72,0.45)' }}>
+              <span style={{ fontSize: 20 }}>{m.icon}</span>
+              <div className="grow">
+                <div className="small bold" style={{ color: 'var(--yellow)' }}>{m.label}</div>
+                <div className="tiny muted">{m.text}</div>
+                {m.action && <div className="tiny dim" style={{ marginTop: 2 }}>{m.action}</div>}
+              </div>
+            </div>
+          )
         ))}
 
         {player.hasPending && (

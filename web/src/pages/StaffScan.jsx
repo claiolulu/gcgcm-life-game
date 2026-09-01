@@ -5,6 +5,7 @@ import Scanner from '../components/Scanner.jsx';
 import { NetBar, Sheet, useToast, useConfirm, Empty, ago } from '../components/ui.jsx';
 import { useConfig } from '../lib/config.js';
 import { useStaff, findByCode, allPlayers, flush, retryAll, dismissIssue, logout, setStation } from '../lib/staff.js';
+import { needsCheck } from '../lib/modifiers.js';
 
 export default function StaffScan() {
   const nav = useNavigate();
@@ -232,6 +233,8 @@ export default function StaffScan() {
                       {p.code} 号 · {p.stationsDone}/{p.stationsTotal ?? mainStations.length} 关
                       {p.hasPending && <span style={{ color: 'var(--yellow)' }}> · 待同步</span>}
                       {p.pendingLifeEvents > 0 && <span style={{ color: 'var(--red)' }}> · 欠盲盒</span>}
+                      {/* 列表上也标一下，免得同工点进去才发现这人有附加条件 */}
+                      {needsCheck(p.modifiers) && <span style={{ color: 'var(--red)' }}> · 有附加条件</span>}
                     </div>
                   </div>
                   <div className="lb-score">{p.total}</div>
