@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import Avatar from '../../components/Avatar.jsx';
+import CardArt from '../../components/CardArt.jsx';
 
 import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages, orderStations } from './bookVals.js';
@@ -295,6 +296,20 @@ export default function PassportBook() {
    * 改成弹一次，并且把下一步写清楚：去哪、找谁、抽完才能继续。
    * 同一个欠款次数只弹一次，抽完之后次数变了才会再弹。
    */
+  /**
+   * 最新一条还没给本人看过的盲盒结果。
+   * 按事件 id 记「看过了」，同一张卡不会反复弹；再抽一次就是新的 id。
+   */
+  const [seenEvent, setSeenEvent] = useLocalState('mlg.seenLifeEvent', '');
+  const freshEvent = useMemo(() => {
+    const evs = (me?.history || []).filter((e) => e.kind === 'life_event' && e.cardId);
+    const last = evs[evs.length - 1];
+    if (!last || last.id === seenEvent) return null;
+    const card = (config?.cards || []).find((c) => c.id === last.cardId);
+    if (!card) return null;
+    return { ev: last, card, kind: { id: card.kind, ...(config?.cardKinds?.[card.kind] || {}) } };
+  }, [me, config, seenEvent]);
+
   // 名字别用 pending —— 翻页队列已经占了那个标识符
   const eventsDue = me?.pendingLifeEvents ?? 0;
   const [lifeEventSeen, setLifeEventSeen] = useLocalState('mlg.lifeEventSeen', 0);
@@ -431,8 +446,18 @@ export default function PassportBook() {
           必须放在底部而不是顶部 —— 横版页是整页旋转的，顶部浮层会盖住
           页面最左侧一列文字的开头。 */}
 
+      {/* 先给结果，再提醒还欠几次 —— 顺序反了会很奇怪 */}
+      {freshEvent && (
+        <LifeEventResult
+          card={freshEvent.card}
+          kind={freshEvent.kind}
+          points={freshEvent.ev.points}
+          onClose={() => setSeenEvent(freshEvent.ev.id)}
+        />
+      )}
+
       <LifeEventPrompt
-        open={lifeEventDue}
+        open={lifeEventDue && !freshEvent}
         count={eventsDue}
         onClose={() => setLifeEventSeen(eventsDue)}
       />
@@ -453,6 +478,98 @@ function BookSplash({ text }) {
         迷 你 人 生 国
       </div>
       <div style={{ fontSize: 15, letterSpacing: '.18em', opacity: 0.6 }}>{text}</div>
+    </div>
+  );
+}
+
+/**
+ * 抽完盲盒之后，把结果给本人看一遍。
+ *
+ * 之前只有同工那边看得到抽了什么，选手只知道分数变了 ——
+ * 加了几分、为什么加、下一关有没有附带限制，全靠同工口头转述，
+ * 现场吵起来根本听不清。
+ *
+ * 卡片数据在 /api/config 里本来就有，选手的 history 带 cardId，
+ * 对一下就能还原完整的卡面，不用加接口。
+ */
+function LifeEventResult({ card, kind, points, onClose }) {
+  if (!card) return null;
+  const c = kind?.color || '#8b8f9e';
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 82,
+        background: 'rgba(20,17,16,.78)',
+        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18,
+        animation: 'fadeIn .2s ease both',
+        fontFamily: "'Noto Serif SC','EB Garamond',serif",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 340,
+          background: '#f3ede0', color: '#2a2320',
+          border: `2px solid ${c}`, borderRadius: 3,
+          padding: '20px 20px 16px', textAlign: 'center',
+          boxShadow: '0 20px 60px rgba(0,0,0,.55)',
+          animation: 'stampIn .45s ease both',
+        }}
+      >
+        <div style={{
+          fontFamily: "'EB Garamond',serif", fontSize: 9.5, letterSpacing: '.24em',
+          textIndent: '.24em', color: c,
+        }}>
+          {kind?.label || 'LIFE EVENT'} · {kind?.cn || '人生盲盒'}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0 10px' }}>
+          <CardArt id={card.id} color={c} size={88} />
+        </div>
+
+        <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.4 }}>{card.title}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.9, color: 'rgba(42,35,32,.72)', marginTop: 6 }}>
+          {card.desc}
+        </div>
+
+        <div style={{
+          marginTop: 14, padding: '10px 12px',
+          border: `1px solid ${c}`, background: `${c}18`, borderRadius: 2,
+        }}>
+          <div style={{
+            fontFamily: "'EB Garamond',serif", fontSize: 9, letterSpacing: '.2em',
+            color: 'rgba(42,35,32,.5)',
+          }}>
+            结果
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 3, color: c }}>
+            {card.effectText}
+          </div>
+          {points !== 0 && points != null && (
+            <div style={{
+              fontFamily: "'Courier Prime',monospace", fontSize: 13, marginTop: 4,
+              color: 'rgba(42,35,32,.7)',
+            }}>
+              实际{points > 0 ? '加' : '扣'}了 {Math.abs(points)} 分
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', marginTop: 15, padding: '12px',
+            background: '#5c1a22', border: '1px solid rgba(198,164,95,.6)', borderRadius: 2,
+            color: '#e6cd91', fontFamily: "'EB Garamond',serif",
+            fontSize: 11.5, letterSpacing: '.2em', textIndent: '.2em', cursor: 'pointer',
+          }}
+        >
+          {kind?.id === 'bad' || card.effectText.includes('-') || card.effectText.includes('减半')
+            ? '认了' : '收下'}
+        </button>
+      </div>
     </div>
   );
 }
