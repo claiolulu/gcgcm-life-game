@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
-import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
+import { NetBar, Sheet, useToast, useConfirm, useLocalState, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster } from '../lib/staff.js';
@@ -13,6 +13,36 @@ export default function Admin() {
   const { config } = useConfig();
   const staff = useStaff();
   const token = staff.session?.token;
+  // 距离活动结束还有多少分钟。没法自动知道，给个可调的估值
+  const [minutesLeft, setMinutesLeft] = useLocalState('mlg.minutesLeft', 33);
+
+  /**
+   * 容量体检：按「组数 × 8 关」的需求对上「各关每分钟能过几组」的供给。
+   *
+   * 全在客户端算 —— 关卡耗时在 /api/config 里本来就有，组数从花名册数，
+   * 不用为这个多发一次请求。
+   */
+  const capacity = useMemo(() => {
+    const sts = (config?.stations || []).filter((st) => st.minutes);
+    if (sts.length === 0 || players.length === 0) return null;
+
+    const teams = new Set();
+    let loners = 0;
+    for (const p of players) { if (p.teamId) teams.add(p.teamId); else loners++; }
+    const groups = teams.size + loners;
+
+    const per = sts.map((st) => ({
+      name: st.name, cap: Math.floor(minutesLeft / st.minutes),
+    }));
+    const total = per.reduce((a, x) => a + x.cap, 0);
+    return {
+      groups, minutes: minutesLeft, total,
+      avg: groups > 0 ? Math.round((total / groups) * 10) / 10 : 0,
+      // 接待不下一半队伍的就是瓶颈，值得当场加人手
+      tight: per.filter((x) => x.cap < groups * 0.5).sort((a, b) => a.cap - b.cap),
+    };
+  }, [config, players, minutesLeft]);
+
   // 各关忙闲随同步一起来，只有 id 和数字；名字图标从配置里补
   const load = useMemo(() => {
     const meta = new Map((config?.stations || []).map((st) => [st.id, st]));
@@ -287,10 +317,37 @@ export default function Admin() {
         <div className="card stack" style={{ marginBottom: 12 }}>
           <div className="section-title">📍 各关排队情况</div>
           <div className="tiny dim">
-            「在等」是下一站指向这一关的人数。开赛时后台已经把大家摊开了，
-            这里只是用来盯有没有意外堵住 —— 某一关持续高于其他关，
-            多半是那边流程卡了，可以派人去看看。
+            「在等」是下一站指向这一关的人数。开赛时后台已按各关耗时排过班，
+            这里用来盯有没有意外堵住 —— 某一关持续高于其他关，
+            多半是那边流程比预计的慢，可以加人手或加一套道具并行。
           </div>
+          {capacity && (
+            <div className="tiny" style={{
+              padding: '8px 10px', border: '1px solid rgba(255,255,255,.12)',
+              borderRadius: 4, lineHeight: 1.8,
+            }}>
+              <b>容量体检</b>：场上 {capacity.groups} 组，按各关耗时估算，
+              剩余 {capacity.minutes} 分钟内合计能接待约 <b>{capacity.total}</b> 组次
+              —— 平均每组跑得完 <b>{capacity.avg}</b> 关。
+              {' '}
+              <button
+                className="btn btn--sm btn--ghost"
+                style={{ padding: '0 6px', height: 20, fontSize: 11, verticalAlign: 'middle' }}
+                onClick={() => setMinutesLeft((m) => (m <= 10 ? 45 : m - 5))}
+                title="按一下减 5 分钟，到 10 分钟后回到 45"
+              >
+                改时间
+              </button>
+              {capacity.tight.length > 0 && (
+                <>
+                  <br />
+                  <span style={{ color: 'var(--red)' }}>
+                    瓶颈：{capacity.tight.map((t) => `${t.name}（只接待得下 ${t.cap} 组）`).join('、')}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
           <div className="stack-sm">
             {[...load].sort((a, b) => b.waiting - a.waiting).map((st) => {
               const max = Math.max(1, ...load.map((x) => x.waiting));

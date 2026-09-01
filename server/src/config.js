@@ -8,7 +8,18 @@ export const GAME = {
   verseEn: "You don't have to do life alone",
 };
 
-/** 8 个主线签证站 —— 与 Claude Design 的护照册设计保持一致，满分 72 */
+/**
+ * 8 个主线签证站 —— 与 Claude Design 的护照册设计保持一致，满分 72。
+ *
+ * minutes 是每组预计占用的时间（含记分和复位），用来排关卡顺序 ——
+ * 见 game.js 的 assignRoutes()。这些是估算值，彩排一遍之后按实际改。
+ *
+ * ⚠️ 按 50 人（约 30 组）、实际闯关 33 分钟算，八个关卡合计只能接待
+ *    约 129 组次，也就是每组平均只跑得完 4 关多一点。满分 72 是按
+ *    八关全通设计的，现场达不到。最堵的是定格瞬间（4 分钟一组，
+ *    整场只接待得下 8 组）。要么给慢关加并行席位，要么把满分改成
+ *    「任意 N 关」—— 这是活动设计的取舍，不是代码能解决的。
+ */
 export const STATIONS = [
   {
     id: 'music', order: 1, icon: '🎵', name: '音乐之声', en: 'Music Station',
@@ -17,6 +28,8 @@ export const STATIONS = [
     scoring: 'Solo 独唱 3 首；Duo / Trio 需合唱 3 首，每个人必须开口。',
     props: '[平板] 随机抽取关键字界面及 60 秒倒计时。',
     landmark: 'CLYDE AUDITORIUM 克莱德音乐厅', landmarkKey: 'clyde-auditorium',
+    // 单组预计耗时（分钟，含记分与复位）：抽词 60 秒唱 3 首，Duo/Trio 要合唱；加记分约 40 秒
+    minutes: 1.7,
     solo: false,
   },
   {
@@ -26,6 +39,8 @@ export const STATIONS = [
     scoring: 'Solo 答对 1 题；Duo 两人各答对 1 题；Trio 三人各答对 1 题，不可互相提示。',
     props: '[实物卡] 制作精美的提问卡片。',
     landmark: 'CLYDE ARC 克莱德拱桥', landmarkKey: 'clyde-arc',
+    // 单组预计耗时（分钟，含记分与复位）：抽卡答 1–3 题，每题 30–45 秒
+    minutes: 1.8,
     solo: false,
   },
   {
@@ -35,6 +50,8 @@ export const STATIONS = [
     scoring: 'Solo 独立对答；Duo / Trio 需分工扮演角色（学生 + Tutor + 愤怒室友）进行现场飙戏。',
     props: '[平板] 工作人员用平板记录评分及备选情景题库。',
     landmark: 'GEORGE SQUARE 乔治广场', landmarkKey: 'george-square',
+    // 单组预计耗时（分钟，含记分与复位）：情景题现场飙戏，Duo/Trio 还要分角色，是表演不是问答
+    minutes: 3.0,
     solo: false,
   },
   {
@@ -44,6 +61,8 @@ export const STATIONS = [
     scoring: 'Solo（劣势）必须在现场主动邀请至少 1 位路人配合出镜；Duo / Trio 直接分工出片。',
     props: '[实物] 拍立得相框、假书、空咖啡杯等轻便道具。',
     landmark: 'RIVERSIDE MUSEUM 河滨博物馆', landmarkKey: 'riverside',
+    // 单组预计耗时（分钟，含记分与复位）：抽主题找道具摆拍四格；Solo 还得现场拉一位路人配合 —— 全场最慢
+    minutes: 4.0,
     solo: false,
   },
   {
@@ -53,6 +72,8 @@ export const STATIONS = [
     scoring: 'Solo 答对 3 题；Duo 答对 6 题；Trio 答对 9 题，每人必须至少回答 1 题。',
     props: '[实物 + 平板] 15–20 件日常杂物、盖布；工作人员持平板查看问题。',
     landmark: 'BOTANIC GARDENS 格拉斯哥植物园', landmarkKey: 'botanic',
+    // 单组预计耗时（分钟，含记分与复位）：30 秒观察 + 答 3/6/9 题；每组之间要重新盖布、复位
+    minutes: 3.0,
     solo: true,
   },
   {
@@ -62,6 +83,8 @@ export const STATIONS = [
     scoring: 'Solo 可双臂自由摸索；Duo / Trio 规定每人只能伸入一只手，狭小空间内极易碰撞干扰。',
     props: '[实物] 开孔不透明收纳箱、各类杂物、3 件目标物。',
     landmark: 'FINNIESTON CRANE 芬尼斯顿起重机', landmarkKey: 'crane',
+    // 单组预计耗时（分钟，含记分与复位）：30 秒盲摸，主要时间花在把东西塞回箱子
+    minutes: 1.5,
     solo: true,
   },
   {
@@ -71,6 +94,8 @@ export const STATIONS = [
     scoring: 'Solo 静音专注拼图，速度极快；Duo / Trio 多人手杂又不能沟通，手语乱舞极易憋笑失控。',
     props: '[实物] 过塑后剪碎的 A4 拼图两套、「SILENCE」警告牌。',
     landmark: 'KELVINGROVE PARK 凯尔文格罗夫公园', landmarkKey: 'kelvingrove',
+    // 单组预计耗时（分钟，含记分与复位）：60 秒拼图；拼图有两套可以轮换，复位不占用下一组的时间
+    minutes: 1.8,
     solo: true,
   },
   {
@@ -80,6 +105,8 @@ export const STATIONS = [
     scoring: '⚠️ 评分标准待补：设计稿里这一栏是空的，请站点负责人确认。',
     props: '',
     landmark: 'CITY CHAMBERS 格拉斯哥市政厅', landmarkKey: 'city-chambers',
+    // 单组预计耗时（分钟，含记分与复位）：几个岔路口二选一，没有道具和复位
+    minutes: 1.5,
     solo: false,
   },
 ];

@@ -384,23 +384,59 @@ export function applyOp(op, settings = getSettings()) {
 /* ============================ 关卡路线 ============================ */
 
 /**
- * 每个人（每一队）拿一条自己的关卡顺序，目的只有一个：别让 50 个人
- * 同时挤在同一关门口。
+ * 给每一队排一条关卡顺序，目标是压住排队。
  *
- * 排法是「起点 + 步长」：8 个关卡围成一圈，第 n 队从第 n 个关卡出发，
- * 每次往前迈 step 格。step 取和 8 互质的数（1/3/5/7），这样任意步长都能
- * 走遍全部 8 关，而且起点相同的两队走第二关时就分开了 —— 光轮换起点的话，
- * 大家会排着队整体平移，第一关分开了，后面每一关又撞在一起。
+ * 第一版是「起点轮换 + 互质步长」，均匀把人撒到 8 个关卡上。
+ * 那个做法有个隐含假设：每关耗时相同。实际上差三倍 ——
+ * 摸黑套圈 1.5 分钟一组，定格瞬间 4 分钟一组（还要拉路人）。
+ * 于是快关空着、慢关排长队，正是现场看到的样子。
  *
- * 8 个起点 × 4 种步长 = 32 条互不相同的路线，50 人分成的队数远小于这个数。
+ * 现在改成排班：把每个关卡当成一台机器，每组当成一个要依次
+ * 经过所有机器的工件，在内存里模拟一遍整场，贪心地让每组下一个
+ * 去「最早能轮到它」的关卡 —— 也就是 max(这组空闲时间, 该关空闲时间)
+ * 最小的那个。这是列表调度（list scheduling）的经典做法。
+ *
+ * 好处是耗时差异被自然吸收：慢关不会同时涌进一堆人，快关也不会闲着。
+ * 代价是要知道每关多久 —— 见 config.js 里的 minutes，估算值，
+ * 彩排完按实际改。
  */
-const ROUTE_STEPS = [1, 3, 5, 7];
 
-export function buildRoute(startIdx, stepIdx = 0) {
-  const n = STATIONS.length;
-  const step = ROUTE_STEPS[((stepIdx % ROUTE_STEPS.length) + ROUTE_STEPS.length) % ROUTE_STEPS.length];
-  const start = ((startIdx % n) + n) % n;
-  return Array.from({ length: n }, (_, i) => STATIONS[(start + i * step) % n].id);
+const MINUTES = new Map(STATIONS.map((st) => [st.id, Number(st.minutes) || 2]));
+
+/**
+ * 模拟排班，返回每组的关卡顺序。
+ * groups 只用来知道有几组、每组几个人；顺序本身与人无关。
+ *
+ * busyUntil 可以传入初始值（中途加人时用当前各关的排队情况预热），
+ * 不传就是全场从零开始。
+ */
+function scheduleRoutes(groupCount, busyUntil = new Map()) {
+  const ids = STATIONS.map((st) => st.id);
+  const free = new Map(ids.map((id) => [id, busyUntil.get(id) || 0]));
+  const routes = [];
+
+  for (let g = 0; g < groupCount; g++) {
+    const left = new Set(ids);
+    let now = 0;
+    const route = [];
+
+    while (left.size > 0) {
+      let best = null;
+      let bestStart = Infinity;
+      for (const id of left) {
+        // 这一组最早能被这个关卡服务上的时刻
+        const start = Math.max(now, free.get(id));
+        if (start < bestStart - 1e-9) { bestStart = start; best = id; }
+      }
+      route.push(best);
+      left.delete(best);
+      const done = bestStart + MINUTES.get(best);
+      free.set(best, done);
+      now = done;
+    }
+    routes.push(route);
+  }
+  return routes;
 }
 
 /**
@@ -408,7 +444,7 @@ export function buildRoute(startIdx, stepIdx = 0) {
  *
  * 不是看已完成人数 —— 完成得多既可能是人多也可能是流程快，分不出忙闲。
  * 真正有用的是各人路线上「下一个还没盖章的关卡」，把这些数一数，
- * 就是此刻每个关卡门口在等的人。后来的人从最少的那一关插进去。
+ * 就是此刻每个关卡门口在等的人。后来的人从最空的那一关插进去。
  */
 export function stationPressure() {
   const load = new Map(STATIONS.map((st) => [st.id, 0]));
@@ -428,18 +464,6 @@ export function stationPressure() {
     if (next && load.has(next)) load.set(next, load.get(next) + 1);
   }
   return load;
-}
-
-/** 当前最空的那个关卡在 STATIONS 里的下标 */
-function leastBusyIdx() {
-  const load = stationPressure();
-  let best = 0;
-  let bestN = Infinity;
-  STATIONS.forEach((st, i) => {
-    const n = load.get(st.id) ?? 0;
-    if (n < bestN) { bestN = n; best = i; }
-  });
-  return best;
 }
 
 /** 同队的人必须走同一条路线 —— 他们是绑在一起行动的 */
@@ -463,21 +487,24 @@ function writeRoute(members, route, now) {
   }
 }
 
+/** 用当前各关排队人数估一个「这个关卡还要忙多久」，给中途加人时预热排班 */
+function warmBusyUntil() {
+  const waiting = stationPressure();
+  const busy = new Map();
+  for (const st of STATIONS) {
+    busy.set(st.id, (waiting.get(st.id) || 0) * (MINUTES.get(st.id) || 2));
+  }
+  return busy;
+}
+
 /**
  * 排关卡顺序。
- *
- * 两种情形，做法不一样：
- *
- *   开场（场上还没有人有路线）—— 起点轮着来、每转完一圈换一种步长，
- *     8 个关卡开局人数严格均等。
- *
- *   补发（已经有人在跑了）—— 逐个从「当前最空的关卡」切入，每发一条
- *     重算一次忙闲，连着来两个人也会被分到不同的关。中途放人进来
- *     （主持人临时切回入场再切回来）走的就是这条路。
  *
  * onlyMissing 默认为真：切回「进行中」时只补新人，绝不动已经在跑的人 ——
  * 把闯了三关的人的顺序重排一遍，他手上正在排的队就白排了。
  * 要整场重排请显式传 onlyMissing: false（对应总控台的「全部重新洗牌」）。
+ *
+ * 补发时用当前排队情况预热排班，新人自然被塞进最空的档口。
  */
 export function assignRoutes({ onlyMissing = true } = {}) {
   const now = Date.now();
@@ -495,29 +522,29 @@ export function assignRoutes({ onlyMissing = true } = {}) {
     .sort((a, b) => a.k - b.k)
     .map((x) => x.g);
 
-  const n = STATIONS.length;
   const bulk = !hadRoutes || !onlyMissing;
+  const routes = scheduleRoutes(shuffled.length, bulk ? new Map() : warmBusyUntil());
 
-  if (bulk) {
-    const tx = db.transaction(() => {
-      shuffled.forEach((members, idx) => {
-        writeRoute(members, buildRoute(idx % n, Math.floor(idx / n)), now);
-      });
-    });
-    tx();
-  } else {
-    // 补发要逐条写：下一条的起点取决于上一条写完之后的忙闲，
-    // 所以不能放进同一个事务里一次算完
-    for (const members of shuffled) {
-      writeRoute(members, buildRoute(leastBusyIdx(), Math.floor(Math.random() * ROUTE_STEPS.length)), now);
-    }
-  }
+  const tx = db.transaction(() => {
+    shuffled.forEach((members, i) => writeRoute(members, routes[i], now));
+  });
+  tx();
 
   return {
     groups: shuffled.length,
     players: shuffled.reduce((a, g) => a + g.length, 0),
     mode: bulk ? 'bulk' : 'fill',
   };
+}
+
+/** 给中途单独加进来的一个人（或一队）排路线，从当前最空的档口切入 */
+export function assignRouteFor(playerId) {
+  const p = stmts.playerById.get(playerId);
+  if (!p) return null;
+  const members = p.team_id ? stmts.playersByTeam.all(p.team_id) : [p];
+  const route = scheduleRoutes(1, warmBusyUntil())[0];
+  writeRoute(members, route, Date.now());
+  return route;
 }
 
 /**
@@ -575,7 +602,7 @@ export function syncTeamRoutes() {
         .sort((a, b) => (doneCount.get(b.id) || 0) - (doneCount.get(a.id) || 0))[0];
       const route = lead
         ? safeJSON(lead.route, null)
-        : buildRoute(leastBusyIdx(), Math.floor(Math.random() * ROUTE_STEPS.length));
+        : scheduleRoutes(1, warmBusyUntil())[0];
 
       writeRoute(members, route, now);
       fixed++;
@@ -590,21 +617,6 @@ export function syncTeamRoutes() {
   return { teams: fixed, orphans: orphans.length };
 }
 
-/**
- * 给中途加入的人排路线：从当前最空的关卡切入。
- * 已经开赛的场上各关忙闲不均，让新人去补最空的那一关，
- * 比按固定顺序发一条更能压住排队。
- */
-export function assignRouteFor(playerId) {
-  const p = stmts.playerById.get(playerId);
-  if (!p) return null;
-  const members = p.team_id
-    ? stmts.playersByTeam.all(p.team_id)
-    : [p];
-  const route = buildRoute(leastBusyIdx(), Math.floor(Math.random() * ROUTE_STEPS.length));
-  writeRoute(members, route, Date.now());
-  return route;
-}
 
 export function drawIdentities({ solo = 0.30, duo = 0.36, trio = 0.34, mode = 'fill' } = {}) {
   const everyone = stmts.allPlayers.all();
