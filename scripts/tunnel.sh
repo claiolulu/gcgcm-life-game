@@ -37,20 +37,40 @@ PORT="${PORT:-3000}"
 echo "→ 构建前端…"
 (cd web && npm run build >/dev/null)
 
-# 端口被上一次跑剩的服务占着的话，这次的服务会绑不上、立刻死掉。
-# 麻烦在于后面的校验照样能通过 —— 回应的是那个旧进程 —— 于是地址
-# 打印出来、脚本走到最后一行 wait 时才发现自己的服务早没了，
-# 一退出就把隧道也收掉。表现就是「地址有了但打不开」。
-if lsof -tiTCP:"${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "→ 端口 ${PORT} 被占着（多半是上次跑剩的），先收掉…"
-  pkill -f "node src/index.js" 2>/dev/null || true
+# ---------------------------------------------------------------
+# 开跑前先把上一次留下的整套收干净。
+#
+# 不收的话会很难查：残留的 cloudflared 带着它自己的旧隧道继续跑，
+# 残留的服务占着端口让新服务起不来，而校验又能通过（回应的是旧进程），
+# 于是地址正常打印、访问却是 530。今天为这个折腾了好几轮。
+#
+# 按进程组排除自己 —— 直接 pkill -f tunnel.sh 会把正在跑的这个也干掉。
+# ---------------------------------------------------------------
+MYPGID="$(ps -o pgid= -p $$ | tr -d ' ')"
+STALE=0
+for pid in $(pgrep -f "scripts/tunnel\.sh" 2>/dev/null || true); do
+  pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+  [ "$pgid" = "$MYPGID" ] && continue        # 自己这一组，跳过
+  kill "$pid" 2>/dev/null && STALE=$((STALE + 1)) || true
+done
+for pat in "cloudflared tunnel --url" "node src/index.js"; do
+  for pid in $(pgrep -f "$pat" 2>/dev/null || true); do
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    [ "$pgid" = "$MYPGID" ] && continue
+    kill "$pid" 2>/dev/null && STALE=$((STALE + 1)) || true
+  done
+done
+if [ "$STALE" -gt 0 ]; then
+  echo "→ 收掉上一次留下的 ${STALE} 个进程…"
   sleep 2
-  if lsof -tiTCP:"${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "✗ 端口 ${PORT} 仍被占用，不是本项目的服务。占用它的是："
-    lsof -iTCP:"${PORT}" -sTCP:LISTEN -n -P | tail -n +2
-    echo "  换个端口：PORT=3100 ./scripts/tunnel.sh"
-    exit 1
-  fi
+fi
+
+# 端口还被占着说明不是本项目的东西，让位或换端口
+if lsof -tiTCP:"${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "✗ 端口 ${PORT} 被别的程序占着："
+  lsof -iTCP:"${PORT}" -sTCP:LISTEN -n -P | tail -n +2
+  echo "  换个端口跑：PORT=3100 ./scripts/tunnel.sh"
+  exit 1
 fi
 
 echo "→ 启动服务（:${PORT}）…"
@@ -63,6 +83,9 @@ cleanup() {
   echo "→ 收尾…"
   kill "$SERVER_PID" 2>/dev/null || true
   kill "${TUNNEL_PID:-}" 2>/dev/null || true
+  # 兜底：上面两个各自还有子进程，直接点名按模式再扫一遍自己这一组，
+  # 免得留下孤儿 —— 孤儿会带着旧隧道继续跑，下次启动就撞车
+  pkill -P $$ 2>/dev/null || true
   wait 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
