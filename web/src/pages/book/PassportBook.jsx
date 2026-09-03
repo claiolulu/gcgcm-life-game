@@ -8,7 +8,7 @@ import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages, orderStations } from './bookVals.js';
 import { FLIP_MS, FLIP_EASE } from './bookVals.js';
 import { useConfig } from '../../lib/config.js';
-import { usePlayer, refreshMe } from '../../lib/player.js';
+import { usePlayer, refreshMe, renameTeam } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
 import { kvGet, kvSet } from '../../lib/idb.js';
 import { onTick } from '../../lib/realtime.js';
@@ -438,6 +438,8 @@ export default function PassportBook() {
         }}
         identity={me.identity}
         badge={v.teamBadge}
+        teamName={me.teamName}
+        onRename={renameTeam}
         teammates={v.teammates}
         startStation={startStation}
       />

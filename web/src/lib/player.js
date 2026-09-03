@@ -155,6 +155,21 @@ export async function changePin({ code, pin, newPin }) {
   return res.player;
 }
 
+/** 改队名。队员自己改，全队生效 */
+export async function renameTeam(name) {
+  const session = getPlayerSession();
+  if (!session?.token) throw new Error('没有登录');
+  const res = await api('/api/team/name', {
+    method: 'POST', body: { name }, token: session.token, timeout: 10000,
+  });
+  state.me = res.player;
+  state.rank = res.rank;
+  state.of = res.of;
+  await cacheMe(res);
+  notify();
+  return res.player;
+}
+
 export async function updateProfile(patch) {
   const session = getPlayerSession();
   if (!session?.token) throw new Error('没有登录');

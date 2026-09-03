@@ -75,6 +75,7 @@ export function playerState(player, settings = getSettings()) {
     teamId: player.team_id,
     teamColor: player.team_color,
     teamSymbol: player.team_symbol,
+    teamName: player.team_name || '',
     startStation: player.start_station,
     // 关卡访问顺序。赛前是空的，签证页据此留白（见 bookVals 的 buildPages）
     route: safeJSON(player.route, null),
@@ -137,6 +138,7 @@ export function leaderboard({ limit = 0 } = {}) {
       teamId: s.teamId,
       teamColor: s.teamColor,
       teamSymbol: s.teamSymbol,
+      teamName: s.teamName,
       total: s.total,
       stationsDone: s.stationsDone,
       tokensLeft: s.tokensLeft,
@@ -165,6 +167,80 @@ export function leaderboard({ limit = 0 } = {}) {
   });
 
   return limit > 0 ? rows.slice(0, limit) : rows;
+}
+
+/**
+ * 组队榜：把队友聚成一行。
+ *
+ * 排名用**人均分**而不是总分。总分排的话 Trio（三人，上限 216）
+ * 永远压过 Solo（上限 72），没有可比性。队友本来就是一起闯关的，
+ * 分数几乎一样，人均分就是这一队的水平。
+ *
+ * 个人分仍然逐个带出去 —— 「最高积分奖」判的是个人总分第一，
+ * 那个榜不能被组队榜取代。
+ */
+export function teamBoard() {
+  const settings = getSettings();
+  const groups = new Map();
+
+  for (const p of stmts.allPlayers.all()) {
+    const s = playerState(p, settings);
+    // 没编队的人各自成一行，用 id 兜底，不会和真实 team_id 撞
+    const key = s.teamId || `solo:${s.id}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        teamId: s.teamId,
+        identity: s.identity,
+        color: s.teamColor,
+        symbol: s.teamSymbol,
+        name: s.teamName || '',
+        members: [],
+      });
+    }
+    groups.get(key).members.push({
+      id: s.id, code: s.code, name: s.name, avatar: s.avatar,
+      total: s.total, stationsDone: s.stationsDone,
+    });
+  }
+
+  const rows = [...groups.values()].map((g) => {
+    const total = g.members.reduce((a, m) => a + m.total, 0);
+    const done = g.members.reduce((a, m) => a + m.stationsDone, 0);
+    return {
+      ...g,
+      members: g.members.sort((a, b) => a.code.localeCompare(b.code)),
+      size: g.members.length,
+      total,
+      // 四舍五入到一位小数：整数会让 29 和 30 分的两队并列，看不出差别
+      avg: Math.round((total / g.members.length) * 10) / 10,
+      stationsDone: Math.round((done / g.members.length) * 10) / 10,
+    };
+  });
+
+  rows.sort((a, b) =>
+    b.avg - a.avg ||
+    b.stationsDone - a.stationsDone ||
+    String(a.members[0]?.code).localeCompare(String(b.members[0]?.code))
+  );
+
+  let rank = 0;
+  let prev = null;
+  rows.forEach((r, i) => {
+    if (prev === null || r.avg !== prev) { rank = i + 1; prev = r.avg; }
+    r.rank = rank;
+  });
+  return rows;
+}
+
+/** 改队名。只有队里的人能改，改完全队生效。 */
+export function renameTeam(playerId, name) {
+  const p = stmts.playerById.get(playerId);
+  if (!p) return { ok: false, error: '找不到你的档案' };
+  if (!p.team_id) return { ok: false, error: '你还没有队伍，或者是独行侠' };
+  const clean = String(name || '').trim().slice(0, 12);
+  stmts.setTeamName.run(clean, Date.now(), p.team_id);
+  return { ok: true, teamId: p.team_id, name: clean };
 }
 
 export function rankOf(playerId) {

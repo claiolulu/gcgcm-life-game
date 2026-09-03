@@ -14,18 +14,22 @@ export default function Leaderboard() {
   const stationCount = config?.stations?.length ?? 8;
 
   const [board, setBoard] = useState([]);
+
+  const [teams, setTeams] = useState([]);
   const [state, setState] = useState({ online: navigator.onLine, connected: false, at: 0, loading: true });
 
   const load = useCallback(async () => {
     try {
       const res = await api('/api/leaderboard', { timeout: 7000 });
       setBoard(res.board || []);
-      await kvSet('leaderboard', { board: res.board, at: Date.now() });
+      setTeams(res.teams || []);
+      await kvSet('leaderboard', { board: res.board, teams: res.teams, at: Date.now() });
       setState((s) => ({ ...s, online: true, at: Date.now(), loading: false }));
     } catch {
       const cached = await kvGet('leaderboard');
       if (cached?.board) {
         setBoard(cached.board);
+        setTeams(cached.teams || []);
         setState((s) => ({ ...s, at: cached.at, loading: false }));
       } else {
         setState((s) => ({ ...s, loading: false }));
@@ -54,9 +58,8 @@ export default function Leaderboard() {
     };
   }, [load]);
 
-  const top3 = board.slice(0, 3);
-  const rest = board.slice(3);
-  const myRow = board.find((r) => r.id === me?.id);
+  const colors = config?.groupColors || [];
+  const myTeam = teams.find((t) => t.members.some((m) => m.id === me?.id));
 
   return (
     <div className="page">
@@ -80,49 +83,79 @@ export default function Leaderboard() {
         <Empty icon="🏁" title="还没有人上榜" hint="等第一位选手过了第一关，这里就会热闹起来" />
       )}
 
-      {/* 前三名领奖台 */}
-      {top3.length > 0 && (
+      {/* 前三名：靠头像堆和字号区分高低，不用奖牌 emoji ——
+          一行要放三个人的头像，再加个奖牌就没地方了 */}
+      {teams.length > 0 && (
         <div className="row" style={{ alignItems: 'flex-end', gap: 8, marginBottom: 16 }}>
-          {[top3[1], top3[0], top3[2]].map((r, i) => {
-            if (!r) return <div key={i} className="grow" />;
-            const isFirst = r.rank === 1;
-            const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : '🥉';
+          {[teams[1], teams[0], teams[2]].map((t, i) => {
+            if (!t) return <div key={i} className="grow" />;
+            const isFirst = t === teams[0];
+            const mine = t.members.some((m) => m.id === me?.id);
             return (
               <div
-                key={r.id}
+                key={t.key}
                 className={`card grow center ${isFirst ? 'card--gold' : ''}`}
-                style={{ padding: '14px 6px', paddingTop: isFirst ? 18 : 14 }}
+                style={{ padding: isFirst ? '15px 7px' : '11px 7px' }}
               >
-                <div style={{ fontSize: isFirst ? 24 : 19, marginBottom: 4 }}>{medal}</div>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-                  <Avatar config={r.avatar} size={isFirst ? 52 : 42} ring={isFirst} />
+                <div className="team-faces" style={{ justifyContent: 'center', marginBottom: 7 }}>
+                  {t.members.slice(0, 3).map((m) => (
+                    <Avatar key={m.id} config={m.avatar} size={isFirst ? 42 : 33} />
+                  ))}
                 </div>
                 <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.name}
+                  {t.symbol} {teamLabel(t, colorName(t, colors))}
                 </div>
-                <div className="mono bold gold" style={{ fontSize: isFirst ? 22 : 18 }}>{r.total}</div>
+                <div className="tiny dim" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.members.map((m) => m.name).join(' · ')}
+                </div>
+                <div className="mono bold gold" style={{ fontSize: isFirst ? 22 : 18, marginTop: 4 }}>{t.avg}</div>
+                <div className="tiny dim">人均{mine ? ' · 我们' : ''}</div>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* 我的位置固定在顶部，不用滚动去找 */}
-      {myRow && myRow.rank > 3 && (
+      {myTeam && myTeam.rank > 3 && (
         <>
-          <div className="section-title">我的位置</div>
-          <Row row={myRow} isMe identities={identities} stationCount={stationCount} />
+          <div className="section-title">我的队伍</div>
+          <TeamRow t={myTeam} meId={me?.id} colors={colors} />
           <div style={{ height: 12 }} />
         </>
       )}
 
-      {rest.length > 0 && (
+      {teams.length > 3 && (
         <>
-          <div className="section-title">全部排名</div>
+          <div className="section-title">全部队伍</div>
           <div className="stack-sm">
-            {rest.map((r) => <Row key={r.id} row={r} isMe={r.id === me?.id} identities={identities} stationCount={stationCount} />)}
+            {teams.slice(3).map((t) => (
+              <TeamRow key={t.key} t={t} meId={me?.id} colors={colors} />
+            ))}
           </div>
         </>
+      )}
+
+      {/* 个人分单列一处：最高积分奖判的是个人总分，组队榜取代不了 */}
+      {board.length > 0 && (
+        <details style={{ marginTop: 18 }}>
+          <summary className="small dim" style={{ cursor: 'pointer' }}>
+            按个人总分看（最高积分奖用这个）
+          </summary>
+          <div className="stack-sm" style={{ marginTop: 10 }}>
+            {board.map((r) => (
+              <div key={r.id} className={`lb-row ${r.id === me?.id ? 'lb-row--me' : ''}`}>
+                <div className={`lb-rank lb-rank--${r.rank}`}>{r.rank}</div>
+                <Avatar config={r.avatar} size={30} />
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.name}
+                  </div>
+                </div>
+                <div className="lb-score">{r.total}</div>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       <div className="center tiny dim" style={{ padding: '18px 0 0' }}>
@@ -149,6 +182,67 @@ function Row({ row, isMe, identities, stationCount }) {
         </div>
       </div>
       <div className="lb-score">{row.total}</div>
+    </div>
+  );
+}
+
+/** 队伍色的中文名，比如「赤」。改过队名的队伍不需要它 */
+function colorName(t, colors) {
+  return (colors || []).find((c) => c.key === t.color)?.name || '';
+}
+
+/**
+ * 显示用的队名：队员自己改过就用他们的，没改过就按颜色生成一个默认的。
+ * 一个人的队（Solo 或还没编队）直接用本人名字 —— 「赤队」只有一个人很怪。
+ */
+function teamLabel(t, cname) {
+  if (t.name) return t.name;
+  if (t.size === 1) return t.members[0].name;
+  return cname ? `${cname}队` : '未命名队';
+}
+
+/**
+ * 一队一行。信息分两层，避免挤成一排省略号：
+ *   上层  符号 + 队名 + 人数标签        —— 扫一眼找自己
+ *   下层  头像叠排 + 队员名字            —— 看清是哪几个人
+ * 下层放不下就自己横向滚，不挤压上层。
+ */
+function TeamRow({ t, meId, colors }) {
+  const mine = t.members.some((m) => m.id === meId);
+  const hex = (colors || []).find((c) => c.key === t.color)?.hex;
+  return (
+    <div className={`team-row ${mine ? 'team-row--me' : ''}`}>
+      <div className={`team-rank team-rank--${t.rank}`}>{t.rank}</div>
+
+      <div className="team-main">
+        <div className="team-title">
+          {t.symbol && <span className="team-symbol" style={{ color: hex }}>{t.symbol}</span>}
+          <span className="team-name" style={mine ? { color: 'var(--gold)' } : undefined}>
+            {teamLabel(t, colorName(t, colors))}
+          </span>
+          {t.size > 1 && <span className="team-size">{t.size} 人</span>}
+        </div>
+
+        <div className="team-members">
+          <div className="team-faces">
+            {t.members.map((m) => <Avatar key={m.id} config={m.avatar} size={26} />)}
+          </div>
+          <div className="team-names">
+            {t.members.map((m, i) => (
+              <span key={m.id}>
+                {i > 0 && ' · '}
+                {m.id === meId ? <b>{m.name}</b> : m.name}
+                <span style={{ opacity: 0.6 }}> {m.total}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="team-score">
+        <div>{t.avg}</div>
+        <div>{t.size > 1 ? '人均' : '总分'}</div>
+      </div>
     </div>
   );
 }

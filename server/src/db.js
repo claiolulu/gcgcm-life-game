@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS players (
   team_id       TEXT,
   team_color    TEXT,
   team_symbol   TEXT,
+  -- 队名。同队所有人共用一份，队员自己可以改（见 POST /api/team/name）。
+  -- 空表示还没改过，前端显示按颜色生成的默认名（比如「赤队」）
+  team_name     TEXT NOT NULL DEFAULT '',
   start_station TEXT,
   -- 关卡访问顺序：8 个 station id 的 JSON 数组。开赛时由后台按负载排出来，
   -- 空表示还没排（赛前签证页留白）。见 game.js 的 assignRoutes()
@@ -90,7 +93,7 @@ CREATE TABLE IF NOT EXISTS awards (
     console.log('[db] 已为 players 表添加 pin 列');
   }
   // 老库没有姓/名两列。空字符串表示报名时没填，护照上按 name 猜。
-  for (const col of ['surname', 'given', 'route']) {
+  for (const col of ['surname', 'given', 'route', 'team_name']) {
     if (!cols.includes(col)) {
       db.exec(`ALTER TABLE players ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
       console.log(`[db] 已为 players 表添加 ${col} 列`);
@@ -192,6 +195,7 @@ export const stmts = {
   // 往那条里塞字段会逼所有调用点都传，不值得
   // 路线单独更新，理由同 setNameParts：不往被多处复用的
   // updatePlayerFields 里塞字段，免得所有调用点都得传
+  setTeamName: db.prepare('UPDATE players SET team_name = ?, updated_at = ? WHERE team_id = ?'),
   setRoute: db.prepare('UPDATE players SET route = ?, start_station = ?, updated_at = ? WHERE id = ?'),
   setNameParts: db.prepare(
     'UPDATE players SET surname = ?, given = ?, updated_at = ? WHERE id = ?',

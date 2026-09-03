@@ -18,7 +18,7 @@ import {
 import {
   playerState, roster, leaderboard, rankOf, applyOp, drawIdentities,
   assignTeam, clearIdentities,
-  assignRoutes, assignRouteFor, syncTeamRoutes, stationLoad,
+  assignRoutes, assignRouteFor, syncTeamRoutes, stationLoad, teamBoard, renameTeam,
 } from './game.js';
 import {
   formatPlayerId, canonCode, extractCode, isValidPin, randomPin, uid, randomToken,
@@ -351,10 +351,32 @@ app.post('/api/me', playerAuth, (req, res) => {
 app.get('/api/leaderboard', (req, res) => {
   const settings = getSettings();
   if (!settings.leaderboardPublic && !req.get('authorization')) {
-    return res.json({ board: [], hidden: true, serverTs: Date.now() });
+    return res.json({ board: [], teams: [], hidden: true, serverTs: Date.now() });
   }
   const limit = Number(req.query.limit) || 0;
-  res.json({ board: leaderboard({ limit }), hidden: false, gameState: settings.gameState, serverTs: Date.now() });
+  // 组队榜搭同一个响应，不额外发请求 —— 排行榜每 20 秒就要拉一次
+  res.json({
+    board: leaderboard({ limit }),
+    teams: teamBoard(),
+    hidden: false,
+    gameState: settings.gameState,
+    serverTs: Date.now(),
+  });
+});
+
+/**
+ * 改队名。队员自己改，不需要同工。
+ *
+ * 不卡游戏阶段 —— 身份是开场之后才抽的，正是这时候大家才想给
+ * 自己的队起个名字。改名换头像那条 lobby 限制针对的是个人展示信息，
+ * 队名是队伍共有的，不影响个人排名。
+ */
+app.post('/api/team/name', playerAuth, (req, res) => {
+  const r = renameTeam(req.player.id, req.body?.name);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  broadcast('team');
+  const fresh = stmts.playerById.get(req.player.id);
+  res.json({ player: playerState(fresh), ...rankOf(fresh.id) });
 });
 
 /* ---------------------------- 工作人员接口 ---------------------------- */

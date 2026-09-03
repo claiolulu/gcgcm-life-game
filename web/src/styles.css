@@ -735,3 +735,100 @@ html.book-locked body {
   from { transform: rotateY(0deg); }
   to   { transform: rotateY(96deg); }
 }
+
+/* ---------------------------------------------------------------
+   组队排行榜
+
+   一行代表一队。要塞进去的东西不少：名次、队伍色符号、队名、
+   队员头像、队员名字、分数。挤在一行会全是省略号，所以分两层：
+
+     上层  队名 + 名次 + 分数        —— 扫一眼找自己
+     下层  头像叠成一排 + 名字       —— 看清是哪几个人
+
+   头像用负边距叠起来，三个人只占两个人的宽度。名字跟在头像后面，
+   放不下就整体横向滚动，不挤压上层。
+   --------------------------------------------------------------- */
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+.team-row--me { border-color: var(--gold); background: rgba(230, 205, 145, 0.06); }
+
+/* 名次：单人队和多人队都用同一个宽度，行与行才对得齐 */
+.team-rank {
+  flex: none;
+  width: 26px;
+  text-align: center;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.team-rank--1 { color: var(--gold); font-size: 18px; }
+.team-rank--2, .team-rank--3 { color: var(--fg); }
+
+.team-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+
+.team-title { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.team-symbol { flex: none; font-size: 13px; line-height: 1; }
+.team-name {
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-size {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+/* 队员：头像叠着排，名字跟在后面 */
+.team-members {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.team-members::-webkit-scrollbar { display: none; }
+
+.team-faces { flex: none; display: flex; }
+.team-faces > * {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--card);
+}
+.team-faces > * + * { margin-left: -9px; }
+
+.team-names {
+  font-size: 11.5px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.team-names b { color: var(--fg); font-weight: 600; }
+
+.team-score {
+  flex: none;
+  text-align: right;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+.team-score > div:first-child {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1.1;
+}
+.team-score > div:last-child { font-size: 9px; letter-spacing: 0.1em; color: var(--dim); }

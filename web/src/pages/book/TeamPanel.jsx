@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Avatar from '../../components/Avatar.jsx';
 
 /**
@@ -11,7 +11,21 @@ import Avatar from '../../components/Avatar.jsx';
  *
  * Solo 没有队友，这里改成说明它的优势关，免得显得像出错了。
  */
-export default function TeamPanel({ open, onClose, identity, badge, teammates, startStation }) {
+export default function TeamPanel({ open, onClose, identity, badge, teammates, startStation, teamName, onRename }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onRename(draft.trim());
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (!open) return null;
 
   const isSolo = identity === 'solo';
@@ -78,7 +92,7 @@ export default function TeamPanel({ open, onClose, identity, badge, teammates, s
                     {badge.en}
                   </div>
                   <div style={{ fontSize: 14, letterSpacing: '.1em', color: badge.hex, opacity: .85 }}>
-                    {badge.name}队
+                    {teamName || `${badge.name}队`}
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(42,35,32,.55)', marginTop: 8, lineHeight: 1.6 }}>
@@ -86,6 +100,55 @@ export default function TeamPanel({ open, onClose, identity, badge, teammates, s
                     ? '这是你的编组颜色，不用找人'
                     : '举着这个在场内互相对暗号'}
                 </div>
+
+                {/* 起队名。任何一个队员改，全队都变；排行榜上显示的就是它。
+                    Solo 没有队伍，不给这个入口 */}
+                {!isSolo && onRename && (
+                  <div style={{ marginTop: 10 }}>
+                    {editing ? (
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <input
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value.slice(0, 12))}
+                          placeholder={`${badge.name}队`}
+                          maxLength={12}
+                          autoFocus
+                          style={{
+                            flex: '0 1 160px', padding: '6px 9px', textAlign: 'center',
+                            background: '#fff', border: `1px solid ${badge.hex}`, borderRadius: 2,
+                            fontFamily: "'Noto Serif SC',serif", fontSize: 14, color: '#2a2320',
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+                        />
+                        <button
+                          onClick={save}
+                          disabled={saving}
+                          style={{
+                            flex: 'none', padding: '6px 12px', cursor: 'pointer',
+                            background: badge.hex, border: 'none', borderRadius: 2,
+                            color: '#fff', fontSize: 13,
+                          }}
+                        >
+                          {saving ? '…' : '好'}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setDraft(teamName || ''); setEditing(true); }}
+                        style={{
+                          padding: '5px 12px', cursor: 'pointer', background: 'transparent',
+                          border: '1px dashed rgba(92,26,34,.35)', borderRadius: 2,
+                          color: 'rgba(92,26,34,.7)', fontSize: 12,
+                        }}
+                      >
+                        {teamName ? '改个队名' : '给这队起个名字'}
+                      </button>
+                    )}
+                    <div style={{ fontSize: 10.5, color: 'rgba(42,35,32,.45)', marginTop: 5, lineHeight: 1.6 }}>
+                      队名会显示在排行榜上，队友那边也会同步变
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
