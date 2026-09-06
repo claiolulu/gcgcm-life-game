@@ -214,6 +214,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   const visaBlank = false;
   const station = rawStation;
   const visaScore = station ? done[station.id]?.points ?? null : null;
+  const isCheckin = station ? done[station.id]?.meta?.checkin === true : false;
   const landscape = kind === 'data' || kind === 'visa';
 
   const kickers = {
@@ -448,14 +449,18 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
       { label: 'ISSUING DATE 签发日期', value: station.date || 'TBC 待定' },
       { label: 'EXPIRATION DATE 有效期', value: 'ETERNAL 无尽无穷', fg: '#5c1a22' },
-      { label: 'SCORE 得分', value: visaScore == null ? '— —' : (visaScore > 0 ? '+' : '') + visaScore,
+      { label: isCheckin ? 'ATTENDED 出席' : 'SCORE 得分',
+        value: visaScore == null ? '— —' : isCheckin ? '✓' : (visaScore > 0 ? '+' : '') + visaScore,
         fg: visaScore == null ? 'rgba(42,35,32,.45)' : (STAMP_TONE[visaScore] || '#2a2320') },
     ].map((f) => ({ ...f, fg: f.fg || '#2a2320' })) : [],
 
     visaStamped: station != null && visaScore != null,
     visaScore,
-    stampColor: STAMP_TONE[visaScore] || '#4a5b6a',
-    stampLabel: STAMP_WORD[visaScore] || (visaScore != null ? `${visaScore} 分` : ''),
+    // 打卡盖的章写「已参加」，不写分数档位 —— 那一笔本来就不是评分
+    stampColor: isCheckin ? '#2f6148' : (STAMP_TONE[visaScore] || '#4a5b6a'),
+    stampLabel: isCheckin
+      ? '已参加'
+      : (STAMP_WORD[visaScore] || (visaScore != null ? `${visaScore} 分` : '')),
     stampDate: station && done[station.id]?.at
       ? new Date(done[station.id].at).toLocaleDateString('en-GB',
           { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()

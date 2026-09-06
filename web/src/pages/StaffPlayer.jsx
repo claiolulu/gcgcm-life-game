@@ -20,7 +20,9 @@ export default function StaffPlayer() {
     return { rank: row?.rank, of: board.length };
   }, [id, staff.players, staff.outbox]); // eslint-disable-line
 
-  const stations = config?.stations || [];
+  // 打卡本里同工盖的是「活动」，不是游戏关卡。
+  // 两边共用同一张 events 表，所以后面的记分/盖章逻辑完全不用改
+  const stations = config?.activities || config?.stations || [];
   const settings = config?.settings || {};
   const tiers = settings.scoreTiers || [3, 6, 9];
   const tierLabels = config?.tierLabels || ['勉强完成', '正常完成', '出色完成'];
@@ -56,6 +58,28 @@ export default function StaffPlayer() {
   const identity = identities[player.identity];
   const station = stations.find((s) => s.id === stationId);
   const alreadyDone = stationId ? player.stations[stationId] : null;
+
+  /**
+   * 打卡：到了就盖章，不评分。
+   *
+   * 给 1 分是为了让总分等于「参加过几场」，不是打了个低分 ——
+   * 印章上写「已参加」，不写分数档位（见 bookVals 的 isCheckin）。
+   */
+  async function submitCheckin() {
+    if (!stationId) return;
+    await queueOp({
+      type: 'score',
+      playerId: player.id,
+      stationId,
+      points: 1,
+      checkin: true,
+      note: note.trim(),
+    });
+    navigator.vibrate?.(60);
+    toast(`${station?.name} 已盖章 · ${player.name}`, 'ok');
+    setTier(null);
+    setNote('');
+  }
 
   async function submitScore() {
     if (!stationId || tier == null) return;
@@ -165,7 +189,7 @@ export default function StaffPlayer() {
 
       {/* ---------------------------- 主线记分 ---------------------------- */}
       <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">📍 主线关卡记分</div>
+        <div className="section-title">📍 活动盖章</div>
 
         <div className="opt-row" style={{ flexWrap: 'wrap', overflowX: 'visible' }}>
           {stations.map((s) => {
@@ -204,9 +228,22 @@ export default function StaffPlayer() {
           <>
             {station && (
               <div className="tiny muted" style={{ lineHeight: 1.6 }}>
-                <span className="bold">{station.tag}</span> · {station.scoring}
+                <span className="bold">{station.tag}</span> · {station.desc || station.scoring}
               </div>
             )}
+            {/* 打卡本的主操作就是这一下：到了就盖章。
+                下面那些评分档位留给需要评分的活动（比如迎新的闯关游戏） */}
+            <button
+              className="btn btn--primary btn--lg btn--full"
+              onClick={submitCheckin}
+              style={{ fontSize: 17 }}
+            >
+              ✓ 到了 · 盖章
+            </button>
+            <div className="tiny dim" style={{ marginTop: -4, marginBottom: 2 }}>
+              需要按表现评分再用下面的档位
+            </div>
+
             <div className="tier-grid">
               {tiers.map((t, i) => (
                 <button

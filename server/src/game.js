@@ -343,7 +343,13 @@ const applyOpTx = db.transaction((op, settings) => {
       row.station_id = op.stationId;
       row.points = points;
       row.label = station.name;
-      row.meta = JSON.stringify({ raw, cappedBy: cap ? cap.label || cap.cardId : null, consumed });
+      // checkin 标记：这一笔是「到了就盖章」，不是按表现评的分。
+      // 印章据此显示「已参加」而不是「勉强/正常/出色完成」——
+      // 打卡本里给 1 分只是让总数等于参加场次，不是打了个低分。
+      row.meta = JSON.stringify({
+        raw, cappedBy: cap ? cap.label || cap.cardId : null, consumed,
+        ...(op.checkin ? { checkin: true } : {}),
+      });
 
       if (!insertEvent(row)) return { status: 'duplicate', message: '该操作已记录' };
       return {

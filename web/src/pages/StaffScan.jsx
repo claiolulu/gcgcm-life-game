@@ -19,7 +19,8 @@ export default function StaffScan() {
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const mainStations = config?.stations || [];
+  // 同上：打卡本按活动来
+  const mainStations = config?.activities || config?.stations || [];
   const stations = [...mainStations, ...(config?.functional || [])];
   const myStation = stations.find((s) => s.id === staff.session?.station);
 
@@ -230,7 +231,7 @@ export default function StaffScan() {
                   <div className="grow" style={{ minWidth: 0 }}>
                     <div className="small bold">{p.name}</div>
                     <div className="tiny dim mono">
-                      {p.code} 号 · {p.stationsDone}/{p.stationsTotal ?? mainStations.length} 关
+                      {p.code} 号 · 参加 {p.stationsDone}/{mainStations.length} 场
                       {p.hasPending && <span style={{ color: 'var(--yellow)' }}> · 待同步</span>}
                       {p.pendingLifeEvents > 0 && <span style={{ color: 'var(--red)' }}> · 欠盲盒</span>}
                       {/* 列表上也标一下，免得同工点进去才发现这人有附加条件 */}
