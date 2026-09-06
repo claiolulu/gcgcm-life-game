@@ -165,6 +165,15 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   const done = me?.stations || {};
   const total = me?.total ?? 0;
   const doneCount = Object.keys(done).length;
+
+  // 打卡本的汇总看的是「什么时候来的」，不是分数结算
+  const stampDates = Object.values(done)
+    .map((d) => d?.at).filter(Boolean).sort((a, b) => a - b);
+  const fmtDay = (ts) => new Date(ts).toLocaleDateString('en-GB',
+    { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const firstStamp = stampDates.length ? fmtDay(stampDates[0]) : '';
+  const lastStamp = stampDates.length ? fmtDay(stampDates[stampDates.length - 1]) : '';
+  const joinedOn = me?.createdAt ? fmtDay(me.createdAt) : '——';
   /**
    * 打卡本不设分数上限 —— 活动会一直加下去，「满分」这个概念不成立，
    * 印一个「30 / 72」反而暗示这本护照只有 72 分那么长。
@@ -396,9 +405,9 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     ],
     summaryRows: [
       { label: 'VISAS 参加过', value: `${doneCount} / ${stations.length}` },
-      { label: 'TOTAL SCORE 总积分', value: String(total).padStart(2, '0') },
-      { label: 'CLASS 身份', value: identityLabel },
-      { label: 'HELP TOKEN 代币', value: me?.tokensLeft > 0 ? 'UNUSED 未使用' : 'USED 已递出' },
+      { label: 'FIRST STAMP 第一个章', value: firstStamp || '—— ' },
+      { label: 'LATEST 最近一次', value: lastStamp || '—— ' },
+      { label: 'MEMBER SINCE 入册', value: joinedOn },
     ],
     doneCount,
     totalPad: String(total).padStart(2, '0'),
@@ -406,6 +415,18 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 进度条走「参加过几场」，不是分数百分比
     pct: visaTotal ? Math.min(100, Math.round((doneCount / visaTotal) * 100)) : 0,
     visaTotal,
+    /**
+     * 结语用一句经文收尾。
+     *
+     * 游戏版那段是「今晚八关走完、最终排名、分数会归零」——打卡本没有
+     * 「今晚」，它是一本要用一年的册子，收尾也就不该是结算的口吻。
+     */
+    closingText:
+      '这本护照上的章，记的不是你完成了多少，是你来过、被看见过。\n'
+      + '有一天翻开它，愿你想起的不是名次，是那些一起坐下的人。\n\n'
+      + '「你出你入，耶和华要保护你，从今时直到永远。」\n'
+      + '——诗篇 121:8',
+
     shareLabel: ui.shared ? 'COPIED 已复制' : 'SHARE 分享我的护照',
     share: actions.share,
 

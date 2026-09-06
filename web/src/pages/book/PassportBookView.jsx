@@ -244,8 +244,8 @@ export default function PassportBookView({ v }) {
                                 </React.Fragment>
                               ))}
                             </div>
-                            <div style={{fontSize: "13.5px", fontWeight: "600", lineHeight: "2.05", color: "#2a2320", textWrap: "pretty"}}>
-                              今晚八个关卡走完，你的护照盖满了章。最终排名可以点左上角的奖杯查看。分数会归零，名次会被忘记，但今晚认识的人还在。愿你在这座城市里不是一个人。
+                            <div style={{whiteSpace: "pre-line", fontSize: "13.5px", fontWeight: "600", lineHeight: "2.05", color: "#2a2320", textWrap: "pretty"}}>
+                              {v.closingText}
                             </div>
                             <button onClick={v.share} style={{marginTop: "auto", padding: "15px", background: "#5c1a22", border: "1px solid rgba(198,164,95,.6)", color: "#e6cd91", fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".24em", textIndent: ".24em"}} style-active="opacity:.85">
                               {v.shareLabel}

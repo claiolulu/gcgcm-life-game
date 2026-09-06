@@ -479,6 +479,23 @@ def apply_patches(jsx):
     assert jsx != before, "没找到签证页计数"
     n += 1
 
+    # 结语页那段收尾话是游戏版的（「今晚八个关卡走完…最终排名…」）。
+    # 打卡本没有「今晚」，它是一本要用一年的册子，所以换成一句经文
+    # 收尾 —— 这本护照记的是同行，不是成绩。
+    #
+    # 文字改从 v 注入，方便以后换句子不用重跑转换器。
+    old_tail = ('今晚八个关卡走完，你的护照盖满了章。最终排名可以点左上角的奖杯查看。'
+                '分数会归零，名次会被忘记，但今晚认识的人还在。愿你在这座城市里不是一个人。')
+    assert old_tail in jsx, "没找到结语页的收尾文字"
+    i = jsx.index(old_tail)
+    # 这一段要分行显示（散文 + 单独一行的经文），给它开 pre-line；
+    # 不开的话 \n 会被折叠，两段挤成一坨
+    open_tag = jsx.rfind('<div style={{', 0, i)
+    jsx = jsx[:open_tag] + jsx[open_tag:].replace(
+        '<div style={{', '<div style={{whiteSpace: "pre-line", ', 1)
+    jsx = jsx.replace(old_tail, '{v.closingText}', 1)
+    n += 1
+
     # 5) 封面：去掉「OPEN 翻开」按钮，改成整页可点（见 bookVals 的 pageTap）。
     #    原地留一行很淡的提示，否则没人知道要点。
     i5 = jsx.find('OPEN 翻开')
