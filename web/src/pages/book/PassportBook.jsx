@@ -5,7 +5,7 @@ import Avatar from '../../components/Avatar.jsx';
 import CardArt from '../../components/CardArt.jsx';
 
 import PassportBookView from './PassportBookView.jsx';
-import { buildVals, buildPages, orderStations } from './bookVals.js';
+import { buildVals, buildPages } from './bookVals.js';
 import { FLIP_MS, FLIP_EASE } from './bookVals.js';
 import { useConfig } from '../../lib/config.js';
 import { usePlayer, refreshMe, renameTeam } from '../../lib/player.js';
@@ -50,12 +50,12 @@ export default function PassportBook() {
   );
 
   const stations = config?.stations || [];
-  // 关卡按后台排定的路线重新装订：翻到第几张签证页就是第几站
-  const routedStations = useMemo(
-    () => orderStations(stations, me?.route),
-    [stations, me?.route],
-  );
-  const pages = useMemo(() => buildPages(routedStations), [routedStations]);
+  // 签证页的内容来源：一场活动一页
+  const activities = useMemo(() => config?.activities || [], [config]);
+  // 签证页按活动装订，顺序就是配置里的先后（大致按时间）。
+  // 游戏版那套「按各关忙闲排班」在这里用不上 —— 活动分散在几个月里，
+  // 不存在开局全挤在一个门口的问题。
+  const pages = useMemo(() => buildPages(activities), [activities]);
   const pageCount = pages.length;
 
   /* ------------------------------ 翻页 ------------------------------ */

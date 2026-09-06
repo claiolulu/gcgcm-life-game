@@ -9,6 +9,69 @@ export const GAME = {
 };
 
 /**
+ * ========================= 活动打卡 =========================
+ *
+ * 护照的签证页从「一场游戏里的 8 个关卡」改成「教会的每一场活动」。
+ * 参加了就盖一个章，护照因此变成一本能一直用下去的打卡本 ——
+ * 迎新、查经、圣诞晚会……每场一页，翻开就是这个人的参与记录。
+ *
+ * 加新活动就是在这里添一行，前端不用动。
+ *
+ * 存储上仍然沿用 events 表的 station_id 字段和那条「一站只能盖一次」的
+ * 唯一索引 —— 语义正好一致（一场活动只盖一次章），没必要为了换个叫法
+ * 去迁移历史数据。
+ *
+ *   date  这一场的日期，签发日期栏显示它；还没定就留空
+ *   tag   签证类型栏，写活动的性质
+ *   host  盖章负责人，签证页的 STAFF 栏
+ *   desc  备注栏那段话，写这场活动是什么
+ */
+export const ACTIVITIES = [
+  {
+    id: 'freshers', order: 1, icon: '🎓',
+    name: '迎新之夜', en: 'Freshers Night',
+    date: '13 SEP 2026', tag: '迎新', host: 'GCGCM 迎新组',
+    desc: '新学年的第一场。六十分钟的浓缩人生，认识一屋子还不认识的人 —— 分数会归零，名次会被忘记，但今晚认识的人还在。',
+    landmarkKey: 'city-chambers',
+  },
+  {
+    id: 'bible-study', order: 2, icon: '📖',
+    name: '查经小组', en: 'Bible Study',
+    date: '', tag: '每周聚会', host: '各小组组长',
+    desc: '一起读一段，一起问几个问题。来过一次就盖一次章。',
+    landmarkKey: 'university',
+  },
+  {
+    id: 'retreat', order: 3, icon: '⛰',
+    name: '退修会', en: 'Retreat',
+    date: '', tag: '年度', host: '教会同工',
+    desc: '离开城市两天。走远一点，才看得清近处。',
+    landmarkKey: 'kelvingrove',
+  },
+  {
+    id: 'christmas', order: 4, icon: '🕯',
+    name: '圣诞晚会', en: 'Christmas Night',
+    date: '', tag: '节期', host: '节期筹备组',
+    desc: '一年里最热闹的一晚。带上还没来过教会的朋友。',
+    landmarkKey: 'cathedral',
+  },
+  {
+    id: 'easter', order: 5, icon: '🌱',
+    name: '复活节', en: 'Easter',
+    date: '', tag: '节期', host: '节期筹备组',
+    desc: '整本故事的转折点就在这一天。',
+    landmarkKey: 'botanic',
+  },
+  {
+    id: 'serve', order: 6, icon: '🤲',
+    name: '服事一次', en: 'Serve',
+    date: '', tag: '参与', host: '各事工负责人',
+    desc: '摆椅子、洗杯子、招呼新来的人 —— 哪一样都算。',
+    landmarkKey: 'riverside',
+  },
+];
+
+/**
  * 8 个主线签证站 —— 与 Claude Design 的护照册设计保持一致，满分 72。
  *
  * minutes 是每组预计占用的时间（含记分和复位），用来排关卡顺序 ——

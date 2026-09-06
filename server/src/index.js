@@ -10,6 +10,7 @@ import { Server as SocketServer } from 'socket.io';
 import {
   GAME, STATIONS, FUNCTIONAL, IDENTITIES, LIFE_EVENT_CARDS, CARD_KINDS,
   GRACE_OPTIONS, AWARDS, GROUP_COLORS, GROUP_SYMBOLS, TIER_LABELS, RESET_PIN,
+  ACTIVITIES,
 } from './config.js';
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
@@ -85,6 +86,9 @@ app.get('/api/config', (_req, res) => {
   res.json({
     game: GAME,
     stations: STATIONS,
+    // 签证页现在按活动来（见 config.js 的 ACTIVITIES）；
+    // STATIONS 仍然下发，游戏机制那一套还在用
+    activities: ACTIVITIES,
     functional: FUNCTIONAL,
     identities: IDENTITIES,
     cards: LIFE_EVENT_CARDS,

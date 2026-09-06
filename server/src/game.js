@@ -1,12 +1,22 @@
 import { db, stmts, getSettings, setSetting } from './db.js';
 import {
-  STATIONS, ALL_STATION_IDS, LIFE_EVENT_CARDS, GROUP_COLORS, GROUP_SYMBOLS,
+  STATIONS, ACTIVITIES, ALL_STATION_IDS, LIFE_EVENT_CARDS, GROUP_COLORS, GROUP_SYMBOLS,
   IDENTITIES, GRACE_OPTIONS,
 } from './config.js';
 import { safeJSON, shuffle, clamp, uid } from './util.js';
 
 const CARD_BY_ID = new Map(LIFE_EVENT_CARDS.map((c) => [c.id, c]));
-const STATION_BY_ID = new Map(STATIONS.map((s) => [s.id, s]));
+/**
+ * 可盖章的条目：8 个游戏关卡 + 每一场活动。
+ *
+ * 打卡本里签证页是活动，游戏机制那一套仍然按关卡走，两边共用同一张
+ * events 表和那条「一站只能盖一次」的唯一索引 —— 语义正好一致
+ * （一场活动也只盖一次章），所以放在同一个查找表里就够了，
+ * 不需要为换个叫法去改表结构。
+ */
+const STATION_BY_ID = new Map(
+  [...STATIONS, ...ACTIVITIES].map((s) => [s.id, s]),
+);
 
 /* ------------------------- 派生状态（不落库，全靠算） ------------------------- */
 

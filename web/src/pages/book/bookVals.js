@@ -150,8 +150,14 @@ function mrzLine(n, { surname, given, passportNo, identity, total }) {
  *  actions    { move, goto, setOverlay, setModal, share }
  */
 export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
-  // 关卡表按后台排定的路线重排，页码和内容才对得上
-  const stations = orderStations(config?.stations || [], me?.route);
+  /**
+   * 签证页现在一场活动一页 —— 迎新、查经、圣诞晚会……参加了就盖章。
+   * 护照因此变成一本能一直用下去的打卡本，而不只是一晚上的游戏记录。
+   *
+   * 活动是按时间顺序装订的，不走关卡那套按忙闲排班的路线 ——
+   * 那是为了把人从同一个门口摊开，活动分散在几个月里，没这个问题。
+   */
+  const stations = config?.activities || [];
   const pages = buildPages(stations);
   const cur = pages[ui.page] || pages[0];
   const kind = ui.overlay || cur.kind;
@@ -186,25 +192,28 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
   // 赛前签证页留白：关卡顺序还没排，写上具体关卡等于给了错的信息，
   // 而且会让人提前扎堆去自己看到的第一关。
-  const routed = Array.isArray(me?.route) && me.route.length > 0;
   const rawStation = kind === 'visa' ? stations[cur.i] : null;
-  // 关卡顺序公布之前，签证页整页不渲染（见视图里的 v.visaBlank），
-  // 只剩水印。留 landmarkKey 是因为水印挂在页面容器上、不在正文里。
-  const visaBlank = kind === 'visa' && !routed;
-  const station = visaBlank
-    ? { id: rawStation?.id, landmarkKey: rawStation?.landmarkKey }
-    : rawStation;
+  // 打卡本里签证页一直看得见 —— 那是「接下来有哪些活动」的清单，
+  // 藏起来就没法让人期待下一场了。游戏版那套「开赛前留白」不适用。
+  const visaBlank = false;
+  const station = rawStation;
   const visaScore = station ? done[station.id]?.points ?? null : null;
   const landscape = kind === 'data' || kind === 'visa';
 
   const kickers = {
     inside: 'WELCOME 欢迎', notes: 'INDEX 导航', data: 'IDENTIFICATION 身份资料',
-    visa: 'VISA 签证 · GCGCM', grace: 'GRACE STATION 恩典站', guide: 'HOW TO PLAY 玩法',
+    // 签证页的页眉写活动名 —— 每页都写「VISA 签证」等于什么都没说，
+    // 而翻到哪一场才是这一页唯一会变的信息
+    visa: station ? `${station.icon || ''} ${station.name}`.trim() : 'VISA 签证',
+    grace: 'GRACE STATION 恩典站', guide: 'HOW TO PLAY 玩法',
     board: 'LEADERBOARD 实时排行', closing: 'CLOSING 结语',
   };
   const corners = {
     inside: 'ROM 15:7', notes: passportNo, data: 'TYPE P / GCGCM',
-    visa: station ? 'STATION ' + String(cur.i + 1).padStart(2, '0') : '',
+    // 盖过章就直接写「已参加」，比一个序号有意义
+    visa: station
+      ? (visaScore != null ? '已参加 ✓' : `NO.${String(cur.i + 1).padStart(2, '0')} 待参加`)
+      : '',
     grace: 'YIHAN · 佳琪', guide: 'RULES · 点问号返回', board: 'LIVE · 点奖杯返回',
     closing: 'JOHN 15:12',
   };
@@ -334,7 +343,13 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       { label: 'NATIONALITY 国籍', value: 'GCGCM' },
       { label: 'PASSPORT NO 护照号', value: passportNo },
       { label: 'PLAYER NO 编号', value: String(me?.code || '——') },
-      { label: 'TEAM 队伍', value: teamBadge ? `${teamBadge.name}${teamBadge.symbol} · ${teamBadge.teamId}` : '——',
+      // Solo 没有 teamId，原来会把字面量 null 印在护照上。
+      // 改队名之后优先显示队名，没队伍就只显示颜色符号
+      { label: 'TEAM 队伍',
+        value: teamBadge
+          ? [`${teamBadge.name}${teamBadge.symbol}`, me?.teamName || teamBadge.teamId]
+              .filter(Boolean).join(' · ')
+          : '——',
         fg: teamBadge ? teamBadge.hex : undefined },
       { label: 'PLACE OF ISSUE 签发地', value: 'GLASGOW, UK' },
       { label: 'DATE OF ISSUE 签发日期', value: '28 AUG 2026' },
@@ -373,7 +388,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
         desc: '身份、关卡、评分与颁奖的完整规则。', go: () => actions.setOverlay('guide') },
     ],
     summaryRows: [
-      { label: 'VISAS 完成关卡', value: `${doneCount} / ${stations.length}` },
+      { label: 'VISAS 参加过', value: `${doneCount} / ${stations.length}` },
       { label: 'TOTAL SCORE 总积分', value: String(total).padStart(2, '0') + ' / ' + maxTotal },
       { label: 'CLASS 身份', value: identityLabel },
       { label: 'HELP TOKEN 代币', value: me?.tokensLeft > 0 ? 'UNUSED 未使用' : 'USED 已递出' },
@@ -388,7 +403,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     /* ---- 签证页 ---- */
     visaCn: station ? station.name : '',
     visaEn: station ? String(station.en || '').toUpperCase() : '',
-    visaAnnotation: station ? station.rule : '',
+    visaAnnotation: station ? (station.desc || station.rule || '') : '',
     visaFields: station ? [
       { label: 'ISSUING POST 签发站', value: 'GCGCM ' + String(cur.i + 1).padStart(2, '0') },
       { label: 'CONTROL NUMBER 控制号', value: passportNo + '/' + String(cur.i + 1).padStart(2, '0') },
@@ -398,9 +413,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       { label: 'GIVEN NAMES 名', value: given || clean(given, 'ONE') },
       { label: 'VISA TYPE 类型', value: station.tag || '' },
       { label: 'CLASS 身份', value: identityLabel },
-      { label: 'STAFF 工作人员', value: station.staff || '' },
+      { label: 'STAFF 工作人员', value: station.host || station.staff || '' },
       { label: 'ENTRIES 入境次数', value: 'ONE 一次' },
-      { label: 'ISSUING DATE 签发日期', value: '28 AUG 2026' },
+      // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
+      { label: 'ISSUING DATE 签发日期', value: station.date || 'TBC 待定' },
       { label: 'EXPIRATION DATE 有效期', value: 'ETERNAL 无尽无穷', fg: '#5c1a22' },
       { label: 'SCORE 得分', value: visaScore == null ? '— —' : (visaScore > 0 ? '+' : '') + visaScore,
         fg: visaScore == null ? 'rgba(42,35,32,.45)' : (STAMP_TONE[visaScore] || '#2a2320') },
