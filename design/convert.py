@@ -472,6 +472,13 @@ def apply_patches(jsx):
     assert jsx != before, "没找到舞台容器"
     n += 1
 
+    # 设计稿把签证页总数写死成 8（那是游戏版的关卡数）。
+    # 打卡本的活动数是配置里定的，会变，所以换成动态值。
+    before = jsx
+    jsx = jsx.replace('VISAS {v.doneCount}/8', 'VISAS {v.doneCount}/{v.visaTotal}')
+    assert jsx != before, "没找到签证页计数"
+    n += 1
+
     # 5) 封面：去掉「OPEN 翻开」按钮，改成整页可点（见 bookVals 的 pageTap）。
     #    原地留一行很淡的提示，否则没人知道要点。
     i5 = jsx.find('OPEN 翻开')

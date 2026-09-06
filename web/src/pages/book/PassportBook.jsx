@@ -341,11 +341,11 @@ export default function PassportBook() {
 
   const share = useCallback(() => {
     if (!me) return;
-    const maxTotal = stations.length * (config?.settings?.maxStationScore ?? 9);
+    // 分享的是打卡进度，不是分数 —— 分数没有上限，「30/72」那种写法不成立
     const doneCount = Object.keys(me.stations || {}).length;
-    const txt = `GCGCM 迷你人生游戏 · ${me.name} · ${me.total}/${maxTotal} 分，完成 ${doneCount}/${stations.length} 关。`;
+    const txt = `GCGCM 活动护照 · ${me.name} · 已参加 ${doneCount}/${activities.length} 场活动，累计 ${me.total} 分。`;
     const done = () => { setShared(true); setTimeout(() => setShared(false), 2000); };
-    if (navigator.share) { navigator.share({ title: 'GCGCM 迷你人生游戏', text: txt }).then(done).catch(() => {}); return; }
+    if (navigator.share) { navigator.share({ title: 'GCGCM 活动护照', text: txt }).then(done).catch(() => {}); return; }
     if (navigator.clipboard) { navigator.clipboard.writeText(txt).then(done).catch(done); return; }
     done();
   }, [me, stations.length, config]);

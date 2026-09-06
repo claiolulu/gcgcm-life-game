@@ -165,7 +165,14 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   const done = me?.stations || {};
   const total = me?.total ?? 0;
   const doneCount = Object.keys(done).length;
-  const maxTotal = stations.length * (config?.settings?.maxStationScore ?? 9);
+  /**
+   * 打卡本不设分数上限 —— 活动会一直加下去，「满分」这个概念不成立，
+   * 印一个「30 / 72」反而暗示这本护照只有 72 分那么长。
+   *
+   * 进度改成看「参加过几场」：那才是这本册子真正在记的东西，
+   * 而且分母是活动总数，加了新活动会自己跟着变。
+   */
+  const visaTotal = stations.length;
 
   const identityKey = me?.identity || null;
   const idt = IDENTITY_META[identityKey] || IDENTITY_META.solo;
@@ -355,7 +362,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       { label: 'DATE OF ISSUE 签发日期', value: '28 AUG 2026' },
       { label: 'DATE OF EXPIRY 有效期至', value: 'ETERNAL 无尽无穷', fg: '#5c1a22' },
       { label: 'AUTHORITY 签发机关', value: 'GCGCM' },
-      { label: 'SCORE 累计积分', value: String(total).padStart(2, '0') + ' / ' + maxTotal },
+      { label: 'SCORE 累计积分', value: String(total).padStart(2, '0') },
     ].map((f) => ({ ...f, fg: f.fg || '#2a2320' })),
 
     mrzOn: true,
@@ -389,14 +396,16 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     ],
     summaryRows: [
       { label: 'VISAS 参加过', value: `${doneCount} / ${stations.length}` },
-      { label: 'TOTAL SCORE 总积分', value: String(total).padStart(2, '0') + ' / ' + maxTotal },
+      { label: 'TOTAL SCORE 总积分', value: String(total).padStart(2, '0') },
       { label: 'CLASS 身份', value: identityLabel },
       { label: 'HELP TOKEN 代币', value: me?.tokensLeft > 0 ? 'UNUSED 未使用' : 'USED 已递出' },
     ],
     doneCount,
     totalPad: String(total).padStart(2, '0'),
     pendingLifeEvents: me?.pendingLifeEvents ?? 0,
-    pct: maxTotal ? Math.min(100, Math.round((total / maxTotal) * 100)) : 0,
+    // 进度条走「参加过几场」，不是分数百分比
+    pct: visaTotal ? Math.min(100, Math.round((doneCount / visaTotal) * 100)) : 0,
+    visaTotal,
     shareLabel: ui.shared ? 'COPIED 已复制' : 'SHARE 分享我的护照',
     share: actions.share,
 
@@ -479,19 +488,28 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     guide: GUIDE,
 
     // 导航页的活动简介（原来那三张功能卡片换成了这个）
+    /**
+     * 导航页：讲清楚这本护照是什么、有哪些活动、怎么盖章。
+     *
+     * 活动清单直接从配置生成，加了新活动这里自动跟着变 ——
+     * 手抄一份迟早会和签证页对不上。
+     */
     intro: [
       { h: 'WHAT IS THIS 这是什么',
-        t: `这是一场 ${Math.round((config?.settings?.gameDurationMin ?? 60))} 分钟的浓缩人生。开局抽签决定你是独行、双人还是三人，` +
-           `然后自由顺序去闯 ${stations.length} 个关卡，每过一关由现场同工当场评分并在你的护照上盖章。` },
-      { h: 'THE CATCH 有意思的地方',
-        t: '起点不是你选的。同样一关，一个人做和三个人做难度完全不同 —— ' +
-           '有的关卡人多才转得动，有的关卡人多反而互相拖累。' },
-      { h: 'LIFE HAPPENS 途中会发生什么',
-        t: '总分每跨过一条红线，就必须去场地中央抽一次人生盲盒。可能天降横财，也可能一夜归零。' +
-           '卡住的时候，你手上那枚 Help Token 可以随时递到恩典站换一次帮助。' },
-      { h: 'AT THE END 最后',
-        t: '除了最高积分，还会颁 The Connector、The Creative 等奖项。' +
-           '分数会归零，名次会被忘记，但今晚认识的人还在。' },
+        t: '这是一本活动打卡护照。GCGCM 的每一场活动都是里面的一页签证 —— ' +
+           '你去了，就在那一页盖一个章。' +
+           '一年下来翻开它，就是你在这里走过的路。' },
+      { h: 'HOW TO GET STAMPED 怎么盖章',
+        t: '活动现场找同工，出示护照上的二维码（每一页右下角都有，也可以翻到资料页看大图）。' +
+           '同工扫一下就盖章，当场生效，你自己的手机上立刻能看到。' +
+           '每场活动只盖一次，重复扫会被系统拦下。' },
+      { h: 'THE ACTIVITIES 有哪些活动',
+        t: stations.length
+          ? stations.map((a) => `${a.icon || ''}${a.name}${a.date ? `（${a.date}）` : ''}`).join('　')
+          : '活动清单还在准备中。' },
+      { h: 'ONE MORE THING 还有一件事',
+        t: '章盖满了会有惊喜，但那不是重点。' +
+           '这本护照记的不是你参加了几场，是你在这里认识了谁、被谁记得。' },
     ],
 
     /* ---- 实时排行榜 ---- */

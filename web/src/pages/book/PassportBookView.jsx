@@ -195,7 +195,7 @@ export default function PassportBookView({ v }) {
                                 </div>
                                 <div style={{marginTop: "8px", display: "flex", alignItems: "center", gap: "10px"}}>
                                   <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".16em", color: "#5c1a22"}}>
-                                    VISAS {v.doneCount}/8
+                                    VISAS {v.doneCount}/{v.visaTotal}
                                   </div>
                                   <div style={{flex: "1", height: "6px", background: "rgba(92,26,34,.12)", border: "1px solid rgba(92,26,34,.28)"}}>
                                     <div style={{width: `${v.pct}%`, height: "100%", background: "linear-gradient(90deg,#9c7c3c,#c6a45f)"}} />
