@@ -1,4 +1,4 @@
-import { db, stmts, getSettings, setSetting } from './db.js';
+import { db, stmts, getSettings, setSetting, getActivities } from './db.js';
 import {
   STATIONS, ACTIVITIES, ALL_STATION_IDS, LIFE_EVENT_CARDS, GROUP_COLORS, GROUP_SYMBOLS,
   IDENTITIES, GRACE_OPTIONS,
@@ -7,16 +7,20 @@ import { safeJSON, shuffle, clamp, uid } from './util.js';
 
 const CARD_BY_ID = new Map(LIFE_EVENT_CARDS.map((c) => [c.id, c]));
 /**
- * 可盖章的条目：8 个游戏关卡 + 每一场活动。
+ * 按 id 找一个可盖章的条目：8 个游戏关卡，或者任意一场活动。
  *
- * 打卡本里签证页是活动，游戏机制那一套仍然按关卡走，两边共用同一张
- * events 表和那条「一站只能盖一次」的唯一索引 —— 语义正好一致
- * （一场活动也只盖一次章），所以放在同一个查找表里就够了，
- * 不需要为换个叫法去改表结构。
+ * 活动清单现在存在设置表里、总控台随时能改，所以**不能**在模块加载时
+ * 算好一张静态表 —— 那样同工加了新活动，服务端会一直说「未知关卡」，
+ * 直到重启为止。每次现查，活动一共几条，开销可以忽略。
+ *
+ * 两边共用同一张 events 表和那条「一站只能盖一次」的唯一索引：
+ * 语义正好一致（一场活动也只盖一次章）。
  */
-const STATION_BY_ID = new Map(
-  [...STATIONS, ...ACTIVITIES].map((s) => [s.id, s]),
-);
+function stationById(id) {
+  const hit = STATIONS.find((x) => x.id === id);
+  if (hit) return hit;
+  return getActivities().find((x) => x.id === id) || null;
+}
 
 /* ------------------------- 派生状态（不落库，全靠算） ------------------------- */
 
@@ -321,7 +325,7 @@ const applyOpTx = db.transaction((op, settings) => {
 
   switch (op.type) {
     case 'score': {
-      const station = STATION_BY_ID.get(op.stationId);
+      const station = stationById(op.stationId);
       if (!station) return { status: 'error', message: '未知关卡' };
 
       const already = stmts.stationEvent.get(player.id, op.stationId);
@@ -960,4 +964,4 @@ export function clearIdentities(playerIds = []) {
   return { ok: true, cleared: playerIds.length, rebalanced: vacated.size };
 }
 
-export { IDENTITIES, STATION_BY_ID, CARD_BY_ID };
+export { IDENTITIES, stationById, CARD_BY_ID };

@@ -15,6 +15,7 @@ import {
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
+  getActivities, setActivities,
 } from './db.js';
 import {
   playerState, roster, leaderboard, rankOf, applyOp, drawIdentities,
@@ -88,7 +89,7 @@ app.get('/api/config', (_req, res) => {
     stations: STATIONS,
     // 签证页现在按活动来（见 config.js 的 ACTIVITIES）；
     // STATIONS 仍然下发，游戏机制那一套还在用
-    activities: ACTIVITIES,
+    activities: getActivities(),
     functional: FUNCTIONAL,
     identities: IDENTITIES,
     cards: LIFE_EVENT_CARDS,
@@ -510,6 +511,50 @@ app.post('/api/admin/unassign', staffAuth('admin'), (req, res) => {
   const result = clearIdentities(ids);
   broadcast('team');
   res.json({ ...result, players: roster(0), epoch: epoch(), serverTs: Date.now() });
+});
+
+/**
+ * 改活动清单。总控台整份替换，不做增量 —— 排序、删除、改字段
+ * 都是同一个动作，前端拿着完整列表回传最简单。
+ *
+ * id 是历史数据的锚：盖过的章存在 events.station_id 里。改 id 等于
+ * 让那些章失去归属，所以新建时自动生成、之后不允许改（前端也不给改）。
+ */
+app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
+  const raw = Array.isArray(req.body?.activities) ? req.body.activities : null;
+  if (!raw) return res.status(400).json({ error: '格式不对，要一个数组' });
+  if (raw.length > 60) return res.status(400).json({ error: '活动太多了（上限 60）' });
+
+  const seen = new Set();
+  const clean = [];
+  for (const a of raw) {
+    const id = String(a?.id || '').trim().slice(0, 40);
+    // id 只允许安全字符：它会进 URL 和数据库，也是历史章的锚
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return res.status(400).json({ error: `活动 id「${id}」不合法，只能用字母数字和 - _` });
+    }
+    if (seen.has(id)) return res.status(400).json({ error: `活动 id「${id}」重复了` });
+    seen.add(id);
+
+    const name = String(a?.name || '').trim().slice(0, 20);
+    if (!name) return res.status(400).json({ error: '每个活动都要有名字' });
+
+    clean.push({
+      id, name,
+      order: clean.length + 1,
+      icon: String(a?.icon || '📍').trim().slice(0, 4),
+      en: String(a?.en || '').trim().slice(0, 40),
+      date: String(a?.date || '').trim().slice(0, 20),
+      tag: String(a?.tag || '').trim().slice(0, 12),
+      host: String(a?.host || '').trim().slice(0, 20),
+      desc: String(a?.desc || '').trim().slice(0, 200),
+      landmarkKey: String(a?.landmarkKey || '').trim().slice(0, 40),
+    });
+  }
+
+  setActivities(clean);
+  broadcast('config');
+  res.json({ activities: clean });
 });
 
 app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {

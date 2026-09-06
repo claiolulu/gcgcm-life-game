@@ -111,6 +111,86 @@ export default function Admin() {
     })).sort((a, b) => a.codes.localeCompare(b.codes));
   }, [players, config]);
 
+  /* -------------------------- 活动清单 -------------------------- */
+
+  const [acts, setActs] = useState(null);      // null = 还没从配置载入
+  const [actsDirty, setActsDirty] = useState(false);
+
+  // 配置到了或被别处改过就重新载入；本地有未保存的改动时不覆盖，
+  // 免得同工打了一半字被同步刷掉
+  useEffect(() => {
+    if (actsDirty) return;
+    setActs((config?.activities || []).map((a) => ({ ...a })));
+  }, [config, actsDirty]);
+
+  // 每场活动已经有多少人盖过章 —— 删之前得让人看见代价
+  const stampCount = useMemo(() => {
+    const n = {};
+    for (const p of players) {
+      for (const id of Object.keys(p.stations || {})) n[id] = (n[id] || 0) + 1;
+    }
+    return n;
+  }, [players]);
+
+  const editAct = (i, patch) => {
+    setActs((cur) => cur.map((a, k) => (k === i ? { ...a, ...patch } : a)));
+    setActsDirty(true);
+  };
+
+  const moveAct = (i, d) => {
+    setActs((cur) => {
+      const next = [...cur];
+      [next[i], next[i + d]] = [next[i + d], next[i]];
+      return next;
+    });
+    setActsDirty(true);
+  };
+
+  async function removeAct(i) {
+    const a = acts[i];
+    const n = stampCount[a.id] || 0;
+    const ok = await ask({
+      title: `删掉「${a.name}」？`,
+      danger: true,
+      confirmText: '删掉',
+      body: n > 0
+        ? `已经有 ${n} 个人在这一场盖过章。删掉之后护照里不再有这一页，`
+          + '那些记录还在数据库里但不会显示。确定要删吗？'
+        : '还没有人在这一场盖过章，删掉没有影响。',
+    });
+    if (!ok) return;
+    setActs((cur) => cur.filter((_, k) => k !== i));
+    setActsDirty(true);
+  }
+
+  function addAct() {
+    // id 一旦建立就不再改：盖过的章靠它认领归属。
+    // 用时间戳生成，避免和已有的撞上
+    const id = `act-${Date.now().toString(36)}`;
+    setActs((cur) => [...cur, {
+      id, icon: '📍', name: '', en: '', date: '', tag: '', host: '', desc: '',
+      landmarkKey: '',
+    }]);
+    setActsDirty(true);
+  }
+
+  async function saveActs() {
+    setBusy('acts');
+    try {
+      const res = await api('/api/admin/activities', {
+        method: 'POST', body: { activities: acts }, token,
+      });
+      setActs(res.activities);
+      setActsDirty(false);
+      await loadConfig();          // 让本页的 config 立刻拿到新清单
+      toast(`已保存 ${res.activities.length} 场活动`, 'ok');
+    } catch (err) {
+      toast(err.message || '保存失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
 
 
   useEffect(() => {
@@ -423,6 +503,67 @@ export default function Admin() {
           </div>
         </div>
       )}
+
+      {/* 活动清单 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">🗓 活动清单</div>
+        <div className="tiny dim">
+          护照里一场活动一页签证，参加了就盖章。这里改完立刻生效，
+          同工端和所有人的护照都会跟着变，不用重启。
+        </div>
+
+        <div className="stack-sm">
+          {(acts || []).map((a, i) => (
+            <div key={a.id} className="card card--tight stack-sm">
+              <div className="row" style={{ gap: 6 }}>
+                <input
+                  className="input" style={{ flex: '0 0 46px', textAlign: 'center' }}
+                  value={a.icon} maxLength={4} aria-label="图标"
+                  onChange={(e) => editAct(i, { icon: e.target.value })}
+                />
+                <input
+                  className="input grow" value={a.name} maxLength={20} placeholder="活动名"
+                  onChange={(e) => editAct(i, { name: e.target.value })}
+                />
+                <button className="btn btn--sm btn--ghost" disabled={i === 0}
+                  onClick={() => moveAct(i, -1)} title="上移">↑</button>
+                <button className="btn btn--sm btn--ghost" disabled={i === (acts || []).length - 1}
+                  onClick={() => moveAct(i, 1)} title="下移">↓</button>
+                <button className="btn btn--sm btn--ghost" onClick={() => removeAct(i)} title="删除">✕</button>
+              </div>
+              <div className="row" style={{ gap: 6 }}>
+                <input className="input grow" value={a.date} maxLength={20} placeholder="日期（留空显示「待定」）"
+                  onChange={(e) => editAct(i, { date: e.target.value })} />
+                <input className="input grow" value={a.tag} maxLength={12} placeholder="类型"
+                  onChange={(e) => editAct(i, { tag: e.target.value })} />
+              </div>
+              <div className="row" style={{ gap: 6 }}>
+                <input className="input grow" value={a.en} maxLength={40} placeholder="英文名（选填）"
+                  onChange={(e) => editAct(i, { en: e.target.value })} />
+                <input className="input grow" value={a.host} maxLength={20} placeholder="负责人"
+                  onChange={(e) => editAct(i, { host: e.target.value })} />
+              </div>
+              <input className="input" value={a.desc} maxLength={200} placeholder="这场活动是什么（显示在签证页上）"
+                onChange={(e) => editAct(i, { desc: e.target.value })} />
+              <div className="tiny dim">
+                id <code>{a.id}</code> · 已有 {stampCount[a.id] || 0} 人盖章
+                {stampCount[a.id] ? '（删掉之后这些记录会失去归属）' : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn btn--sm btn--ghost grow" onClick={addAct}>+ 加一场活动</button>
+          <button
+            className="btn btn--sm btn--primary grow"
+            disabled={busy === 'acts' || !actsDirty}
+            onClick={saveActs}
+          >
+            {busy === 'acts' ? '保存中…' : actsDirty ? '保存' : '已保存'}
+          </button>
+        </div>
+      </div>
 
       {/* 每组的关卡顺序 */}
       {routes.length > 0 && (

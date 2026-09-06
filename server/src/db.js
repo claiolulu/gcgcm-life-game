@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_SETTINGS } from './config.js';
+import { DEFAULT_SETTINGS, ACTIVITIES } from './config.js';
 import { randomToken, safeJSON } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -118,6 +118,22 @@ export function setSetting(key, value) {
   return value;
 }
 
+/**
+ * 当前的活动清单。总控台改过就用库里的，没改过就是 config.js 的默认值。
+ *
+ * 不放进 getSettings() 一起返回：它是个数组，而 settings 那个对象
+ * 到处在传，混进去会让每个用到设置的地方都白背这份数据。
+ */
+export function getActivities() {
+  const row = getSettingStmt.get('_activities');
+  const list = row ? safeJSON(row.value, null) : null;
+  return Array.isArray(list) && list.length ? list : ACTIVITIES;
+}
+
+export function setActivities(list) {
+  setSetting('_activities', list);
+}
+
 export function getSettings() {
   const rows = db.prepare('SELECT key, value FROM settings').all();
   const out = { ...DEFAULT_SETTINGS };
@@ -135,6 +151,10 @@ export function seedSettings() {
   }
   if (!getSettingStmt.get('_secret')) setSetting('_secret', randomToken(32));
   if (!getSettingStmt.get('_epoch')) setSetting('_epoch', 1);
+
+  // 活动清单存进设置表，总控台可以改。config.js 里那份只是首次启动的种子，
+  // 之后以库里的为准 —— 否则同工改完，一升级代码就被覆盖回去了。
+  if (!getSettingStmt.get('_activities')) setSetting('_activities', ACTIVITIES);
 
   // 兜底 PIN。开发环境用固定值，测试脚本和 npm run seed 依赖它；
   // 生产环境（NODE_ENV=production）绝不能有写死的默认值 —— 这个仓库是公开的，
