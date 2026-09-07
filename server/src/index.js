@@ -584,14 +584,32 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       landmarkKey: String(a?.landmarkKey || '').trim().slice(0, 40),
       photo: safePhoto(a?.photo),
       links: links || [],
+      state: ['upcoming', 'live', 'done'].includes(a?.state) ? a.state : 'upcoming',
       // page 不在就整个不写：字段在不在，就是「这一页跟不跟随模版」本身
       ...(page ? { page } : {}),
     });
   }
 
+  const live = clean.filter((a) => a.state === 'live');
+  if (live.length > 1) {
+    return res.status(400).json({
+      error: `同时只能有一场「进行中」，现在有 ${live.length} 场（${live.map((a) => a.name).join('、')}）`,
+    });
+  }
+
   setActivities(clean);
+
+  /**
+   * 全局的 gameState 从此由活动状态推出来，不再单独设置。
+   *
+   * 它还在被几处用着：护照信息锁定（活动期间锁住，两场之间可以改名）、
+   * 报名时要不要排路线。留着这层映射，那些地方就不用跟着改。
+   */
+  const nextState = live.length ? 'running' : 'lobby';
+  if (getSettings().gameState !== nextState) setSetting('gameState', nextState);
+
   broadcast('config');
-  res.json({ activities: clean });
+  res.json({ activities: clean, gameState: nextState });
 });
 
 /**

@@ -13,6 +13,7 @@ import Leaderboard from './pages/Leaderboard.jsx';
 import Badge from './pages/Badge.jsx';
 import StaffLogin from './pages/StaffLogin.jsx';
 import StaffScan from './pages/StaffScan.jsx';
+import ActivityDetail from './pages/ActivityDetail.jsx';
 import StaffPlayer from './pages/StaffPlayer.jsx';
 import Admin from './pages/Admin.jsx';
 
@@ -132,6 +133,7 @@ export default function App() {
             <Route path="/staff/scan" element={<StaffRoute><StaffScan /></StaffRoute>} />
             <Route path="/staff/p/:id" element={<StaffRoute><StaffPlayer /></StaffRoute>} />
             <Route path="/staff/admin" element={<StaffRoute admin><Admin /></StaffRoute>} />
+            <Route path="/staff/admin/a/:id" element={<StaffRoute admin><ActivityDetail /></StaffRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

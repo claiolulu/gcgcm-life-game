@@ -351,5 +351,48 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('去掉 page 之后回到跟随模版', back.body.activities[0].page === undefined);
 }
 
+// 20. 活动状态（从原来那个全局「游戏状态」搬过来的）
+{
+  const cfg = await j('/api/config');
+  const base = cfg.body.activities;
+  check('活动身上带着状态', base.every((a) => ['upcoming', 'live', 'done'].includes(a.state)),
+    JSON.stringify(base.map((a) => a.state)));
+
+  const live1 = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => ({ ...a, state: i === 0 ? 'live' : 'upcoming' })) },
+  });
+  check('可以把一场设成进行中', live1.status === 200 && live1.body.activities[0].state === 'live');
+  check('有一场进行中时，全局状态跟着变成 running', live1.body.gameState === 'running');
+
+  const after = await j('/api/config');
+  check('全局状态确实写进去了', after.body.settings.gameState === 'running');
+
+  const two = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => ({ ...a, state: i < 2 ? 'live' : 'upcoming' })) },
+  });
+  check('两场同时进行中被拒', two.status === 400, `状态码 ${two.status}`);
+  check('拒的时候说清是哪两场', /迎新之夜/.test(two.body?.error || ''), two.body?.error);
+
+  const stillOne = await j('/api/config');
+  check('被拒之后没有半保存', stillOne.body.activities.filter((a) => a.state === 'live').length === 1);
+
+  const none = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a) => ({ ...a, state: 'done' })) },
+  });
+  check('没有进行中的时候，全局状态回到 lobby', none.body.gameState === 'lobby');
+
+  const bad = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a) => ({ ...a, state: 'whatever' })) },
+  });
+  check('不认识的状态被当成 upcoming，不是原样存下来',
+    bad.status === 200 && bad.body.activities.every((a) => a.state === 'upcoming'));
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

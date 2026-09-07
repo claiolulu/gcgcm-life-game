@@ -25,6 +25,12 @@ export const GAME = {
  *   tag   签证类型栏，写活动的性质
  *   host  盖章负责人，签证页的 STAFF 栏
  *   desc  备注栏那段话，写这场活动是什么
+ *   state 这一场的状态：upcoming 还没到 / live 正在进行 / done 已经办完
+ *
+ * state 是从原来那个全局「游戏状态」搬过来的 —— 打卡本里没有「一场游戏」
+ * 这回事，只有一场接一场的活动，状态本来就该长在活动身上。
+ * 同一时刻只允许一场 live（服务端强制），它决定同工扫码时默认盖哪一场，
+ * 也决定护照信息锁不锁（活动期间锁住，两场之间可以改名）。
  */
 export const ACTIVITIES = [
   {
@@ -32,42 +38,42 @@ export const ACTIVITIES = [
     name: '迎新之夜', en: 'Freshers Night',
     date: '13 SEP 2026', tag: '迎新', host: 'GCGCM 迎新组',
     desc: '新学年的第一场。六十分钟的浓缩人生，认识一屋子还不认识的人 —— 分数会归零，名次会被忘记，但今晚认识的人还在。',
-    landmarkKey: 'city-chambers',
+    landmarkKey: 'city-chambers', state: 'upcoming',
   },
   {
     id: 'bible-study', order: 2, icon: '📖',
     name: '查经小组', en: 'Bible Study',
     date: '', tag: '每周聚会', host: '各小组组长',
     desc: '一起读一段，一起问几个问题。来过一次就盖一次章。',
-    landmarkKey: 'university',
+    landmarkKey: 'university', state: 'upcoming',
   },
   {
     id: 'retreat', order: 3, icon: '⛰',
     name: '退修会', en: 'Retreat',
     date: '', tag: '年度', host: '教会同工',
     desc: '离开城市两天。走远一点，才看得清近处。',
-    landmarkKey: 'kelvingrove',
+    landmarkKey: 'kelvingrove', state: 'upcoming',
   },
   {
     id: 'christmas', order: 4, icon: '🕯',
     name: '圣诞晚会', en: 'Christmas Night',
     date: '', tag: '节期', host: '节期筹备组',
     desc: '一年里最热闹的一晚。带上还没来过教会的朋友。',
-    landmarkKey: 'cathedral',
+    landmarkKey: 'cathedral', state: 'upcoming',
   },
   {
     id: 'easter', order: 5, icon: '🌱',
     name: '复活节', en: 'Easter',
     date: '', tag: '节期', host: '节期筹备组',
     desc: '整本故事的转折点就在这一天。',
-    landmarkKey: 'botanic',
+    landmarkKey: 'botanic', state: 'upcoming',
   },
   {
     id: 'serve', order: 6, icon: '🤲',
     name: '服事一次', en: 'Serve',
     date: '', tag: '参与', host: '各事工负责人',
     desc: '摆椅子、洗杯子、招呼新来的人 —— 哪一样都算。',
-    landmarkKey: 'riverside',
+    landmarkKey: 'riverside', state: 'upcoming',
   },
 ];
 
