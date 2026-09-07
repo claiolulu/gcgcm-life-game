@@ -14,6 +14,8 @@ import Badge from './pages/Badge.jsx';
 import StaffLogin from './pages/StaffLogin.jsx';
 import StaffScan from './pages/StaffScan.jsx';
 import ActivityDetail from './pages/ActivityDetail.jsx';
+import ActivityDesign from './pages/ActivityDesign.jsx';
+import Join from './pages/Join.jsx';
 import StaffPlayer from './pages/StaffPlayer.jsx';
 import Admin from './pages/Admin.jsx';
 
@@ -125,6 +127,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/register" element={<Register />} />
+            {/* 活动二维码扫进来的落地页。不需要登录也能看，报名才要护照 */}
+            <Route path="/join/:id" element={<Join />} />
             <Route path="/passport" element={<PlayerRoute><PassportBook /></PlayerRoute>} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/badge" element={<PlayerRoute><Badge /></PlayerRoute>} />
@@ -134,6 +138,7 @@ export default function App() {
             <Route path="/staff/p/:id" element={<StaffRoute><StaffPlayer /></StaffRoute>} />
             <Route path="/staff/admin" element={<StaffRoute admin><Admin /></StaffRoute>} />
             <Route path="/staff/admin/a/:id" element={<StaffRoute admin><ActivityDetail /></StaffRoute>} />
+            <Route path="/staff/admin/a/:id/design" element={<StaffRoute admin><ActivityDesign /></StaffRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

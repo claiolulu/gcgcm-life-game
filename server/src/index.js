@@ -565,10 +565,11 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
     const name = String(a?.name || '').trim().slice(0, 20);
     if (!name) return res.status(400).json({ error: '每个活动都要有名字' });
 
-    let page, links;
+    let page, links, canvas;
     try {
       page = cleanPage(a?.page, `「${name}」`);
       links = cleanLinks(a?.links, `「${name}」`);
+      canvas = cleanCanvas(a?.canvas, `「${name}」`);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
@@ -585,6 +586,7 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       photo: safePhoto(a?.photo),
       links: links || [],
       state: ['upcoming', 'live', 'done'].includes(a?.state) ? a.state : 'upcoming',
+      canvas: canvas || [],
       // page 不在就整个不写：字段在不在，就是「这一页跟不跟随模版」本身
       ...(page ? { page } : {}),
     });
@@ -697,6 +699,72 @@ function cleanPage(raw, where) {
   return Object.keys(page).length ? page : undefined;
 }
 
+/**
+ * 画布元素。
+ *
+ * 同工在编辑器里往签证页上摆的东西 —— 一段字、一张图，都可以挂链接。
+ * 坐标一律是百分比（相对页面框），字号是页高的百分比，所以同一份画布
+ * 在横屏、竖屏、大屏小屏上都是同一个样子，不用为每种尺寸各存一套。
+ *
+ * 校验在这里必须紧：这些值会直接变成行内样式、img 的 src 和 a 的 href。
+ */
+const CANVAS_FONTS = new Set(['serif', 'mono', 'sans']);
+const CANVAS_ALIGN = new Set(['left', 'center', 'right']);
+const CANVAS_FIT = new Set(['cover', 'contain']);
+
+function num(v, min, max, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n * 100) / 100));
+}
+
+function cleanCanvas(raw, where) {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) throw new Error(`${where}的画布要是一个数组`);
+  if (raw.length > 40) throw new Error(`${where}的画布最多放 40 个元素`);
+
+  const seen = new Set();
+  return raw.map((el, i) => {
+    const type = el?.type === 'image' ? 'image' : 'text';
+    let id = String(el?.id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || `el${i + 1}`;
+    while (seen.has(id)) id += '_';
+    seen.add(id);
+
+    const base = {
+      id, type,
+      x: num(el?.x, -20, 120, 10),
+      y: num(el?.y, -20, 120, 10),
+      w: num(el?.w, 1, 140, 30),
+      h: num(el?.h, 1, 140, 10),
+      rot: num(el?.rot, -180, 180, 0),
+      // 链接是可选的；不合法就当没挂，不是整份拒掉 ——
+      // 同工打字打到一半就保存是常事，不该因此丢掉整张画布
+      href: /^https?:\/\/[^\s"'<>]+$/i.test(String(el?.href || '')) ? String(el.href).slice(0, 300) : '',
+    };
+
+    if (type === 'image') {
+      return {
+        ...base,
+        src: safePhoto(el?.src),
+        fit: CANVAS_FIT.has(el?.fit) ? el.fit : 'cover',
+        radius: num(el?.radius, 0, 50, 0),
+        opacity: num(el?.opacity, 0.05, 1, 1),
+      };
+    }
+    return {
+      ...base,
+      text: String(el?.text ?? '').slice(0, 400),
+      size: num(el?.size, 1, 24, 4),
+      color: HEX.test(String(el?.color)) ? String(el.color).toLowerCase() : '',
+      font: CANVAS_FONTS.has(el?.font) ? el.font : 'sans',
+      align: CANVAS_ALIGN.has(el?.align) ? el.align : 'left',
+      bold: !!el?.bold,
+      lh: num(el?.lh, 0.9, 3, 1.5),
+      opacity: num(el?.opacity, 0.05, 1, 1),
+    };
+  });
+}
+
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /**
@@ -775,6 +843,63 @@ app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
  * 只动模版本身，不碰各场活动自己那套 —— 一场活动一旦「自己一套」，
  * 就应该只受自己的编辑影响，否则同工改模版会悄悄改掉那几场刻意做得不一样的。
  */
+/* ------------------------------ 活动报名 ------------------------------ */
+
+/**
+ * 一场活动的公开信息。扫二维码进来的人先看到这个。
+ *
+ * 不需要登录，所以只给能贴在海报上的东西 —— 名字、日期、说明、配图、
+ * 报了多少人。谁报的不在这里，那是同工才看得到的。
+ */
+app.get('/api/activity/:id', (req, res) => {
+  const a = getActivities().find((x) => x.id === req.params.id);
+  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  const counts = new Map(stmts.signupCounts.all().map((r) => [r.activity_id, r.n]));
+  res.json({
+    activity: {
+      id: a.id, icon: a.icon, name: a.name, en: a.en, date: a.date,
+      tag: a.tag, host: a.host, desc: a.desc, photo: a.photo || '',
+      links: a.links || [], state: a.state || 'upcoming',
+    },
+    signupCount: counts.get(a.id) || 0,
+    registrationOpen: !!getSettings().registrationOpen,
+  });
+});
+
+/** 报名。已经报过就当没事发生 —— 主键就是 (活动, 人)，天然幂等。 */
+app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
+  const a = getActivities().find((x) => x.id === req.params.id);
+  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  stmts.addSignup.run(a.id, req.player.id, Date.now());
+  broadcast('signup');
+  res.json({ ok: true, signedUp: true });
+});
+
+/** 取消报名。人会变卦，别让他只能来找同工改。 */
+app.delete('/api/activity/:id/signup', playerAuth, (req, res) => {
+  stmts.dropSignup.run(req.params.id, req.player.id);
+  broadcast('signup');
+  res.json({ ok: true, signedUp: false });
+});
+
+/** 各场活动报了多少人。总控台的清单上一行一个数字，不用逐个去问。 */
+app.get('/api/admin/signups', staffAuth('admin'), (_req, res) => {
+  const counts = {};
+  for (const r of stmts.signupCounts.all()) counts[r.activity_id] = r.n;
+  res.json({ counts });
+});
+
+/** 谁报了名。同工才看得到 —— 这是一份带联系方式的名单。 */
+app.get('/api/admin/activity/:id/signups', staffAuth('admin'), (req, res) => {
+  const rows = stmts.signupsFor.all(req.params.id);
+  res.json({
+    signups: rows.map((r) => ({
+      id: r.player_id, name: r.name, code: r.code,
+      avatar: safeJSON(r.avatar, {}), contact: r.contact || '', at: r.created_at,
+    })),
+  });
+});
+
 app.post('/api/admin/visa-template', staffAuth('admin'), (req, res) => {
   const b = req.body || {};
   const tpl = {};

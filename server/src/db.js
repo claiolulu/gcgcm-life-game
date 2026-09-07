@@ -84,6 +84,20 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+-- 活动报名。
+--
+-- 和 events 里的盖章是两回事：报名是「我打算来」，盖章是「我真的来了」。
+-- 两个数字都要，因为差额本身就是信息 —— 报了 30 个来了 12 个，
+-- 说明提醒没做到位，不是活动没人要。
+--
+-- 主键就是 (活动, 人)，所以重复提交天然幂等，取消报名就是删掉那一行。
+CREATE TABLE IF NOT EXISTS signups (
+  activity_id TEXT NOT NULL,
+  player_id   TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (activity_id, player_id)
+);
+
 CREATE TABLE IF NOT EXISTS awards (
   award_id   TEXT PRIMARY KEY,
   player_id  TEXT REFERENCES players(id) ON DELETE CASCADE,
@@ -239,6 +253,18 @@ export const adminPin = () => String(process.env.ADMIN_PIN || getSetting('_admin
 /* ------------------------------ players ------------------------------ */
 
 export const stmts = {
+  /* ---------------------------- 报名 ---------------------------- */
+  addSignup: db.prepare(
+    'INSERT OR IGNORE INTO signups (activity_id, player_id, created_at) VALUES (?, ?, ?)'),
+  dropSignup: db.prepare('DELETE FROM signups WHERE activity_id = ? AND player_id = ?'),
+  signupsFor: db.prepare(`
+    SELECT s.player_id, s.created_at, p.name, p.code, p.avatar, p.contact
+      FROM signups s JOIN players p ON p.id = s.player_id
+     WHERE s.activity_id = ?
+     ORDER BY s.created_at
+  `),
+  signupCounts: db.prepare('SELECT activity_id, COUNT(*) AS n FROM signups GROUP BY activity_id'),
+  signupsOf: db.prepare('SELECT activity_id FROM signups WHERE player_id = ?'),
   insertPlayer: db.prepare(`
     INSERT INTO players (id, code, canon, pin, token, name, surname, given, avatar, contact, tokens_total, created_at, updated_at)
     VALUES (@id, @code, @canon, @pin, @token, @name, @surname, @given, @avatar, @contact, @tokens_total, @created_at, @updated_at)

@@ -1,4 +1,5 @@
 import React from 'react';
+import VisaCanvas from './VisaCanvas.jsx';
 
 /**
  * 护照册的视觉层 —— 由 Claude Design 的 `Life Passport v5 Classic.dc.html`
@@ -669,6 +670,7 @@ export default function PassportBookView({ v }) {
                         </>
                       ) : null}
                     </div>
+                    <VisaCanvas items={v.visaCanvas} />
                     {(v.visaLinks || []).length ? (
                       <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", flexWrap: "wrap", gap: "6px", padding: "0 18px 7px"}}>
                         {(v.visaLinks || []).map((l, i) => (

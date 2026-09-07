@@ -613,6 +613,14 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
      * 这一场的配图。后台上传，没传就没有 —— 签证页本来就是一整块
      * 排版，图是加分项，缺了不该留一个空框在那儿。
      */
+    /**
+     * 这一页的自由画布 —— 同工在编辑器里摆上去的字和图。
+     *
+     * 和签证页模版是两层：模版管那片规规矩矩的栏目，画布管「贴上去的东西」。
+     * 两层各存各的，所以改模版不会把人辛苦摆好的图挪走。
+     */
+    visaCanvas: station ? (station.canvas || []) : [],
+
     visaPhoto: station && station.photo ? `url("${station.photo}")` : '',
     hasVisaPhoto: !!(station && station.photo && visaTpl.showPhoto !== false),
 

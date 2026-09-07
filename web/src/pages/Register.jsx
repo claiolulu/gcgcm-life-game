@@ -1,11 +1,40 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AvatarEditor from '../components/AvatarEditor.jsx';
 import Avatar, { randomAvatar } from '../components/Avatar.jsx';
 import { Sheet, useToast } from '../components/ui.jsx';
 import { useConfig } from '../lib/config.js';
 import { splitName } from './book/bookVals.js';
 import { register, restore, lookup, changePin } from '../lib/player.js';
+import { api } from '../lib/api.js';
+import { getPlayerSession } from '../lib/session.js';
+
+/**
+ * 领完护照（或找回之后）该去哪。
+ *
+ * 默认还是护照。但从活动二维码进来的人带着 ?next=/join/xxx&signup=xxx ——
+ * 他本来是来报名的，扔回护照首页等于让他自己再找一遍那场活动。
+ * signup 一并带着，领完顺手就把名报上，少一次点击。
+ *
+ * next 只接受站内路径：它来自 URL，收 //evil.com 就是一个开放重定向。
+ */
+function useAfterAuth() {
+  const nav = useNavigate();
+  const [params] = useSearchParams();
+  const raw = params.get('next') || '';
+  const next = /^\/(?!\/)[\w\-/]*$/.test(raw) ? raw : '/passport';
+  const signup = params.get('signup') || '';
+
+  return async function done() {
+    if (signup) {
+      try {
+        const token = getPlayerSession()?.token;
+        if (token) await api(`/api/activity/${signup}/signup`, { method: 'POST', token });
+      } catch { /* 报名失败不该挡住领护照这件事，报名页上还能再点一次 */ }
+    }
+    nav(next, { replace: true });
+  };
+}
 
 /** 预填一个随机 4 位密码：选手想改就改，不想改也不用多按键 */
 function suggestPin() {
@@ -19,6 +48,7 @@ function suggestPin() {
 
 export default function Register() {
   const nav = useNavigate();
+  const done = useAfterAuth();
   const toast = useToast();
   const { config } = useConfig();
   const game = config?.game;
@@ -51,7 +81,7 @@ export default function Register() {
         avatar, pin, confirmNew: confirmNew === true,
       });
       toast('护照已生成，欢迎来到 Mini Life Game', 'ok');
-      nav('/passport', { replace: true });
+      await done();
     } catch (err) {
       // 同名：多半是忘了密码想重新注册。先问清楚，避免一个人两个号
       if (err.status === 409 && err.body?.duplicate) {
@@ -277,6 +307,7 @@ export default function Register() {
  */
 export function RestoreSheet({ open, onClose }) {
   const nav = useNavigate();
+  const done = useAfterAuth();
   const toast = useToast();
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
@@ -313,7 +344,7 @@ export function RestoreSheet({ open, onClose }) {
         toast('护照已找回', 'ok');
       }
       onClose?.();
-      nav('/passport', { replace: true });
+      await done();
     } catch (err) {
       toast(err.message || '找回失败', 'err');
     } finally {

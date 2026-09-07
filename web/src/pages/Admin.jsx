@@ -5,6 +5,7 @@ import RowEditor from '../components/RowEditor.jsx';
 import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
+import { onTick } from '../lib/realtime.js';
 import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster } from '../lib/staff.js';
 import { themeVarsOf, coverBgOf } from './book/bookVals.js';
 
@@ -36,6 +37,18 @@ export default function Admin() {
   // 所以这里只需要两件事：每场盖了多少章，以及新建一场。
 
   const activities = config?.activities || [];
+
+  // 报名数不在 /api/config 里 —— 那份是缓存住的静态配置，而报名随时在变
+  const [signupCount, setSignupCount] = useState({});
+  useEffect(() => {
+    if (!token) return;
+    const pull = () => api('/api/admin/signups', { token })
+      .then((r) => setSignupCount(r.counts || {})).catch(() => {});
+    pull();
+    const off = onTick((p) => { if (p.reason === 'signup') pull(); });
+    const timer = setInterval(pull, 30_000);
+    return () => { off(); clearInterval(timer); };
+  }, [token]);
 
   const stampCount = useMemo(() => {
     const n = {};
@@ -69,7 +82,8 @@ export default function Admin() {
       });
       await loadConfig();
       const made = res.activities.find((a) => a.id === id);
-      nav(`/staff/admin/a/${made ? made.id : id}`);
+      // 新建完直接进画布 —— 「新增活动」这一下真正想做的事是把这一页做出来
+      nav(`/staff/admin/a/${made ? made.id : id}/design`);
     } catch (err) {
       toast(err.message || '加不上', 'err');
     } finally {
@@ -317,10 +331,15 @@ export default function Admin() {
 
       {/* 活动清单 —— 只是一份索引，点进去才是这一场的全部 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">🗓 活动清单</div>
+        <div className="row-between">
+          <div className="section-title" style={{ margin: 0 }}>🗓 活动清单</div>
+          <button className="btn btn--sm btn--primary" disabled={busy === 'acts'} onClick={addAct}>
+            {busy === 'acts' ? '新建中…' : '＋ 新增活动'}
+          </button>
+        </div>
         <div className="tiny dim">
-          护照里一场活动一页签证，参加了就盖章。点进去改这一场的信息、配图、
-          链接、版式，还有它现在是不是正在办。改完立刻生效，
+          护照里一场活动一页签证，参加了就盖章。新增活动会直接打开画布 ——
+          默认就是现在这份签证页模版，往上摆字和图就行。改完立刻生效，
           同工端和所有人的护照都会跟着变，不用重启。
         </div>
 
@@ -356,9 +375,9 @@ export default function Admin() {
                     )}
                   </div>
                   <div className="tiny dim">
-                    {a.date || '日期待定'} · 已有 {stampCount[a.id] || 0} 人盖章
+                    {a.date || '日期待定'} · 报名 {signupCount[a.id] || 0} · 盖章 {stampCount[a.id] || 0}
+                    {(a.canvas || []).length ? ` · 画布 ${a.canvas.length} 个元素` : ''}
                     {a.page ? ' · 自己一套版式' : ''}
-                    {(a.links || []).length ? ` · ${a.links.length} 个链接` : ''}
                   </div>
                 </div>
                 <span className="dim">›</span>
@@ -367,9 +386,6 @@ export default function Admin() {
           })}
         </div>
 
-        <button className="btn btn--sm btn--ghost btn--full" disabled={busy === 'acts'} onClick={addAct}>
-          {busy === 'acts' ? '新建中…' : '+ 加一场活动'}
-        </button>
       </div>
 
       {/* 签证页模版 */}

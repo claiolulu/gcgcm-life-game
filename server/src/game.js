@@ -98,6 +98,9 @@ export function playerState(player, settings = getSettings()) {
     modifiers: safeJSON(player.modifiers, []),
     total,
     stations,
+    // 报过名的活动 id。护照上据此显示「已报名」，也决定报名按钮是
+    // 「我要报名」还是「取消报名」
+    signups: stmts.signupsOf.all(player.id).map((r) => r.activity_id),
     stationsDone: Object.keys(stations).length,
     stationsTotal: ALL_STATION_IDS.length,
     lifeEventsTaken,

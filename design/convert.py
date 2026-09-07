@@ -732,6 +732,21 @@ def apply_patches(jsx):
     assert jsx != before, "没找到盖章上的分数"
     n += 1
 
+    # 11c) 签证页上那层自由画布。
+    #
+    #      放在正文之上、机读区之下 —— 它是「贴上去的东西」，该盖住底纹和
+    #      水印，但不该盖住那两行机读区（那是这一页的身份）。
+    #
+    #      这里破例引一个组件进来（生成文件顶上的 import 也是转换器写的）：
+    #      画布的渲染逻辑编辑器要一模一样地用一遍，抄成两份迟早分家。
+    marker = '{(v.visaLinks || []).length ? (\n'
+    i11c = jsx.find(marker)
+    assert i11c != -1, "没找到页面链接那一段"
+    line_start = jsx.rfind('\n', 0, i11c) + 1
+    indent = jsx[line_start:i11c]
+    jsx = jsx[:line_start] + indent + '<VisaCanvas items={v.visaCanvas} />\n' + jsx[line_start:]
+    n += 1
+
     # 12) 把设计稿写死的色值换成 CSS 变量。
     #
     #     变量名一律带 pp- 前缀：App 自己的设计令牌里已经有 --ink / --gold /
@@ -787,6 +802,7 @@ body = emit(p.root, set(), 3)
 body = apply_patches(body)
 
 out = '''import React from 'react';
+import VisaCanvas from './VisaCanvas.jsx';
 
 /**
  * 护照册的视觉层 —— 由 Claude Design 的 `Life Passport v5 Classic.dc.html`

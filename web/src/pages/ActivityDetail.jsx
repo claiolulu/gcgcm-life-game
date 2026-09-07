@@ -7,6 +7,8 @@ import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { useStaff, allPlayers } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
+import { onTick } from '../lib/realtime.js';
+import QRCode from 'qrcode';
 
 /**
  * 一场活动的详情页。
@@ -54,6 +56,21 @@ export default function ActivityDetail() {
   useEffect(() => {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
   }, [staff.session, nav]);
+
+  /* --------------------------- 报名 --------------------------- */
+
+  const [signups, setSignups] = useState([]);
+  const joinUrl = `${window.location.origin}/join/${id}`;
+
+  useEffect(() => {
+    if (!token) return;
+    const pull = () => api(`/api/admin/activity/${id}/signups`, { token })
+      .then((r) => setSignups(r.signups || [])).catch(() => {});
+    pull();
+    const off = onTick((p) => { if (p.reason === 'signup') pull(); });
+    const timer = setInterval(pull, 20_000);
+    return () => { off(); clearInterval(timer); };
+  }, [id, token]);
 
   /** 这一场谁盖过章 —— 顺便就是「谁来了」 */
   const attended = useMemo(() => players
@@ -195,6 +212,8 @@ export default function ActivityDetail() {
             {draft.name || '（还没起名字）'}
           </h1>
         </div>
+        <div className="row" style={{ gap: 6 }}>
+        <Link className="btn btn--sm btn--ghost" to={`/staff/admin/a/${id}/design`}>🎨 设计这一页</Link>
         <button
           className="btn btn--sm btn--primary"
           disabled={busy === 'save' || !dirty}
@@ -202,6 +221,7 @@ export default function ActivityDetail() {
         >
           {busy === 'save' ? '保存中…' : dirty ? '保存' : '已保存'}
         </button>
+        </div>
       </div>
 
       <div className="cols-2">
@@ -245,6 +265,64 @@ export default function ActivityDetail() {
         ) : (
           <div className="tiny dim">
             报名开关在「进行中」那一场里 —— 现在这一场不是。
+          </div>
+        )}
+      </div>
+
+      {/* 报名 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">📣 报名（{signups.length}）</div>
+        <div className="tiny dim">
+          把这个码贴出去 / 投到屏幕上，大家扫了就能报名。没有护照的人会先领一本，
+          领完自动报上 —— 所以活动当天同工扫码盖章时，人是对得上的。
+        </div>
+
+        <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: '0 0 auto', background: '#fff', padding: 8, borderRadius: 4 }}>
+            <JoinQR url={joinUrl} />
+          </div>
+          <div className="stack-sm grow" style={{ minWidth: 180 }}>
+            <div className="tiny dim">扫不了就发这个链接：</div>
+            <input className="input" readOnly value={joinUrl} onFocus={(e) => e.target.select()} />
+            <button
+              className="btn btn--sm btn--ghost"
+              onClick={() => {
+                navigator.clipboard?.writeText(joinUrl)
+                  .then(() => toast('链接已复制', 'ok'))
+                  .catch(() => toast('复制不了，长按上面那行自己选', 'warn'));
+              }}
+            >
+              复制链接
+            </button>
+            <a className="btn btn--sm btn--ghost" href={joinUrl} target="_blank" rel="noopener noreferrer">
+              看看别人扫到什么 →
+            </a>
+          </div>
+        </div>
+
+        {signups.length > 0 && (
+          <div className="stack-sm">
+            {signups.map((p) => {
+              const came = !!attended.find((x) => x.id === p.id);
+              return (
+                <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
+                  <Avatar avatar={p.avatar} size={26} />
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.name}
+                    </div>
+                    <div className="tiny dim">{p.code}{p.contact ? ` · ${p.contact}` : ''}</div>
+                  </div>
+                  <span className="tiny" style={{ flex: '0 0 auto', color: came ? 'var(--green)' : 'var(--text-3)' }}>
+                    {came ? '来了 ✓' : '待到场'}
+                  </span>
+                </div>
+              );
+            })}
+            {/* 报了名没来的人，是活动结束之后最该被问一句的那批 */}
+            <div className="tiny dim">
+              报名 {signups.length} 人，到场 {signups.filter((p) => attended.find((x) => x.id === p.id)).length} 人。
+            </div>
           </div>
         )}
       </div>
@@ -421,4 +499,32 @@ export default function ActivityDetail() {
       </div>
     </div>
   );
+}
+
+/**
+ * 报名码。
+ *
+ * 单独一个组件，是因为详情页在活动数据到位之前会提前 return —— 画二维码的
+ * effect 那时跑过一遍，canvas 还没挂上，之后 url 没变就不会再跑，
+ * 结果是一块白板。挂成自己的组件，effect 就跟着 canvas 一起上场。
+ *
+ * 载荷是完整网址而不是护照码那种短串：扫的人多半还没有护照，手机相机得能
+ * 直接跳过去。所以点阵会密一些，投影或打印的时候别印太小。
+ */
+function JoinQR({ url }) {
+  const ref = React.useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas || !url) return;
+    QRCode.toCanvas(canvas, url, {
+      errorCorrectionLevel: 'M', margin: 1, width: 440,
+      color: { dark: '#0d1220ff', light: '#ffffffff' },
+    }, (err) => {
+      if (err) return console.error('[qr]', err);
+      // qrcode 会把行内 style 覆盖成位图尺寸（这里是 2 倍），画完得改回显示尺寸
+      canvas.style.width = '220px';
+      canvas.style.height = '220px';
+    });
+  }, [url]);
+  return <canvas ref={ref} style={{ width: 220, height: 220, display: 'block' }} />;
 }

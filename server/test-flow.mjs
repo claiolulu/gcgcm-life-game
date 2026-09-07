@@ -394,5 +394,81 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
+// 21. 画布
+{
+  const cfg = await j('/api/config');
+  const base = cfg.body.activities;
+
+  const withCanvas = base.map((a, i) => (i === 0 ? {
+    ...a,
+    canvas: [
+      { id: 'a', type: 'text', x: 10, y: 20, w: 40, h: 15, text: '欢迎', size: 6,
+        color: '#5C1A22', font: 'serif', align: 'center', bold: true, href: 'https://x.example.com' },
+      { id: 'a', type: 'image', x: 200, y: -80, w: 30, h: 30, src: 'javascript:alert(1)',
+        fit: 'squish', rot: 999, href: 'javascript:alert(1)' },
+    ],
+  } : a));
+  const saved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withCanvas } });
+  const c = saved.body.activities?.[0]?.canvas || [];
+  check('画布存得下来', saved.status === 200 && c.length === 2, JSON.stringify(c).slice(0, 120));
+  check('文字元素的样式原样保留', c[0]?.bold === true && c[0].color === '#5c1a22' && c[0].font === 'serif');
+  check('撞了的 id 被错开', c[0]?.id !== c[1]?.id, `${c[0]?.id} / ${c[1]?.id}`);
+  check('坐标被夹回合理范围', c[1]?.x <= 120 && c[1]?.y >= -20, `x=${c[1]?.x} y=${c[1]?.y}`);
+  check('旋转被夹回 ±180', Math.abs(c[1]?.rot) <= 180, `rot=${c[1]?.rot}`);
+  check('javascript: 的图片地址被清空', c[1]?.src === '', JSON.stringify(c[1]?.src));
+  check('javascript: 的链接被清空（不是整份拒掉）', c[1]?.href === '');
+  check('不认识的裁切方式退回 cover', c[1]?.fit === 'cover');
+
+  const tooMany = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0
+      ? { ...a, canvas: Array.from({ length: 41 }, () => ({ type: 'text', text: 'x' })) } : a)) },
+  });
+  check('画布元素超过 40 个被拒', tooMany.status === 400, `状态码 ${tooMany.status}`);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
+// 22. 报名
+{
+  const a0 = (await j('/api/config')).body.activities[0].id;
+
+  const pub = await j(`/api/activity/${a0}`);
+  check('活动的公开信息不用登录就能看', pub.status === 200 && pub.body.activity.name);
+  check('公开信息里没有谁报了名', pub.body.signups === undefined && typeof pub.body.signupCount === 'number');
+
+  const gone = await j('/api/activity/no-such-thing');
+  check('不存在的活动返回 404', gone.status === 404);
+
+  const playerH = { authorization: `Bearer ${playerToken}` };
+  const up = await j(`/api/activity/${a0}/signup`, { method: 'POST', headers: playerH, body: {} });
+  check('选手能报名', up.status === 200 && up.body.signedUp === true);
+
+  const again = await j(`/api/activity/${a0}/signup`, { method: 'POST', headers: playerH, body: {} });
+  check('重复报名是幂等的', again.status === 200);
+
+  const counts = await j('/api/admin/signups', { headers: adminH });
+  check('报名数只算一次', counts.body.counts[a0] === 1, JSON.stringify(counts.body.counts));
+
+  const me = await j('/api/me', { headers: playerH });
+  check('护照上看得到自己报了哪些', (me.body.player.signups || []).includes(a0));
+
+  const list = await j(`/api/admin/activity/${a0}/signups`, { headers: adminH });
+  check('同工能看到报名名单', list.body.signups?.length === 1 && list.body.signups[0].code);
+
+  const notAdmin = await j(`/api/admin/activity/${a0}/signups`, { headers: playerH });
+  check('选手看不到别人的报名名单', notAdmin.status === 401 || notAdmin.status === 403,
+    `状态码 ${notAdmin.status}`);
+
+  const anon = await j(`/api/activity/${a0}/signup`, { method: 'POST', body: {} });
+  check('没护照的匿名请求报不了名', anon.status === 401);
+
+  const off = await j(`/api/activity/${a0}/signup`, { method: 'DELETE', headers: playerH });
+  check('可以取消报名', off.status === 200 && off.body.signedUp === false);
+
+  const after = await j('/api/admin/signups', { headers: adminH });
+  check('取消之后数字回落', !after.body.counts[a0]);
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);
