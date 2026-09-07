@@ -135,7 +135,10 @@ export function setSetting(key, value) {
 export function getActivities() {
   const row = getSettingStmt.get('_activities');
   const list = row ? safeJSON(row.value, null) : null;
-  return Array.isArray(list) && list.length ? list : ACTIVITIES;
+  const out = Array.isArray(list) && list.length ? list : ACTIVITIES;
+  // state 是后加的字段，库里存着的老记录没有它。补上默认值，
+  // 免得前端拿到 undefined 之后各处都得写一遍兜底
+  return out.map((a) => (a && a.state ? a : { ...a, state: 'upcoming' }));
 }
 
 export function setActivities(list) {
