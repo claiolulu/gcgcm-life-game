@@ -1,5 +1,5 @@
 import React from 'react';
-import VisaCanvas from './VisaCanvas.jsx';
+import VisaBlocks from './VisaBlocks.jsx';
 
 /**
  * 护照册的视觉层 —— 由 Claude Design 的 `Life Passport v5 Classic.dc.html`
@@ -580,117 +580,36 @@ export default function PassportBookView({ v }) {
                 ) : null}
                 {v.isVisa && !v.visaBlank ? (
                   <>
-                    <div onClick={v.stampTap} style={{position: "relative", zIndex: "4", flex: "1", minHeight: "0", display: "flex", flexDirection: "column", padding: "11px 18px 0", cursor: "pointer"}}>
-                      <div style={{flex: "none", position: "relative", height: "44px", overflow: "hidden", background: "#ece5d6", border: "1px solid rgba(var(--pp-ink-rgb),.35)"}}>
-                        <div style={{position: "absolute", inset: "0", left: "38%", background: "var(--pp-ink)", clipPath: "polygon(14% 0,100% 0,100% 100%,0 100%)"}} />
-                        <div style={{position: "absolute", left: "0", top: "0", bottom: "0", width: "44%", background: "linear-gradient(120deg,rgba(44,74,90,.22),rgba(var(--pp-ink-rgb),.12))"}} />
-                        <div style={{position: "relative", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px"}}>
-                          <div style={{fontFamily: "'EB Garamond',serif", fontSize: "19px", letterSpacing: ".34em", color: "var(--pp-ink)", textIndent: ".34em"}}>
-                            {v.visaBanner}
-                          </div>
-                          <div style={{textAlign: "right"}}>
-                            <div style={{fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".24em", color: "var(--pp-gold)", textIndent: ".24em"}}>
-                              {v.visaBrand}
-                            </div>
-                            <div style={{marginTop: "2px", fontSize: "9.5px", letterSpacing: ".18em", color: "rgba(var(--pp-gold-rgb),.78)"}}>
-                              {v.visaBrandCn}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{flex: "1", minHeight: "0", display: "flex", gap: "16px", padding: "11px 2px 0", overflow: "auto"}}>
-                        <div style={{flex: "1", minWidth: "0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", alignContent: "start"}}>
-                          {(v.visaFields || []).map((vf, i) => (
-                            <React.Fragment key={i}>
-                              <div style={{borderBottom: "1px solid rgba(var(--pp-ink-rgb),.18)", paddingBottom: "3px"}}>
-                                <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".14em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                                  {vf.label}
-                                </div>
-                                <div style={{marginTop: "3px", fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "11px", letterSpacing: ".03em", color: vf.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}>
-                                  {vf.value}
-                                </div>
-                              </div>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                        <div style={{flex: "none", width: "40%", display: "flex", flexDirection: "column", gap: "9px"}}>
-                          {v.hasVisaPhoto ? (
-                            <div style={{flex: "none", padding: "3px", background: "#fff", border: "1px solid rgba(var(--pp-ink-rgb),.35)", boxShadow: "0 1px 5px rgba(60,40,30,.2)"}}>
-                              <div style={{width: "100%", height: "78px", backgroundImage: v.visaPhoto, backgroundSize: "cover", backgroundPosition: "center", filter: "saturate(.86) contrast(1.04)"}} />
-                            </div>
-                          ) : null}
-                          <div>
-                            <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".14em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                              {v.visaStationLabel}
-                            </div>
-                            <div style={{marginTop: "3px", fontSize: "19px", fontWeight: "700", lineHeight: "1.25", color: "var(--pp-ink)"}}>
-                              {v.visaCn}
-                            </div>
-                            <div style={{marginTop: "3px", fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.6)"}}>
-                              {v.visaEn}
-                            </div>
-                          </div>
-                          {v.showAnnotation ? (
-                            <div>
-                              <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".14em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                                {v.visaAnnotationLabel}
-                              </div>
-                              <div style={{marginTop: "4px", fontSize: "11.5px", fontWeight: "600", lineHeight: "1.75", color: "var(--pp-text)", textWrap: "pretty"}}>
-                                {v.visaAnnotation}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      {v.checking ? (
-                        <div style={{position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 6, padding: "7px 14px", borderRadius: "2px", background: "rgba(var(--pp-ink-rgb),.08)", fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".2em", color: "rgba(var(--pp-ink-rgb),.5)", whiteSpace: "nowrap", pointerEvents: "none"}}>
-                          CHECKING 查询中…
-                        </div>
-                      ) : null}
-                      {v.visaStamped ? (
-                        <>
-                          <div style={{position: "absolute", top: v.stampTop, left: v.stampLeft, transform: `rotate(${v.stampRot})`, pointerEvents: "none"}}>
-                            <div style={{width: "98px", height: "98px", borderRadius: "50%", border: `2.5px solid ${v.stampColor}`, display: "flex", alignItems: "center", justifyContent: "center", color: v.stampColor, opacity: ".9", animation: "stampIn .45s ease both"}}>
-                              <div style={{width: "82px", height: "82px", borderRadius: "50%", border: `1px solid ${v.stampColor}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px"}}>
-                                <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".2em", textIndent: ".2em"}}>
-                                  GCGCM {v.stampNo}
-                                </div>
-                                <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "23px", fontWeight: "700", lineHeight: "1"}}>
-                                  {v.stampBig}
-                                </div>
-                                <div style={{fontSize: "9.5px", fontWeight: "700", letterSpacing: ".08em"}}>
-                                  {v.stampLabel}
-                                </div>
-                                <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "6.5px", letterSpacing: ".06em"}}>
-                                  {v.stampDate}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      ) : null}
+                    <div onClick={v.stampTap} style={{position: "absolute", inset: "0", zIndex: "3", cursor: "pointer"}}>
+                      <VisaBlocks blocks={v.visaBlocks} data={v.visaBlockData} />
                     </div>
-                    <VisaCanvas items={v.visaCanvas} />
-                    {(v.visaLinks || []).length ? (
-                      <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", flexWrap: "wrap", gap: "6px", padding: "0 18px 7px"}}>
-                        {(v.visaLinks || []).map((l, i) => (
-                          <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" onClick={v.stop} style={{display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px", border: "1px solid rgba(var(--pp-ink-rgb),.32)", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", textDecoration: "none", lineHeight: 1, whiteSpace: "nowrap"}}>
-                            <span style={{fontSize: "11px"}}>{l.icon}</span>
-                            {l.label ? (
-                              <span style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".06em"}}>{l.label}</span>
-                            ) : null}
-                          </a>
-                        ))}
+                    {v.checking ? (
+                      <div style={{position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 6, padding: "7px 14px", background: "rgba(var(--pp-ink-rgb),.08)", fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".2em", color: "rgba(var(--pp-ink-rgb),.5)", whiteSpace: "nowrap", pointerEvents: "none"}}>
+                        CHECKING 查询中…
                       </div>
                     ) : null}
-                    <div style={{position: "relative", zIndex: "4", flex: "none", padding: "6px 18px 9px", background: "#eae3d2", borderTop: "1px solid rgba(var(--pp-ink-rgb),.4)", overflow: "hidden"}}>
-                      <div style={{fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "10.5px", lineHeight: "1.65", letterSpacing: ".1em", color: "var(--pp-text)", whiteSpace: "nowrap"}}>
-                        {v.mrz1}
-                      </div>
-                      <div style={{fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "10.5px", lineHeight: "1.65", letterSpacing: ".1em", color: "var(--pp-text)", whiteSpace: "nowrap"}}>
-                        {v.mrz2}
-                      </div>
-                    </div>
+                    {v.visaStamped ? (
+                      <>
+                        <div style={{position: "absolute", zIndex: "4", top: v.stampTop, left: v.stampLeft, transform: `rotate(${v.stampRot})`, pointerEvents: "none"}}>
+                          <div style={{width: "98px", height: "98px", borderRadius: "50%", border: `2.5px solid ${v.stampColor}`, display: "flex", alignItems: "center", justifyContent: "center", color: v.stampColor, opacity: ".9", animation: "stampIn .45s ease both"}}>
+                            <div style={{width: "82px", height: "82px", borderRadius: "50%", border: `1px solid ${v.stampColor}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px"}}>
+                              <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".2em", textIndent: ".2em"}}>
+                                GCGCM {v.stampNo}
+                              </div>
+                              <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "23px", fontWeight: "700", lineHeight: "1"}}>
+                                {v.stampBig}
+                              </div>
+                              <div style={{fontSize: "9.5px", fontWeight: "700", letterSpacing: ".08em"}}>
+                                {v.stampLabel}
+                              </div>
+                              <div style={{fontFamily: "'Courier Prime',monospace", fontSize: "6.5px", letterSpacing: ".06em"}}>
+                                {v.stampDate}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
               </div>

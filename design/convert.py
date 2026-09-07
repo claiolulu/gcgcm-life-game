@@ -569,80 +569,81 @@ def apply_patches(jsx):
             n += 1
 
 
-    # ============ 签证页模版：栏目、标题、页面链接 ============
+    # ============ 签证页正文：整页交给块 ============
     #
-    # 签证页从「一张写死的版式」变成「一份能改的模版」：栏目表、横幅上那个词、
-    # 右栏两个标题都由 v 注入（见 bookVals 的 resolveVisaTemplate）。
-    # 每场活动可以整份覆盖这套版式，所以这里能做的只是把插槽留出来。
+    # 设计稿那份正文是写死的 flex 排版：横幅、栏目、活动名、备注、机读区，
+    # 位置和顺序都改不了。同工要的是「这一页上的东西我都能挪能删」，
+    # 所以正文整块换成 <VisaBlocks>，每一样都是一个能拖能删的块。
+    #
+    # 留在外面的四样：页眉（那是 App 的导航，不是这一页的内容）、地标水印、
+    # 右下角的二维码（同工要扫它盖章）、还有那个章 —— 章是活动当天盖上去的，
+    # 任何块都不该盖住它，所以它在块之上。
+    #
+    # 默认的块坐标是照着原来这份排版量出来的（见 bookVals 的 defaultBlocks），
+    # 所以没设计过的活动看起来和以前一样。
+    start = '{v.isVisa && !v.visaBlank ? (\n'
+    i = jsx.find(start)
+    assert i != -1, "没找到签证页区块"
+    line_start = jsx.rfind('\n', 0, i) + 1
+    indent = jsx[line_start:i]
 
-    # 14) 横幅上那个词、右栏两个标题
-    for needle, val in (
-        ('                            VISA\n',      '{v.visaBanner}'),
-        ('STATION 关卡',                            '{v.visaStationLabel}'),
-        ('ANNOTATION 备注',                         '{v.visaAnnotationLabel}'),
-    ):
-        assert jsx.count(needle) == 1, f"签证页模版锚点不唯一：{needle.strip()}"
-        rep = needle.replace(needle.strip(), val) if needle.endswith('\n') else val
-        jsx = jsx.replace(needle, rep, 1)
-    n += 1
+    # 正文一直到机读区收尾。用「</>\n<indent>) : null}」当终点，
+    # 它是这个条件块自己的收尾，不会和内部的条件混淆
+    tail = '\n' + indent + '  </>\n' + indent + ') : null}\n'
+    j = jsx.find(tail, i)
+    assert j != -1, "没找到签证页区块的收尾"
 
-    # 15) 备注整块可以关掉。
-    #     有些活动就是一句话说不清也不用说 —— 与其留一个空的「ANNOTATION 备注」
-    #     标题在那儿，不如整块不出现。
-    marker = '{v.visaAnnotationLabel}'
-    i15 = jsx.find(marker)
-    assert i15 != -1, "没找到备注标题"
-    # 往上找到包住「标题 + 正文」的那个 div
-    block_start = jsx.rfind('<div>', 0, i15)
-    assert block_start != -1, "没找到备注区块的起点"
-    line_start = jsx.rfind('\n', 0, block_start) + 1
-    indent = jsx[line_start:block_start]
-    # 往下找这个 div 的闭合：备注区块内部只有两层，找第二个同缩进的 </div>
-    close = jsx.find('\n' + indent + '</div>\n', i15)
-    assert close != -1, "没找到备注区块的终点"
-    end = close + len('\n' + indent + '</div>\n')
-    body = jsx[line_start:end]
-    wrapped = (
-        indent + '{v.showAnnotation ? (\n'
-        + ''.join('  ' + ln + '\n' for ln in body.rstrip('\n').split('\n'))
+    # 章那一段照搬 —— 它不属于块，但要留在原地（在块之上）。
+    #
+    # 按标记找边界，不按缩进：正文里的缩进比外层深两级，用外层缩进去凑
+    # 会「匹配上但错两个字符」，切出来的片段少头少尾，还不报错。
+    st = jsx.find('{v.visaStamped ? (\n', i)
+    assert st != -1 and st < j, "没找到盖章那一段"
+    st = jsx.rfind('\n', 0, st) + 1                    # 回到那一行的行首
+    st_indent = jsx[st:jsx.index('{', st)]
+    close = '\n' + st_indent + ') : null}\n'
+    st_end = jsx.index(close, st) + len(close)
+    stamp = jsx[st:st_end]
+
+    # 章原来在正文 div 里（相对定位），现在提到页面这一层，
+    # 定位基准从「正文区」变成「整页」，所以要自己声明层级压住块
+    before_stamp = stamp
+    stamp = stamp.replace('style={{position: "absolute", top: v.stampTop',
+                          'style={{position: "absolute", zIndex: "4", top: v.stampTop', 1)
+    assert stamp != before_stamp, "没找到盖章的定位"
+
+    # 章中间那个大字：设计稿印的是「+分数」，打卡本没有分数这一说，
+    # 盖出来写「+0」看着像这场活动被判了零分
+    before_stamp = stamp
+    stamp = stamp.replace('+{v.visaScore}\n', '{v.stampBig}\n', 1)
+    assert stamp != before_stamp, "没找到盖章上的分数"
+
+    # 缩进对齐到新位置
+    stamp = '\n'.join(
+        (indent + '    ' + ln[len(st_indent):]) if ln.startswith(st_indent) else ln
+        for ln in stamp.rstrip('\n').split('\n')) + '\n'
+
+    body = (
+        indent + start
+        + indent + '  <>\n'
+        + indent + '    <div onClick={v.stampTap} style={{position: "absolute", inset: "0", '
+        'zIndex: "3", cursor: "pointer"}}>\n'
+        + indent + '      <VisaBlocks blocks={v.visaBlocks} data={v.visaBlockData} />\n'
+        + indent + '    </div>\n'
+        + indent + '    {v.checking ? (\n'
+        + indent + '      <div style={{position: "absolute", left: "50%", top: "50%", '
+        'transform: "translate(-50%,-50%)", zIndex: 6, padding: "7px 14px", '
+        'background: "rgba(92,26,34,.08)", fontFamily: "\'EB Garamond\',serif", '
+        'fontSize: "9.5px", letterSpacing: ".2em", color: "rgba(92,26,34,.5)", '
+        'whiteSpace: "nowrap", pointerEvents: "none"}}>\n'
+        + indent + '        CHECKING 查询中…\n'
+        + indent + '      </div>\n'
+        + indent + '    ) : null}\n'
+        + stamp
+        + indent + '  </>\n'
         + indent + ') : null}\n'
     )
-    jsx = jsx[:line_start] + wrapped + jsx[end:]
-    n += 1
-
-    # 16) 页面链接：一排可点的小图标，压在机读区上面。
-    #
-    #     用真的 <a> 而不是 div + onClick —— pageTap 靠 closest('a') 判断
-    #     「这一下不是翻页」，长按也才有「复制链接」。
-    #
-    #     放在机读区之上、正文之外：正文那一块是 overflow:auto 的，
-    #     链接跟进去会被滚走，而这几个图标是这一页最该一眼看到的东西之一。
-    mrz = ('<div style={{position: "relative", zIndex: "4", flex: "none", '
-           'padding: "6px 18px 9px", background: "#eae3d2"')
-    i16 = jsx.find(mrz)
-    assert i16 != -1, "没找到签证页的机读区"
-    line_start = jsx.rfind('\n', 0, i16) + 1
-    indent = jsx[line_start:i16]
-    links = (
-        indent + '{(v.visaLinks || []).length ? (\n'
-        + indent + '  <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", '
-        'flexWrap: "wrap", gap: "6px", padding: "0 18px 7px"}}>\n'
-        + indent + '    {(v.visaLinks || []).map((l, i) => (\n'
-        + indent + '      <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" '
-        'onClick={v.stop} style={{display: "inline-flex", alignItems: "center", gap: "4px", '
-        'padding: "3px 8px", border: "1px solid rgba(92,26,34,.32)", '
-        'background: "rgba(92,26,34,.05)", color: "#5c1a22", textDecoration: "none", '
-        'lineHeight: 1, whiteSpace: "nowrap"}}>\n'
-        + indent + '        <span style={{fontSize: "11px"}}>{l.icon}</span>\n'
-        + indent + '        {l.label ? (\n'
-        + indent + '          <span style={{fontFamily: "\'EB Garamond\',serif", fontSize: "9px", letterSpacing: ".06em"}}>{l.label}</span>\n'
-        + indent + '        ) : null}\n'
-        + indent + '      </a>\n'
-        + indent + '    ))}\n'
-        + indent + '  </div>\n'
-        + indent + ') : null}\n'
-    )
-    jsx = jsx[:line_start] + links + jsx[line_start:]
+    jsx = jsx[:line_start] + body + jsx[j + len(tail):]
     n += 1
 
     # ================== 护照模版：让后台能改样式 ==================
@@ -662,9 +663,9 @@ def apply_patches(jsx):
     assert jsx != before, "没找到封面底色"
     n += 1
 
-    # 9) 封面和签证横幅上的字改成可配置。
-    #    这几行是整本护照里唯一带「机构身份」的地方 —— 别的团契要用这套
-    #    册子，改的就是这四行加签证横幅那两行，不该为此改代码。
+    # 9) 封面上的字改成可配置。
+    #    这四行是整本护照里唯一带「机构身份」的地方 —— 别的团契要用这套
+    #    册子，改的就是它们，不该为此改代码。
     #
     #    「GCGCM」在别处还出现四次（正文、签发方、盖章），所以先把范围
     #    缩到封面那一块再替换 —— 按缩进匹配不行，别处也有同样缩进的那行。
@@ -681,14 +682,10 @@ def apply_patches(jsx):
         assert cover.count(needle) == 1, f"封面文案锚点不唯一：{needle}"
         cover = cover.replace(needle, val, 1)
     jsx = jsx[:c0] + cover + jsx[c1:]
-
-    for needle, val in (
-        ('MINI LIFE GAME', '{v.visaBrand}'),
-        ('迷你人生游戏',    '{v.visaBrandCn}'),
-    ):
-        assert jsx.count(needle) == 1, f"签证横幅锚点不唯一：{needle}"
-        jsx = jsx.replace(needle, val, 1)
     n += 1
+
+    # 签证横幅上那两行字不在这里改了 —— 它现在是「横幅块」自己的属性，
+    # 同工可以一场一场改（见 VisaBlocks 的 banner 分支）。
 
     # 10) 水印浓度可调。竖版页 .13、横版页 .11 是设计稿定的，
     #     后台给一个值，两处一起跟着走（横版页的水印面积小，本来就该浅一点，
@@ -697,54 +694,6 @@ def apply_patches(jsx):
     jsx = jsx.replace('opacity: ".13", backgroundRepeat', 'opacity: v.wmOpacity, backgroundRepeat', 1)
     jsx = jsx.replace('opacity: ".11", backgroundRepeat', 'opacity: v.wmOpacity, backgroundRepeat', 1)
     assert jsx.count('opacity: v.wmOpacity') == 2, "没找到两处水印"
-    n += 1
-
-    # 11) 签证页配上这一场的照片。
-    #
-    #     放在右栏最上面（关卡名之前）—— 那一栏本来就是「这一页在讲哪件事」，
-    #     照片是这句话最直接的说法。没配图就整块不渲染，不留空框：
-    #     签证页是一整块排版，一个占位框比没有更显得没做完。
-    marker = ('<div style={{flex: "none", width: "40%", display: "flex", '
-              'flexDirection: "column", gap: "9px"}}>\n')
-    i11 = jsx.find(marker)
-    assert i11 != -1, "没找到签证页右栏"
-    end11 = i11 + len(marker)
-    line_start = jsx.rfind('\n', 0, i11) + 1
-    indent = jsx[line_start:i11] + '  '
-    photo = (
-        indent + '{v.hasVisaPhoto ? (\n'
-        + indent + '  <div style={{flex: "none", padding: "3px", background: "#fff", '
-        'border: "1px solid rgba(92,26,34,.35)", boxShadow: "0 1px 5px rgba(60,40,30,.2)"}}>\n'
-        + indent + '    <div style={{width: "100%", height: "78px", backgroundImage: v.visaPhoto, '
-        'backgroundSize: "cover", backgroundPosition: "center", '
-        'filter: "saturate(.86) contrast(1.04)"}} />\n'
-        + indent + '  </div>\n'
-        + indent + ') : null}\n'
-    )
-    jsx = jsx[:end11] + photo + jsx[end11:]
-    n += 1
-
-    # 11b) 章中间那个大字改由 bookVals 决定。
-    #      设计稿印的是「+分数」，打卡本没有分数这一说，盖的章上写「+0」
-    #      看着像这场活动被判了零分。
-    before = jsx
-    jsx = jsx.replace('+{v.visaScore}\n', '{v.stampBig}\n', 1)
-    assert jsx != before, "没找到盖章上的分数"
-    n += 1
-
-    # 11c) 签证页上那层自由画布。
-    #
-    #      放在正文之上、机读区之下 —— 它是「贴上去的东西」，该盖住底纹和
-    #      水印，但不该盖住那两行机读区（那是这一页的身份）。
-    #
-    #      这里破例引一个组件进来（生成文件顶上的 import 也是转换器写的）：
-    #      画布的渲染逻辑编辑器要一模一样地用一遍，抄成两份迟早分家。
-    marker = '{(v.visaLinks || []).length ? (\n'
-    i11c = jsx.find(marker)
-    assert i11c != -1, "没找到页面链接那一段"
-    line_start = jsx.rfind('\n', 0, i11c) + 1
-    indent = jsx[line_start:i11c]
-    jsx = jsx[:line_start] + indent + '<VisaCanvas items={v.visaCanvas} />\n' + jsx[line_start:]
     n += 1
 
     # 12) 把设计稿写死的色值换成 CSS 变量。
@@ -802,7 +751,7 @@ body = emit(p.root, set(), 3)
 body = apply_patches(body)
 
 out = '''import React from 'react';
-import VisaCanvas from './VisaCanvas.jsx';
+import VisaBlocks from './VisaBlocks.jsx';
 
 /**
  * 护照册的视觉层 —— 由 Claude Design 的 `Life Passport v5 Classic.dc.html`

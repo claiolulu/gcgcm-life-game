@@ -565,11 +565,12 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
     const name = String(a?.name || '').trim().slice(0, 20);
     if (!name) return res.status(400).json({ error: '每个活动都要有名字' });
 
-    let page, links, canvas;
+    let page, links, canvas, blocks;
     try {
       page = cleanPage(a?.page, `「${name}」`);
       links = cleanLinks(a?.links, `「${name}」`);
       canvas = cleanCanvas(a?.canvas, `「${name}」`);
+      blocks = cleanBlocks(a?.blocks, `「${name}」`);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
@@ -587,6 +588,8 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       links: links || [],
       state: ['upcoming', 'live', 'done'].includes(a?.state) ? a.state : 'upcoming',
       canvas: canvas || [],
+      // 空数组是有意义的：那是「这一页我要留白」，不是「没设计过」
+      ...(blocks !== undefined ? { blocks } : {}),
       // page 不在就整个不写：字段在不在，就是「这一页跟不跟随模版」本身
       ...(page ? { page } : {}),
     });
@@ -762,6 +765,77 @@ function cleanCanvas(raw, where) {
       lh: num(el?.lh, 0.9, 3, 1.5),
       opacity: num(el?.opacity, 0.05, 1, 1),
     };
+  });
+}
+
+/**
+ * 签证页的块。
+ *
+ * 页面正文整个由它决定：VISA 横框、签发站那片栏目、活动名、备注、配图、
+ * 页面链接、机读区，加上同工自己摆的字和图 —— 每一样都是一个块，
+ * 都能挪、能删。一个不剩就是一张白页，那是允许的。
+ *
+ * 校验要紧：这些值直接变成行内样式、img 的 src 和 a 的 href。
+ */
+const BLOCK_KINDS = new Set([
+  'banner', 'fields', 'station', 'note', 'photo', 'links', 'mrz', 'text', 'image',
+]);
+
+function cleanBlocks(raw, where) {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) throw new Error(`${where}的版式要是一个数组`);
+  if (raw.length > 40) throw new Error(`${where}最多放 40 个块`);
+
+  const seen = new Set();
+  return raw.map((b, i) => {
+    const kind = BLOCK_KINDS.has(b?.kind) ? b.kind : 'text';
+    let id = String(b?.id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || `b${i + 1}`;
+    while (seen.has(id)) id += '_';
+    seen.add(id);
+
+    const base = {
+      id, kind,
+      x: num(b?.x, -20, 120, 10),
+      y: num(b?.y, -20, 120, 10),
+      w: num(b?.w, 1, 140, 30),
+      h: num(b?.h, 1, 140, 10),
+      rot: num(b?.rot, -180, 180, 0),
+      opacity: num(b?.opacity, 0.05, 1, 1),
+      // 链接不合法就当没挂，不是整份拒掉 —— 同工打到一半就保存是常事
+      href: /^https?:\/\/[^\s"'<>]+$/i.test(String(b?.href || '')) ? String(b.href).slice(0, 300) : '',
+    };
+
+    const str = (v, max) => String(v ?? '').replace(/[\r\n]/g, ' ').trim().slice(0, max);
+
+    switch (kind) {
+      case 'banner':
+        return { ...base, word: str(b?.word, 16), brand: str(b?.brand, 24), brandCn: str(b?.brandCn, 16) };
+      case 'fields':
+        return { ...base, cols: Math.min(4, Math.max(1, Math.round(Number(b?.cols) || 2))),
+                 rows: cleanRows(b?.rows || [], where) };
+      case 'station':
+      case 'note':
+        return { ...base, label: str(b?.label, 30) };
+      case 'photo':
+        return { ...base, fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover' };
+      case 'links':
+      case 'mrz':
+        return base;
+      case 'image':
+        return { ...base, src: safePhoto(b?.src),
+                 fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover', radius: num(b?.radius, 0, 50, 0) };
+      default:
+        return {
+          ...base, kind: 'text',
+          text: String(b?.text ?? '').slice(0, 400),
+          size: num(b?.size, 1, 24, 4),
+          color: HEX.test(String(b?.color)) ? String(b.color).toLowerCase() : '',
+          font: CANVAS_FONTS.has(b?.font) ? b.font : 'sans',
+          align: CANVAS_ALIGN.has(b?.align) ? b.align : 'left',
+          bold: !!b?.bold,
+          lh: num(b?.lh, 0.9, 3, 1.5),
+        };
+    }
   });
 }
 

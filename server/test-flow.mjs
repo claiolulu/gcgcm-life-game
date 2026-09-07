@@ -394,39 +394,62 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
-// 21. 画布
+// 21. 签证页的块
 {
   const cfg = await j('/api/config');
   const base = cfg.body.activities;
 
-  const withCanvas = base.map((a, i) => (i === 0 ? {
+  const withBlocks = base.map((a, i) => (i === 0 ? {
     ...a,
-    canvas: [
-      { id: 'a', type: 'text', x: 10, y: 20, w: 40, h: 15, text: '欢迎', size: 6,
-        color: '#5C1A22', font: 'serif', align: 'center', bold: true, href: 'https://x.example.com' },
-      { id: 'a', type: 'image', x: 200, y: -80, w: 30, h: 30, src: 'javascript:alert(1)',
-        fit: 'squish', rot: 999, href: 'javascript:alert(1)' },
+    blocks: [
+      { id: 'b1', kind: 'banner', x: 4, y: 12, w: 92, h: 11,
+        word: '打卡', brand: 'GCGCM 迎新', brandCn: '' },
+      { id: 'b1', kind: 'fields', x: 4, y: 27, w: 52, h: 60, cols: 3,
+        rows: [{ key: 'a', label: '姓 SURNAME', src: 'surname' }] },
+      { id: 'b3', kind: 'image', x: 200, y: -90, w: 40, h: 40, rot: 999,
+        src: 'javascript:alert(1)', fit: 'squish', href: 'javascript:alert(1)' },
+      { id: 'b4', kind: 'rm -rf', x: 5, y: 5, w: 10, h: 10, text: '未知类型退回文字' },
     ],
   } : a));
-  const saved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withCanvas } });
-  const c = saved.body.activities?.[0]?.canvas || [];
-  check('画布存得下来', saved.status === 200 && c.length === 2, JSON.stringify(c).slice(0, 120));
-  check('文字元素的样式原样保留', c[0]?.bold === true && c[0].color === '#5c1a22' && c[0].font === 'serif');
-  check('撞了的 id 被错开', c[0]?.id !== c[1]?.id, `${c[0]?.id} / ${c[1]?.id}`);
-  check('坐标被夹回合理范围', c[1]?.x <= 120 && c[1]?.y >= -20, `x=${c[1]?.x} y=${c[1]?.y}`);
-  check('旋转被夹回 ±180', Math.abs(c[1]?.rot) <= 180, `rot=${c[1]?.rot}`);
-  check('javascript: 的图片地址被清空', c[1]?.src === '', JSON.stringify(c[1]?.src));
-  check('javascript: 的链接被清空（不是整份拒掉）', c[1]?.href === '');
-  check('不认识的裁切方式退回 cover', c[1]?.fit === 'cover');
+  const saved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withBlocks } });
+  const b = saved.body.activities?.[0]?.blocks || [];
+  check('版式存得下来', saved.status === 200 && b.length === 4, JSON.stringify(b).slice(0, 100));
+  check('横框上那两行字能改', b[0]?.word === '打卡' && b[0].brand === 'GCGCM 迎新');
+  check('栏目块能只留一栏', b[1]?.rows?.length === 1 && b[1].cols === 3);
+  check('撞了的 id 被错开', b[0]?.id !== b[1]?.id, `${b[0]?.id} / ${b[1]?.id}`);
+  check('坐标被夹回合理范围', b[2]?.x <= 120 && b[2]?.y >= -20, `x=${b[2]?.x} y=${b[2]?.y}`);
+  check('旋转被夹回 ±180', Math.abs(b[2]?.rot) <= 180, `rot=${b[2]?.rot}`);
+  check('javascript: 的图片地址被清空', b[2]?.src === '');
+  check('javascript: 的链接被清空（不是整份拒掉）', b[2]?.href === '');
+  check('不认识的裁切方式退回 cover', b[2]?.fit === 'cover');
+  check('不认识的块类型退回文字', b[3]?.kind === 'text' && b[3].text === '未知类型退回文字');
+
+  // 空数组是「我要一张白页」，不是「没设计过」—— 必须存下来
+  const blank = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0 ? { ...a, blocks: [] } : a)) },
+  });
+  check('清空之后存的是白页，不是「没设计过」',
+    blank.status === 200 && Array.isArray(blank.body.activities[0].blocks)
+    && blank.body.activities[0].blocks.length === 0);
 
   const tooMany = await j('/api/admin/activities', {
     method: 'POST', headers: adminH,
     body: { activities: base.map((a, i) => (i === 0
-      ? { ...a, canvas: Array.from({ length: 41 }, () => ({ type: 'text', text: 'x' })) } : a)) },
+      ? { ...a, blocks: Array.from({ length: 41 }, () => ({ kind: 'text', text: 'x' })) } : a)) },
   });
-  check('画布元素超过 40 个被拒', tooMany.status === 400, `状态码 ${tooMany.status}`);
+  check('块超过 40 个被拒', tooMany.status === 400, `状态码 ${tooMany.status}`);
 
-  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+  const badRow = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0
+      ? { ...a, blocks: [{ kind: 'fields', rows: [{ label: 'X', src: '../../etc' }] }] } : a)) },
+  });
+  check('栏目块里不认识的数据来源被拒', badRow.status === 400);
+
+  // 没设计过的活动不该被塞一个 blocks 字段
+  const back = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+  check('没提供 blocks 就不写这个字段', back.body.activities[0].blocks === undefined);
 }
 
 // 22. 报名

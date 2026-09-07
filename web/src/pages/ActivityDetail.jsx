@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
-import RowEditor from '../components/RowEditor.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
@@ -42,8 +41,6 @@ export default function ActivityDetail() {
   const [dirty, setDirty] = useState(false);
 
   const activities = config?.activities || [];
-  const sources = config?.visaSources || [];
-  const tpl = config?.visaTemplate || {};
   const settings = config?.settings || {};
   const players = useMemo(() => allPlayers(), [staff.players, staff.outbox]); // eslint-disable-line
 
@@ -93,14 +90,8 @@ export default function ActivityDetail() {
   }
 
   const edit = (patch) => { setDraft((c) => ({ ...c, ...patch })); setDirty(true); };
-  const editPage = (patch) => edit({ page: { ...(draft.page || {}), ...patch } });
-
-  const rowOps = (rows, save) => ({
-    edit: (i, patch) => save(rows.map((r, k) => (k === i ? { ...r, ...patch } : r))),
-    move: (i, d) => { const n = [...rows]; [n[i], n[i + d]] = [n[i + d], n[i]]; save(n); },
-    remove: (i) => save(rows.filter((_, k) => k !== i)),
-    add: () => save([...rows, { key: `r${Date.now().toString(36)}`, label: '', src: 'text', text: '', accent: false }]),
-  });
+  // 栏目和版式都在画布编辑器里改了（/staff/admin/a/<id>/design），
+  // 这一页只管这一场本身的信息、配图、链接和报名。
 
   const links = draft.links || [];
   const linkOps = {
@@ -441,47 +432,20 @@ export default function ActivityDetail() {
       {/* 这一页的版式 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">
-          🎫 这一页的版式 —— {draft.page ? <b style={{ color: 'var(--gold)' }}>自己一套</b> : '跟随模版'}
+          🎫 这一页的版式 —— {draft.blocks ? <b style={{ color: 'var(--gold)' }}>自己排过</b> : '跟随模版'}
         </div>
-        {!draft.page ? (
-          <>
-            <div className="tiny dim">
-              这一页现在长得和总控台的「签证页模版」一样，改模版它就跟着变。
-            </div>
-            <button className="btn btn--sm btn--ghost"
-              onClick={() => edit({ page: JSON.parse(JSON.stringify(tpl)) })}>
-              改成自己一套
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="tiny dim">这一页已经脱离模版了 —— 之后改模版<b>不会</b>再动到它。</div>
-            <div className="row" style={{ gap: 6 }}>
-              <input className="input grow" value={draft.page.banner ?? ''} maxLength={16}
-                placeholder="横幅上那个词" onChange={(e) => editPage({ banner: e.target.value })} />
-              <input className="input grow" value={draft.page.stationLabel ?? ''} maxLength={30}
-                placeholder="右栏标题" onChange={(e) => editPage({ stationLabel: e.target.value })} />
-            </div>
-            <input className="input" value={draft.page.annotationLabel ?? ''} maxLength={30}
-              placeholder="备注标题" onChange={(e) => editPage({ annotationLabel: e.target.value })} />
-            <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
-              {[['showPhoto', '显示配图'], ['showAnnotation', '显示备注'], ['showLinks', '显示链接']].map(([k, label]) => (
-                <label key={k} className="tiny row" style={{ gap: 5, alignItems: 'center' }}>
-                  <input type="checkbox" checked={draft.page[k] !== false}
-                    onChange={(e) => editPage({ [k]: e.target.checked })} />
-                  {label}
-                </label>
-              ))}
-            </div>
-            <RowEditor
-              rows={draft.page.rows || []}
-              sources={sources}
-              ops={rowOps(draft.page.rows || [], (rows) => editPage({ rows }))}
-            />
-            <button className="btn btn--sm btn--ghost" onClick={() => edit({ page: undefined })}>
-              回到跟随模版（自己这套会丢掉）
-            </button>
-          </>
+        <div className="tiny dim">
+          {draft.blocks
+            ? `这一页已经在编辑器里排过了（${draft.blocks.length} 个块），改总控台的「签证页模版」不会再动到它。`
+            : '这一页现在长得和总控台的「签证页模版」一样，改模版它就跟着变。进编辑器动过一次之后，就归它自己管了。'}
+        </div>
+        <Link className="btn btn--sm btn--ghost btn--full" to={`/staff/admin/a/${id}/design`}>
+          🎨 打开画布编辑器
+        </Link>
+        {draft.blocks && (
+          <button className="btn btn--sm btn--ghost" onClick={() => edit({ blocks: undefined })}>
+            回到跟随模版（自己排的会丢掉，要点保存才生效）
+          </button>
         )}
       </div>
 

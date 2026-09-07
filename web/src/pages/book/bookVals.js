@@ -117,6 +117,90 @@ const VISA_TPL_FALLBACK = {
 };
 
 /**
+ * 默认版式：把今天这一页翻译成一组块的坐标。
+ *
+ * 这些数字是照着原来那份 flex 排版量出来的，所以「还没设计过」的活动
+ * 看起来和以前一模一样。同工一旦在编辑器里动过，就存自己那份 blocks，
+ * 从此和这里无关。
+ *
+ * 单位是页面框的百分比。横版页的宽高比不是定值（它等于手机屏的高宽比），
+ * 所以这里只能取一个常见比例来定坐标 —— 特别长或特别方的屏上会有出入。
+ */
+function defaultBlocks(tpl, station) {
+  const out = [];
+  const push = (b) => out.push({ rot: 0, opacity: 1, href: '', ...b });
+
+  push({ id: 'banner', kind: 'banner', x: 4, y: 12.5, w: 92, h: 11,
+         word: tpl.banner, brand: tpl.brand, brandCn: tpl.brandCn });
+
+  push({ id: 'fields', kind: 'fields', x: 4.5, y: 27, w: 52, h: 62,
+         cols: 2, rows: tpl.rows });
+
+  let y = 27;
+  if (tpl.showPhoto !== false && station?.photo) {
+    push({ id: 'photo', kind: 'photo', x: 60, y, w: 36, h: 21, fit: 'cover' });
+    y += 24;
+  }
+  push({ id: 'station', kind: 'station', x: 60, y, w: 36, h: 16, label: tpl.stationLabel });
+  y += 18;
+  if (tpl.showAnnotation !== false) {
+    push({ id: 'note', kind: 'note', x: 60, y, w: 36, h: 100 - y - 14, label: tpl.annotationLabel });
+  }
+
+  if (tpl.showLinks !== false && (station?.links || []).length) {
+    push({ id: 'links', kind: 'links', x: 4.5, y: 80, w: 52, h: 8 });
+  }
+
+  push({ id: 'mrz', kind: 'mrz', x: 0, y: 88.5, w: 100, h: 11.5 });
+  return out;
+}
+
+/**
+ * 这一页最终画哪些块。
+ *
+ *   activity.blocks  同工在编辑器里排过的，整份用它
+ *   否则             按模版（可能被 activity.page 覆盖过）生成默认版式，
+ *                    再把老的自由画布元素接在后面
+ *
+ * 只有这一个入口，编辑器和真页面都走它 —— 两边各算各的，迟早对不上。
+ */
+export function resolveBlocks(template, station, theme) {
+  // 只看「有没有这个字段」，不看长度：空数组是同工把块删光了，
+  // 那就是他要的白页，不该被当成「没设计过」又把默认版式塞回去
+  if (Array.isArray(station?.blocks)) return station.blocks;
+  const tpl = resolveVisaTemplate(template, station);
+  const t = { ...THEME_FALLBACK, ...(theme || {}) };
+  // 横幅右边那两行字原来存在护照模版里（那时它是全书统一的）。
+  // 现在它是横幅块自己的属性，同工可以一场一场改 —— 但默认值仍然
+  // 从护照模版取，老数据不用迁移
+  const base = defaultBlocks({ ...tpl, brand: t.visaBrand, brandCn: t.visaBrandCn }, station);
+  const extra = Array.isArray(station?.canvas) ? station.canvas.map((el) => ({ ...el, kind: el.type })) : [];
+  return [...base, ...extra];
+}
+
+/** 块要用到的那些「每个人不一样」的值，在这里一次算好 */
+export function blockData({ station, passportNo, pageNo, surname, given, identityLabel, visaScore, isCheckin, stampTone, mrz1, mrz2 }) {
+  return {
+    post: `GCGCM ${pageNo}`,
+    control: `${passportNo}/${pageNo}`,
+    surname, given,
+    identity: identityLabel,
+    tag: station?.tag || '',
+    host: station?.host || station?.staff || '',
+    // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
+    date: station?.date || 'TBC 待定',
+    name: station?.name || '',
+    en: String(station?.en || '').toUpperCase(),
+    status: visaScore == null ? '— —' : isCheckin ? '✓' : (visaScore > 0 ? '+' : '') + visaScore,
+    statusFg: visaScore == null ? 'rgba(var(--pp-text-rgb),.45)' : stampTone,
+    desc: station?.desc || station?.rule || '',
+    photo: station?.photo || '',
+    links: station?.links || [],
+    mrz1, mrz2,
+  };
+}
+
+/**
  * 这一页最终用哪一套版式。
  *
  * 活动身上有 page 就整份用它的，没有就用模版 —— 「有没有 page」本身
@@ -361,35 +445,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   const visaTpl = resolveVisaTemplate(config?.visaTemplate, station);
   const pageNo2 = String(cur.i + 1).padStart(2, '0');
 
-  /**
-   * 把一栏的「数据来源」翻成这一页、这个人身上的值。
-   *
-   * 只有 text 是同工填的死字，其余都在这里算 —— 姓名、编号、出席与否
-   * 每个人不一样，让同工去填这些只会填错。
-   */
-  const bindRow = (r) => {
-    switch (r.src) {
-      case 'post':     return { value: 'GCGCM ' + pageNo2 };
-      case 'control':  return { value: passportNo + '/' + pageNo2 };
-      // 这里显示真名（中文照常显示）；只有下方 MRZ 机读区才做 ASCII 化，
-      // 因为真实护照的机读区本来就只允许 A-Z0-9
-      case 'surname':  return { value: surname || clean(surname, 'PLAYER') };
-      case 'given':    return { value: given || clean(given, 'ONE') };
-      case 'identity': return { value: identityLabel };
-      case 'tag':      return { value: station?.tag || '' };
-      case 'host':     return { value: station?.host || station?.staff || '' };
-      // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
-      case 'date':     return { value: station?.date || 'TBC 待定' };
-      case 'name':     return { value: station?.name || '' };
-      case 'en':       return { value: String(station?.en || '').toUpperCase() };
-      case 'status':   return {
-        value: visaScore == null ? '— —' : isCheckin ? '✓' : (visaScore > 0 ? '+' : '') + visaScore,
-        fg: visaScore == null ? 'rgba(var(--pp-text-rgb),.45)'
-          : isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || 'var(--pp-text)'),
-      };
-      default:         return { value: r.text || '' };
-    }
-  };
+  // 「一栏的数据来源怎么翻成值」搬到 VisaBlocks 里了（那儿要用同一份逻辑
+  // 渲染栏目块），这里只负责把算好的值打包给它 —— 见 blockData()。
 
   const noop = () => {};
 
@@ -578,51 +635,24 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     share: actions.share,
 
     /* ---- 签证页 ---- */
-    visaCn: station ? station.name : '',
-    visaEn: station ? String(station.en || '').toUpperCase() : '',
-    visaAnnotation: station ? (station.desc || station.rule || '') : '',
-    visaFields: station ? visaTpl.rows.map((r) => {
-      const v = bindRow(r);
-      return {
-        label: r.label,
-        value: v.value,
-        // 有效期那种要加重的栏目用主色；出席状态跟着章的颜色走
-        fg: v.fg || (r.accent ? 'var(--pp-ink)' : 'var(--pp-text)'),
-      };
-    }) : [],
-
-    /* ---- 这一页的版式（模版 + 这场活动自己的覆盖） ---- */
-    visaBanner: visaTpl.banner,
-    visaStationLabel: visaTpl.stationLabel,
-    visaAnnotationLabel: visaTpl.annotationLabel,
-    showAnnotation: visaTpl.showAnnotation !== false,
-
     /**
-     * 这一页上那几个可跳转的小图标 —— 活动相册、报名表、场地地图。
-     * 地址在服务端已经卡死只能是 http(s)，这里再挡一次：配置是缓存在
-     * IndexedDB 里的，万一存进去过一条脏数据，也不该在页面上变成可点的。
-     */
-    visaLinks: station && visaTpl.showLinks !== false
-      ? (station.links || [])
-          .filter((l) => /^https?:\/\//i.test(String(l?.url || '')))
-          .slice(0, 6)
-          .map((l) => ({ icon: l.icon || '🔗', label: l.label || '', url: l.url }))
-      : [],
-
-    /**
-     * 这一场的配图。后台上传，没传就没有 —— 签证页本来就是一整块
-     * 排版，图是加分项，缺了不该留一个空框在那儿。
-     */
-    /**
-     * 这一页的自由画布 —— 同工在编辑器里摆上去的字和图。
+     * 这一页画哪些块。
      *
-     * 和签证页模版是两层：模版管那片规规矩矩的栏目，画布管「贴上去的东西」。
-     * 两层各存各的，所以改模版不会把人辛苦摆好的图挪走。
+     * 页面正文整个由它决定 —— VISA 横框、签发站那片栏目、活动名、备注、
+     * 配图、页面链接、机读区，加上同工自己摆的字和图，全是块。删光就是白页。
+     *
+     * 原来这里还有一堆 visaFields / visaCn / visaLinks / visaPhoto……，
+     * 那是给写死的那份排版用的，已经没有人读，删掉了 —— 留着看起来像
+     * 还在生效，下一个人会照着改。
      */
-    visaCanvas: station ? (station.canvas || []) : [],
-
-    visaPhoto: station && station.photo ? `url("${station.photo}")` : '',
-    hasVisaPhoto: !!(station && station.photo && visaTpl.showPhoto !== false),
+    visaBlocks: station ? resolveBlocks(config?.visaTemplate, station, theme) : [],
+    visaBlockData: station ? blockData({
+      station, passportNo, pageNo: pageNo2, surname, given, identityLabel,
+      visaScore, isCheckin,
+      stampTone: isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || 'var(--pp-text)'),
+      mrz1: mrzLine(1, { surname, given, passportNo, identity: identityLabel, total }),
+      mrz2: mrzLine(2, { surname, given, passportNo, identity: identityLabel, total }),
+    }) : {},
 
     visaStamped: station != null && visaScore != null,
     visaScore,
