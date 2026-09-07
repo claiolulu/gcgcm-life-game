@@ -693,6 +693,69 @@ html.book-locked body {
   .page--wide .cols-2 { column-count: 3; }
 }
 
+/* ---------------------------------------------------------------
+   画布编辑器的宽屏版式
+   窄屏还是从上到下一条：纸 → 工具 → 属性。
+   宽屏改成左右两栏：纸钉在左边不动，属性面板自己滚 ——
+   摆东西时最不想要的就是「改个字号，纸滚出视野了」。
+   --------------------------------------------------------------- */
+.page--design { max-width: 1440px; }
+
+.design__bar {
+  position: sticky;
+  top: calc(var(--safe-top) + 6px);
+  z-index: 20;
+  padding: 8px 0;
+  margin-bottom: 6px;
+  background: var(--ink);
+  box-shadow: 0 8px 12px -10px rgba(0, 0, 0, 0.9);
+}
+
+.design__body { display: block; }
+
+/* 快捷键提示只在宽屏出现 —— 手机上没有键盘，那一行纯占地方 */
+.design__keys { display: none; }
+
+@media (min-width: 1000px) {
+  .design__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: 18px;
+    align-items: start;
+  }
+  .design__stage {
+    position: sticky;
+    top: calc(var(--safe-top) + 64px);
+  }
+  .design__keys { display: block; }
+
+  .design__side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    /* 面板比纸长得多，让它自己滚，别把整页拉长 */
+    max-height: calc(100dvh - var(--safe-top) - var(--nav-h) - 96px);
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  /* 宽屏下不用底部导航条那么大的留白 */
+  .page--design { padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 8px); }
+}
+
+/* 快捷键提示里的键帽 */
+kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ink-3);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

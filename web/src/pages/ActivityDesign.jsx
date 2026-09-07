@@ -93,6 +93,18 @@ export default function ActivityDesign() {
     setDirty(true);
   };
 
+  /**
+   * 按当前值改（而不是按某个捕获到的值）。
+   *
+   * 方向键微调必须走这个：连按两下时两次事件在同一帧里，patch 那种
+   * 「算好了再塞进去」的写法两次都从同一个起点算，按两下只动一格。
+   * 按住方向键不放正是最常见的用法。
+   */
+  const bump = (bid, fn) => {
+    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...fn(b) } : b)));
+    setDirty(true);
+  };
+
   function add(kind) {
     const def = PALETTE.find((p) => p.kind === kind);
     const made = {
@@ -200,6 +212,70 @@ export default function ActivityDesign() {
     window.addEventListener('pointercancel', up);
   }
 
+  /* --------------------------- 键盘 --------------------------- */
+
+  /**
+   * 摆版式的时候手是离不开键盘的：删一个块、微调两个像素、存一下。
+   *
+   * 处理函数放在 ref 里、监听只挂一次 —— 直接把 selected / blocks 写进
+   * 依赖数组的话，每次拖动都要摘挂一遍监听；不写又会读到上一帧的状态。
+   *
+   * 在输入框里打字时只留 Esc（失焦）和 ⌘S，其余一律放行 ——
+   * 不然写活动介绍打个 Delete 就把选中的块删了。
+   */
+  const keyRef = useRef(null);
+  keyRef.current = (e) => {
+    const t = e.target;
+    const typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (dirty && busy !== 'save') save();
+      return;
+    }
+    if (typing) {
+      if (e.key === 'Escape') t.blur();
+      return;
+    }
+    if (e.key === 'Escape') { setSel(null); return; }
+    if (!selected) return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault(); remove(selected.id); return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+      e.preventDefault(); duplicate(selected); return;
+    }
+    if (e.key === '[' || e.key === ']') {
+      e.preventDefault(); layer(selected.id, e.key === ']' ? 1 : -1); return;
+    }
+
+    const nudge = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (nudge) {
+      e.preventDefault();
+      // 按住 Shift 走一大步：对齐到别的块时先粗调再细调，比一路点快得多
+      const step = e.shiftKey ? 5 : 0.5;
+      // Alt 改成改大小，不用去够右下角那个小方块
+      if (e.altKey) {
+        bump(selected.id, (b) => ({
+          w: Math.max(2, round(b.w + nudge[0] * step)),
+          h: Math.max(2, round(b.h + nudge[1] * step)),
+        }));
+      } else {
+        bump(selected.id, (b) => ({
+          x: round(b.x + nudge[0] * step),
+          y: round(b.y + nudge[1] * step),
+        }));
+      }
+    }
+  };
+
+  useEffect(() => {
+    const fn = (e) => keyRef.current?.(e);
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, []);
+
   /* --------------------------- 保存 --------------------------- */
 
   async function save() {
@@ -246,19 +322,23 @@ export default function ActivityDesign() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--design">
       <NetBar />
 
-      <div className="row" style={{ gap: 8, marginBottom: 10, alignItems: 'center' }}>
+      <div className="design__bar row" style={{ gap: 8, alignItems: 'center' }}>
         <button className="btn btn--sm btn--ghost" onClick={leave}>←</button>
         <input className="input grow" value={name} maxLength={20} placeholder="活动名"
           onChange={(e) => { setName(e.target.value); setDirty(true); }} />
+        <span className="tiny dim" style={{ flex: '0 0 auto' }}>{blocks.length} 个块</span>
         <button className="btn btn--sm btn--primary" disabled={busy === 'save' || !dirty} onClick={save}>
           {busy === 'save' ? '保存中…' : dirty ? '保存' : '已保存'}
         </button>
       </div>
 
+      <div className="design__body">
+
       {/* 纸 */}
+      <div className="design__stage">
       <div
         ref={boxRef}
         onPointerDown={() => setSel(null)}
@@ -303,6 +383,16 @@ export default function ActivityDesign() {
           </div>
         </VisaPageFrame>
       </div>
+
+      {/* 快捷键：摆版式的时候手不离键盘 */}
+      <div className="design__keys tiny dim" style={{ marginBottom: 10, lineHeight: 1.9 }}>
+        <kbd>Del</kbd> 删掉 · <kbd>←↑→↓</kbd> 挪一点（<kbd>Shift</kbd> 挪一大步、
+        <kbd>Alt</kbd> 改大小）· <kbd>[</kbd> <kbd>]</kbd> 调图层 ·
+        <kbd>⌘D</kbd> 复制 · <kbd>⌘S</kbd> 保存 · <kbd>Esc</kbd> 取消选中
+      </div>
+      </div>
+
+      <div className="design__side">
 
       {/* 加东西 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
@@ -385,6 +475,9 @@ export default function ActivityDesign() {
           </Link>
         </div>
       )}
+
+      </div>
+      </div>
     </div>
   );
 }

@@ -192,7 +192,7 @@ export default function ActivityDetail() {
   const isLive = draft.state === 'live';
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <NetBar />
 
       <div className="row-between" style={{ marginBottom: 14 }}>
