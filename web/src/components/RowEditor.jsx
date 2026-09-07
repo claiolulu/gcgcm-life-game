@@ -26,11 +26,17 @@ export default function RowEditor({ rows, ops, sources, dense = false }) {
           {/* 来源和「加重」排一行，内容单独一行 —— 三样挤一行在 400px 的
               手机上会把右边两样压成一条竖缝 */}
           <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            {/* 按组分开：来源有近二十个，平铺成一列谁也找不到自己要的 */}
             <select
               className="input grow" style={{ minWidth: 0 }} value={r.src}
               onChange={(e) => ops.edit(i, { src: e.target.value })}
             >
-              {sources.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+              {[...new Set(sources.map((s) => s.group || ''))].map((g) => {
+                const items = sources.filter((s) => (s.group || '') === g);
+                return g
+                  ? <optgroup key={g} label={g}>{items.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}</optgroup>
+                  : items.map((s) => <option key={s.key} value={s.key}>{s.name}</option>);
+              })}
             </select>
             <label
               className="tiny dim row"

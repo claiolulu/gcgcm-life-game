@@ -17,7 +17,7 @@ import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
   getActivities, setActivities, getTheme, setTheme, UPLOAD_DIR,
-  getVisaTemplate, setVisaTemplate,
+  getVisaTemplate,
 } from './db.js';
 import {
   playerState, roster, leaderboard, rankOf, applyOp, drawIdentities,
@@ -565,11 +565,9 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
     const name = String(a?.name || '').trim().slice(0, 20);
     if (!name) return res.status(400).json({ error: '每个活动都要有名字' });
 
-    let page, links, canvas, blocks;
+    let links, blocks;
     try {
-      page = cleanPage(a?.page, `「${name}」`);
       links = cleanLinks(a?.links, `「${name}」`);
-      canvas = cleanCanvas(a?.canvas, `「${name}」`);
       blocks = cleanBlocks(a?.blocks, `「${name}」`);
     } catch (err) {
       return res.status(400).json({ error: err.message });
@@ -587,11 +585,8 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       photo: safePhoto(a?.photo),
       links: links || [],
       state: ['upcoming', 'live', 'done'].includes(a?.state) ? a.state : 'upcoming',
-      canvas: canvas || [],
       // 空数组是有意义的：那是「这一页我要留白」，不是「没设计过」
       ...(blocks !== undefined ? { blocks } : {}),
-      // page 不在就整个不写：字段在不在，就是「这一页跟不跟随模版」本身
-      ...(page ? { page } : {}),
     });
   }
 
@@ -687,96 +682,19 @@ function cleanLinks(raw, where) {
   return out;
 }
 
-/** 某一场活动自己那套版式。没有就返回 undefined，表示跟随模版。 */
-function cleanPage(raw, where) {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const page = {};
-  for (const [k, max] of [['banner', 16], ['stationLabel', 30], ['annotationLabel', 30]]) {
-    if (raw[k] === undefined) continue;
-    page[k] = String(raw[k]).replace(/[\r\n]/g, ' ').trim().slice(0, max);
-  }
-  for (const k of ['showPhoto', 'showAnnotation', 'showLinks']) {
-    if (raw[k] !== undefined) page[k] = !!raw[k];
-  }
-  if (raw.rows !== undefined) page.rows = cleanRows(raw.rows, where);
-  return Object.keys(page).length ? page : undefined;
-}
+/* ------------------------- 块的取值工具 ------------------------- */
 
-/**
- * 画布元素。
- *
- * 同工在编辑器里往签证页上摆的东西 —— 一段字、一张图，都可以挂链接。
- * 坐标一律是百分比（相对页面框），字号是页高的百分比，所以同一份画布
- * 在横屏、竖屏、大屏小屏上都是同一个样子，不用为每种尺寸各存一套。
- *
- * 校验在这里必须紧：这些值会直接变成行内样式、img 的 src 和 a 的 href。
- */
 const CANVAS_FONTS = new Set(['serif', 'mono', 'sans']);
 const CANVAS_ALIGN = new Set(['left', 'center', 'right']);
 const CANVAS_FIT = new Set(['cover', 'contain']);
 
+/** 数值夹回区间；不是数就用兜底值。坐标、字号、透明度都走它 */
 function num(v, min, max, fallback) {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n * 100) / 100));
 }
 
-function cleanCanvas(raw, where) {
-  if (raw === undefined) return undefined;
-  if (!Array.isArray(raw)) throw new Error(`${where}的画布要是一个数组`);
-  if (raw.length > 40) throw new Error(`${where}的画布最多放 40 个元素`);
-
-  const seen = new Set();
-  return raw.map((el, i) => {
-    const type = el?.type === 'image' ? 'image' : 'text';
-    let id = String(el?.id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || `el${i + 1}`;
-    while (seen.has(id)) id += '_';
-    seen.add(id);
-
-    const base = {
-      id, type,
-      x: num(el?.x, -20, 120, 10),
-      y: num(el?.y, -20, 120, 10),
-      w: num(el?.w, 1, 140, 30),
-      h: num(el?.h, 1, 140, 10),
-      rot: num(el?.rot, -180, 180, 0),
-      // 链接是可选的；不合法就当没挂，不是整份拒掉 ——
-      // 同工打字打到一半就保存是常事，不该因此丢掉整张画布
-      href: /^https?:\/\/[^\s"'<>]+$/i.test(String(el?.href || '')) ? String(el.href).slice(0, 300) : '',
-    };
-
-    if (type === 'image') {
-      return {
-        ...base,
-        src: safePhoto(el?.src),
-        fit: CANVAS_FIT.has(el?.fit) ? el.fit : 'cover',
-        radius: num(el?.radius, 0, 50, 0),
-        opacity: num(el?.opacity, 0.05, 1, 1),
-      };
-    }
-    return {
-      ...base,
-      text: String(el?.text ?? '').slice(0, 400),
-      size: num(el?.size, 1, 24, 4),
-      color: HEX.test(String(el?.color)) ? String(el.color).toLowerCase() : '',
-      font: CANVAS_FONTS.has(el?.font) ? el.font : 'sans',
-      align: CANVAS_ALIGN.has(el?.align) ? el.align : 'left',
-      bold: !!el?.bold,
-      lh: num(el?.lh, 0.9, 3, 1.5),
-      opacity: num(el?.opacity, 0.05, 1, 1),
-    };
-  });
-}
-
-/**
- * 签证页的块。
- *
- * 页面正文整个由它决定：VISA 横框、签发站那片栏目、活动名、备注、配图、
- * 页面链接、机读区，加上同工自己摆的字和图 —— 每一样都是一个块，
- * 都能挪、能删。一个不剩就是一张白页，那是允许的。
- *
- * 校验要紧：这些值直接变成行内样式、img 的 src 和 a 的 href。
- */
 const BLOCK_KINDS = new Set([
   'banner', 'fields', 'station', 'note', 'photo', 'links', 'mrz', 'text', 'image',
 ]);
@@ -911,12 +829,6 @@ app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
   res.json({ url: `/uploads/${name}`, bytes: buf.length });
 });
 
-/**
- * 改签证页模版。
- *
- * 只动模版本身，不碰各场活动自己那套 —— 一场活动一旦「自己一套」，
- * 就应该只受自己的编辑影响，否则同工改模版会悄悄改掉那几场刻意做得不一样的。
- */
 /* ------------------------------ 活动报名 ------------------------------ */
 
 /**
@@ -972,33 +884,6 @@ app.get('/api/admin/activity/:id/signups', staffAuth('admin'), (req, res) => {
       avatar: safeJSON(r.avatar, {}), contact: r.contact || '', at: r.created_at,
     })),
   });
-});
-
-app.post('/api/admin/visa-template', staffAuth('admin'), (req, res) => {
-  const b = req.body || {};
-  const tpl = {};
-  try {
-    for (const [k, max] of [['banner', 16], ['stationLabel', 30], ['annotationLabel', 30]]) {
-      if (b[k] === undefined) continue;
-      const v = String(b[k]).replace(/[\r\n]/g, ' ').trim().slice(0, max);
-      if (!v) throw new Error(`${k} 不能留空`);
-      tpl[k] = v;
-    }
-    for (const k of ['showPhoto', 'showAnnotation', 'showLinks']) {
-      if (b[k] !== undefined) tpl[k] = !!b[k];
-    }
-    if (b.rows !== undefined) {
-      const rows = cleanRows(b.rows, '模版');
-      if (!rows.length) throw new Error('模版至少要留一栏');
-      tpl.rows = rows;
-    }
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-
-  setVisaTemplate(tpl);
-  broadcast('config');
-  res.json({ visaTemplate: getVisaTemplate() });
 });
 
 app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {

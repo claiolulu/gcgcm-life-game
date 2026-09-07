@@ -159,7 +159,7 @@ function defaultBlocks(tpl, station) {
  * 这一页最终画哪些块。
  *
  *   activity.blocks  同工在编辑器里排过的，整份用它
- *   否则             按模版（可能被 activity.page 覆盖过）生成默认版式，
+ *   否则             按默认版式生成那几个块，
  *                    再把老的自由画布元素接在后面
  *
  * 只有这一个入口，编辑器和真页面都走它 —— 两边各算各的，迟早对不上。
@@ -168,19 +168,35 @@ export function resolveBlocks(template, station, theme) {
   // 只看「有没有这个字段」，不看长度：空数组是同工把块删光了，
   // 那就是他要的白页，不该被当成「没设计过」又把默认版式塞回去
   if (Array.isArray(station?.blocks)) return station.blocks;
-  const tpl = resolveVisaTemplate(template, station);
+  const tpl = resolveVisaTemplate(template);
   const t = { ...THEME_FALLBACK, ...(theme || {}) };
   // 横幅右边那两行字原来存在护照模版里（那时它是全书统一的）。
   // 现在它是横幅块自己的属性，同工可以一场一场改 —— 但默认值仍然
   // 从护照模版取，老数据不用迁移
-  const base = defaultBlocks({ ...tpl, brand: t.visaBrand, brandCn: t.visaBrandCn }, station);
-  const extra = Array.isArray(station?.canvas) ? station.canvas.map((el) => ({ ...el, kind: el.type })) : [];
-  return [...base, ...extra];
+  return defaultBlocks({ ...tpl, brand: t.visaBrand, brandCn: t.visaBrandCn }, station);
 }
 
-/** 块要用到的那些「每个人不一样」的值，在这里一次算好 */
-export function blockData({ station, passportNo, pageNo, surname, given, identityLabel, visaScore, isCheckin, stampTone, mrz1, mrz2 }) {
+/**
+ * 块要用到的那些「每个人不一样」的值，在这里一次算好。
+ *
+ * 键名和 server/src/config.js 的 VISA_ROW_SOURCES 一一对应 —— 加一个来源，
+ * 那边加一行、这里加一个键、VisaBlocks 的 bindRow 加一个 case，三处齐了才生效。
+ */
+export function blockData({
+  station, me, passportNo, pageNo, surname, given, identityLabel,
+  visaScore, isCheckin, stampTone, stampDate, doneCount, teamBadge, signed, mrz1, mrz2,
+}) {
   return {
+    // 持照人
+    player: me?.name || '',
+    code: me?.code || '',
+    passport: passportNo,
+    contact: me?.contact || '',
+    team: teamBadge ? `${teamBadge.en} ${teamBadge.symbol}` : '——',
+    visited: String(doneCount ?? 0),
+    // 这一页
+    stampDate: stampDate || '',
+    signed: signed ? '已报名' : '——',
     post: `GCGCM ${pageNo}`,
     control: `${passportNo}/${pageNo}`,
     surname, given,
@@ -201,20 +217,15 @@ export function blockData({ station, passportNo, pageNo, surname, given, identit
 }
 
 /**
- * 这一页最终用哪一套版式。
+ * 默认版式用的那份常量（服务端下发，见 config.js 的 VISA_TEMPLATE）。
  *
- * 活动身上有 page 就整份用它的，没有就用模版 —— 「有没有 page」本身
- * 就是「这一页跟不跟随模版」。rows 单独判断：同工可能只改了横幅、
- * 没动栏目，那栏目还该跟着模版走。
+ * 以前活动可以用 page 字段覆盖它的某几项，那是画布编辑器出现之前的做法；
+ * 现在版式整份在画布里排，覆盖某几项这回事没有了。
  */
-export function resolveVisaTemplate(template, station) {
+export function resolveVisaTemplate(template) {
   const tpl = { ...VISA_TPL_FALLBACK, ...(template || {}) };
   if (!Array.isArray(tpl.rows) || !tpl.rows.length) tpl.rows = VISA_TPL_FALLBACK.rows;
-  const own = station && station.page ? station.page : null;
-  if (!own) return tpl;
-  const merged = { ...tpl, ...own };
-  if (!Array.isArray(own.rows) || !own.rows.length) merged.rows = tpl.rows;
-  return merged;
+  return tpl;
 }
 
 /** 封面那块烫金压纹的底：从主色上下各推一档，比单色平涂有厚度 */
@@ -442,7 +453,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   const syncMeta = SYNC[ui.sync] || SYNC.live;
 
   /* ---- 签证页的版式：模版打底，这场活动可以整份覆盖 ---- */
-  const visaTpl = resolveVisaTemplate(config?.visaTemplate, station);
+  const visaTpl = resolveVisaTemplate(config?.visaTemplate);
   const pageNo2 = String(cur.i + 1).padStart(2, '0');
 
   // 「一栏的数据来源怎么翻成值」搬到 VisaBlocks 里了（那儿要用同一份逻辑
@@ -647,8 +658,13 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
      */
     visaBlocks: station ? resolveBlocks(config?.visaTemplate, station, theme) : [],
     visaBlockData: station ? blockData({
-      station, passportNo, pageNo: pageNo2, surname, given, identityLabel,
-      visaScore, isCheckin,
+      station, me, passportNo, pageNo: pageNo2, surname, given, identityLabel,
+      visaScore, isCheckin, doneCount, teamBadge,
+      signed: (me?.signups || []).includes(station.id),
+      stampDate: done[station.id]?.at
+        ? new Date(done[station.id].at).toLocaleDateString('en-GB',
+            { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
+        : '',
       stampTone: isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || 'var(--pp-text)'),
       mrz1: mrzLine(1, { surname, given, passportNo, identity: identityLabel, total }),
       mrz2: mrzLine(2, { surname, given, passportNo, identity: identityLabel, total }),

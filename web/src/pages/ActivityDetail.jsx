@@ -432,19 +432,19 @@ export default function ActivityDetail() {
       {/* 这一页的版式 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">
-          🎫 这一页的版式 —— {draft.blocks ? <b style={{ color: 'var(--gold)' }}>自己排过</b> : '跟随模版'}
+          🎫 这一页的版式 —— {draft.blocks ? <b style={{ color: 'var(--gold)' }}>自己排过</b> : '默认版式'}
         </div>
         <div className="tiny dim">
           {draft.blocks
-            ? `这一页已经在编辑器里排过了（${draft.blocks.length} 个块），改总控台的「签证页模版」不会再动到它。`
-            : '这一页现在长得和总控台的「签证页模版」一样，改模版它就跟着变。进编辑器动过一次之后，就归它自己管了。'}
+            ? `这一页在编辑器里排过了，${draft.blocks.length} 个块。`
+            : '这一页还没排过，用的是默认版式（横框、栏目、活动名、备注、配图、链接、机读区）。进编辑器动一次就归它自己管。'}
         </div>
         <Link className="btn btn--sm btn--ghost btn--full" to={`/staff/admin/a/${id}/design`}>
           🎨 打开画布编辑器
         </Link>
         {draft.blocks && (
           <button className="btn btn--sm btn--ghost" onClick={() => edit({ blocks: undefined })}>
-            回到跟随模版（自己排的会丢掉，要点保存才生效）
+            回到默认版式（自己排的会丢掉，要点保存才生效）
           </button>
         )}
       </div>

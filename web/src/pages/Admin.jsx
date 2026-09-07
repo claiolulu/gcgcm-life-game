@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
-import RowEditor from '../components/RowEditor.jsx';
 import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
@@ -91,55 +90,9 @@ export default function Admin() {
     }
   }
 
-  /* ------------------------ 签证页模版 ------------------------ */
-
-  const [tpl, setTpl] = useState(null);           // null = 还没从配置载入
-  const [tplDirty, setTplDirty] = useState(false);
-  const sources = config?.visaSources || [];
-
-  useEffect(() => {
-    if (tplDirty) return;
-    if (config?.visaTemplate) setTpl(JSON.parse(JSON.stringify(config.visaTemplate)));
-  }, [config, tplDirty]);
-
-  const editTpl = (patch) => {
-    setTpl((cur) => ({ ...cur, ...patch }));
-    setTplDirty(true);
-  };
-
-  /**
-   * 栏目表的增删改查。模版和「某场活动自己那套」用的是同一批函数 ——
-   * 两边的数据结构本来就是同一个，分成两套只会写岔。
-   *
-   * rows 传进来，改完的 rows 传出去，谁来存由调用方决定。
-   */
-  const rowOps = (rows, save) => ({
-    edit: (i, patch) => save(rows.map((r, k) => (k === i ? { ...r, ...patch } : r))),
-    move: (i, d) => {
-      const next = [...rows];
-      [next[i], next[i + d]] = [next[i + d], next[i]];
-      save(next);
-    },
-    remove: (i) => save(rows.filter((_, k) => k !== i)),
-    add: () => save([...rows, {
-      key: `r${Date.now().toString(36)}`, label: '', src: 'text', text: '', accent: false,
-    }]),
-  });
-
-  async function saveTpl() {
-    setBusy('tpl');
-    try {
-      const res = await api('/api/admin/visa-template', { method: 'POST', body: tpl, token });
-      setTpl(res.visaTemplate);
-      setTplDirty(false);
-      await loadConfig();
-      toast('签证页模版已保存', 'ok');
-    } catch (err) {
-      toast(err.message || '保存失败', 'err');
-    } finally {
-      setBusy(null);
-    }
-  }
+  // 「签证页模版」这个全局选项去掉了：每一场的版式在它自己的画布编辑器里排
+  // （/staff/admin/a/<id>/design），默认版式是代码里的常量，不再是一个要人维护
+  // 的设置。多一个「模版」只会让人先去改模版、发现某一场没跟着变、再回来找原因。
 
   /* -------------------------- 护照模版 -------------------------- */
 
@@ -315,7 +268,7 @@ export default function Admin() {
 
       <div className="cols-2">
       {/* 概览 */}
-      <div className="card row-between" style={{ marginBottom: 12 }}>
+      <div className="card row-between col-full" style={{ marginBottom: 12 }}>
         {[
           { label: '领了护照', value: players.length },
           { label: '活动', value: activities.length },
@@ -330,7 +283,7 @@ export default function Admin() {
       </div>
 
       {/* 活动清单 —— 只是一份索引，点进去才是这一场的全部 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
+      <div className="card stack col-full" style={{ marginBottom: 12 }}>
         <div className="row-between">
           <div className="section-title" style={{ margin: 0 }}>🗓 活动清单</div>
           <button className="btn btn--sm btn--primary" disabled={busy === 'acts'} onClick={addAct}>
@@ -343,7 +296,7 @@ export default function Admin() {
           同工端和所有人的护照都会跟着变，不用重启。
         </div>
 
-        <div className="stack-sm">
+        <div className="stack-sm grid-cards">
           {activities.map((a) => {
             const st = ACT_STATE[a.state] || ACT_STATE.upcoming;
             return (
@@ -376,8 +329,7 @@ export default function Admin() {
                   </div>
                   <div className="tiny dim">
                     {a.date || '日期待定'} · 报名 {signupCount[a.id] || 0} · 盖章 {stampCount[a.id] || 0}
-                    {(a.canvas || []).length ? ` · 画布 ${a.canvas.length} 个元素` : ''}
-                    {a.page ? ' · 自己一套版式' : ''}
+                    {(a.blocks || []).length ? ` · 版式 ${a.blocks.length} 块` : ''}
                   </div>
                 </div>
                 <span className="dim">›</span>
@@ -387,71 +339,6 @@ export default function Admin() {
         </div>
 
       </div>
-
-      {/* 签证页模版 */}
-      {tpl && (
-        <div className="card stack" style={{ marginBottom: 12 }}>
-          <div className="section-title">🎫 签证页模版</div>
-          <div className="tiny dim">
-            现在护照上那一页就是这份模版。改它，所有<b>跟随模版</b>的活动一起变；
-            某一场想长得不一样，去「活动清单」里把那一场改成「自己一套」——
-            之后改模版就不会再动到它。
-          </div>
-
-          <div className="row" style={{ gap: 6 }}>
-            <label className="stack-sm grow" style={{ gap: 3 }}>
-              <div className="tiny dim">横幅上那个词</div>
-              <input className="input" value={tpl.banner} maxLength={16}
-                onChange={(e) => editTpl({ banner: e.target.value })} />
-            </label>
-            <label className="stack-sm grow" style={{ gap: 3 }}>
-              <div className="tiny dim">右栏标题（活动名上面）</div>
-              <input className="input" value={tpl.stationLabel} maxLength={30}
-                onChange={(e) => editTpl({ stationLabel: e.target.value })} />
-            </label>
-          </div>
-          <label className="stack-sm" style={{ gap: 3 }}>
-            <div className="tiny dim">备注标题（活动说明上面）</div>
-            <input className="input" value={tpl.annotationLabel} maxLength={30}
-              onChange={(e) => editTpl({ annotationLabel: e.target.value })} />
-          </label>
-
-          <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
-            {[
-              ['showPhoto', '显示配图'],
-              ['showAnnotation', '显示备注'],
-              ['showLinks', '显示页面链接'],
-            ].map(([k, label]) => (
-              <label key={k} className="tiny row" style={{ gap: 5, alignItems: 'center' }}>
-                <input type="checkbox" checked={tpl[k] !== false}
-                  onChange={(e) => editTpl({ [k]: e.target.checked })} />
-                {label}
-              </label>
-            ))}
-          </div>
-
-          <div className="tiny dim" style={{ marginTop: 4 }}>
-            左边那片栏目。「固定文字」是同工填的死字，其余都按人算 ——
-            姓名、编号、出席与否每个人不一样，填不出来。
-          </div>
-          <RowEditor
-            rows={tpl.rows || []}
-            sources={sources}
-            ops={rowOps(tpl.rows || [], (rows) => editTpl({ rows }))}
-          />
-
-          <div className="row" style={{ gap: 8 }}>
-            <button className="btn btn--sm btn--ghost grow" disabled={!tplDirty}
-              onClick={() => { setTpl(JSON.parse(JSON.stringify(config.visaTemplate))); setTplDirty(false); }}>
-              还原
-            </button>
-            <button className="btn btn--sm btn--primary grow"
-              disabled={busy === 'tpl' || !tplDirty} onClick={saveTpl}>
-              {busy === 'tpl' ? '保存中…' : tplDirty ? '保存模版' : '已保存'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 护照模版 */}
       {theme && (
@@ -727,8 +614,8 @@ export default function Admin() {
         </button>
       </div>
 
-      {/* 花名册 */}
-      <div className="card stack">
+      {/* 花名册：一行一个人，横跨整行才看得清 */}
+      <div className="card stack col-full">
         <div className="row-between">
           <div className="section-title" style={{ margin: 0 }}>👥 全部选手</div>
           <button className="btn btn--sm btn--ghost" onClick={() => flush({ full: true })}>↻</button>

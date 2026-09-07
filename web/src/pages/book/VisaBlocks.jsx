@@ -29,18 +29,30 @@ const FONTS = {
 /** 可以放进「栏目」块的数据来源。和 server/src/config.js 的 VISA_ROW_SOURCES 对应。 */
 export function bindRow(row, data) {
   switch (row.src) {
-    case 'post':     return { value: data.post };
-    case 'control':  return { value: data.control };
-    case 'surname':  return { value: data.surname };
-    case 'given':    return { value: data.given };
-    case 'identity': return { value: data.identity };
-    case 'tag':      return { value: data.tag };
-    case 'host':     return { value: data.host };
-    case 'date':     return { value: data.date };
-    case 'name':     return { value: data.name };
-    case 'en':       return { value: data.en };
-    case 'status':   return { value: data.status, fg: data.statusFg };
-    default:         return { value: row.text || '' };
+    // 持照人
+    case 'player':    return { value: data.player };
+    case 'surname':   return { value: data.surname };
+    case 'given':     return { value: data.given };
+    case 'code':      return { value: data.code };
+    case 'passport':  return { value: data.passport };
+    case 'contact':   return { value: data.contact };
+    case 'identity':  return { value: data.identity };
+    case 'team':      return { value: data.team };
+    case 'visited':   return { value: data.visited };
+    // 这一场
+    case 'name':      return { value: data.name };
+    case 'en':        return { value: data.en };
+    case 'tag':       return { value: data.tag };
+    case 'host':      return { value: data.host };
+    case 'date':      return { value: data.date };
+    // 这一页
+    case 'status':    return { value: data.status, fg: data.statusFg };
+    case 'stampDate': return { value: data.stampDate };
+    case 'signed':    return { value: data.signed };
+    case 'post':      return { value: data.post };
+    case 'control':   return { value: data.control };
+    // 'text' 和任何不认识的来源都当固定文字 —— 同工填什么印什么
+    default:          return { value: row.text || '' };
   }
 }
 

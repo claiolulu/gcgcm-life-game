@@ -44,7 +44,7 @@ export default function StaffPlayer() {
 
   if (!player) {
     return (
-      <div className="page">
+      <div className="page page--wide">
         <div className="card center" style={{ padding: 30 }}>
           <div style={{ fontSize: 30, marginBottom: 10 }}>🤔</div>
           <div className="bold">花名册里找不到这个人</div>
@@ -98,7 +98,7 @@ export default function StaffPlayer() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <NetBar
         online={staff.online}
         connected={staff.connected}

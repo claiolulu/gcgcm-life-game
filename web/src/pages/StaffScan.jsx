@@ -59,7 +59,7 @@ export default function StaffScan() {
   }, [players, query]);
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <NetBar
         online={staff.online}
         connected={staff.connected}

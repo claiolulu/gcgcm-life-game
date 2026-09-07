@@ -675,22 +675,33 @@ html.book-locked body {
 /* 手机上一切照旧（单列 560px）。平板/电脑上让内容用满空间，
    总控台的卡片自动排成两列，不用一直往下滚。 */
 @media (min-width: 900px) {
-  .page--wide { max-width: 1060px; }
+  .page--wide { max-width: 1180px; }
 
+  /* 网格而不是 column-count：
+     多栏排版是「从上往下灌满一列再开下一列」，读起来是竖着的，
+     而总控台这些卡片彼此独立，横着读才对。网格还能让某几张卡横跨整行
+     （见 .col-full），多栏做不到 —— 花名册那种一行一个人的列表，
+     挤在三分之一宽里没法看。 */
   .page--wide .cols-2 {
-    column-count: 2;
-    column-gap: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 0 16px;
+    align-items: start;
   }
-  /* 卡片不能被断在两列之间 */
-  .page--wide .cols-2 > * {
-    break-inside: avoid;
-    page-break-inside: avoid;
+  /* 卡片自己带 margin-bottom，网格只管横向间距 */
+  .page--wide .cols-2 > * { min-width: 0; }
+  .page--wide .col-full { grid-column: 1 / -1; }
+
+  /* 活动清单横跨整行之后一行一场太旷，让里面的卡片自己再排成几列 */
+  .page--wide .grid-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 8px;
   }
 }
 
 @media (min-width: 1280px) {
-  .page--wide { max-width: 1280px; }
-  .page--wide .cols-2 { column-count: 3; }
+  .page--wide { max-width: 1400px; }
 }
 
 /* ---------------------------------------------------------------

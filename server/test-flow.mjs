@@ -244,85 +244,41 @@ check('错误 PIN 被拒', badPin.status === 401);
     body: { activities: acts.map((a, i) => (i === 0 ? { ...a, photo: 'javascript:alert(1)' } : a)) },
   });
   check('危险的配图地址被清空（不是原样存下来）',
-    evil.status === 200 && evil.body.activities[0].photo === '', JSON.stringify(evil.body?.activities?.[0]));
+    evil.status === 200 && evil.body.activities[0].photo === '', JSON.stringify(evil.body?.activities?.[0]?.photo));
 
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: cfg.body.activities } });
 }
 
-// 18. 签证页模版
+// 18. 签证页的默认版式（现在是代码常量，不再是可改的设置）
 {
-  const before = await j('/api/config');
-  check('配置里带着签证页模版和可选的数据来源',
-    Array.isArray(before.body.visaTemplate?.rows) && before.body.visaTemplate.rows.length === 11
-    && (before.body.visaSources || []).some((x) => x.key === 'text'));
+  const cfg = await j('/api/config');
+  check('配置里带着默认版式和可选的数据来源',
+    Array.isArray(cfg.body.visaTemplate?.rows) && cfg.body.visaTemplate.rows.length === 11
+    && (cfg.body.visaSources || []).some((x) => x.key === 'text'));
+  check('数据来源里有持照人的名字（栏目条能绑它）',
+    (cfg.body.visaSources || []).some((x) => x.key === 'player' && x.group === '持照人'));
+  check('来源都分了组，下拉才好找', (cfg.body.visaSources || []).every((x) => x.key === 'text' || x.group));
 
-  const ok = await j('/api/admin/visa-template', {
-    method: 'POST', headers: adminH,
-    body: {
-      banner: '打卡', annotationLabel: '这场是什么',
-      showLinks: true,
-      rows: [
-        { key: 'a', label: '活动 EVENT', src: 'name' },
-        { key: 'a', label: '日期 DATE', src: 'date' },       // key 撞了，服务端该自己补开
-        { key: 'c', label: '出席 ATTENDED', src: 'status', accent: true },
-      ],
-    },
-  });
-  check('管理员能改签证页模版', ok.status === 200 && ok.body.visaTemplate.banner === '打卡',
-    JSON.stringify(ok.body).slice(0, 120));
-  check('栏目表整份替换（3 栏就是 3 栏，不和默认的 11 栏合并）',
-    ok.body.visaTemplate.rows.length === 3);
-  check('撞了的 key 被自动错开',
-    new Set(ok.body.visaTemplate.rows.map((r) => r.key)).size === 3,
-    JSON.stringify(ok.body.visaTemplate.rows.map((r) => r.key)));
-  check('没提到的字段保持不变',
-    ok.body.visaTemplate.stationLabel === before.body.visaTemplate.stationLabel);
-
-  const badSrc = await j('/api/admin/visa-template', {
-    method: 'POST', headers: adminH, body: { rows: [{ label: 'X', src: 'rm -rf' }] } });
-  check('不认识的数据来源被拒', badSrc.status === 400, `状态码 ${badSrc.status}`);
-
-  const noLabel = await j('/api/admin/visa-template', {
-    method: 'POST', headers: adminH, body: { rows: [{ label: '   ', src: 'text' }] } });
-  check('没有标题的栏目被拒', noLabel.status === 400);
-
-  const noRows = await j('/api/admin/visa-template', {
-    method: 'POST', headers: adminH, body: { rows: [] } });
-  check('一栏都不剩的模版被拒', noRows.status === 400);
-
-  const notAdmin = await j('/api/admin/visa-template', {
-    method: 'POST', headers: staffH, body: { banner: 'X' } });
-  check('普通工作人员改不了签证页模版', notAdmin.status === 403);
-
-  // 改回默认
-  await j('/api/admin/visa-template', {
-    method: 'POST', headers: adminH,
-    body: { banner: 'VISA', annotationLabel: 'ANNOTATION 备注', rows: before.body.visaTemplate.rows },
-  });
+  const gone = await j('/api/admin/visa-template', { method: 'POST', headers: adminH, body: { banner: 'X' } });
+  check('改模版的接口已经没有了', gone.status === 404, `状态码 ${gone.status}`);
 }
 
-// 19. 每场活动自己那套版式 + 页面链接
+// 19. 页面链接
 {
   const cfg = await j('/api/config');
   const base = cfg.body.activities;
 
-  const withPage = base.map((a, i) => (i === 0 ? {
+  const withLinks = base.map((a, i) => (i === 0 ? {
     ...a,
-    page: { banner: '迎新', rows: [{ key: 'only', label: '就一栏', src: 'name' }] },
     links: [
       { icon: '📷', label: '相册', url: 'https://photos.example.com/freshers' },
       { icon: '📝', label: '报名', url: 'https://forms.example.com/x' },
       { icon: '💬', label: '没地址的', url: '' },
     ],
   } : a));
-  const saved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withPage } });
+  const saved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withLinks } });
   const a0 = saved.body.activities?.[0];
-  check('活动能带上自己那套版式', saved.status === 200 && a0?.page?.banner === '迎新' && a0?.page?.rows?.length === 1,
-    JSON.stringify(a0?.page));
-  check('其它活动仍然跟随模版（没有 page 字段）',
-    saved.body.activities.slice(1).every((a) => a.page === undefined));
-  check('页面链接存下来了', a0?.links?.length === 2 && a0.links[0].label === '相册',
-    JSON.stringify(a0?.links));
+  check('页面链接存下来了', a0?.links?.length === 2 && a0.links[0].label === '相册', JSON.stringify(a0?.links));
   check('只填名字没填地址的那条被丢掉', !(a0?.links || []).some((l) => l.label === '没地址的'));
 
   const evil = await j('/api/admin/activities', {
@@ -339,16 +295,7 @@ check('错误 PIN 被拒', badPin.status === 401);
   });
   check('超过 6 个链接被拒', tooMany.status === 400);
 
-  const badPageSrc = await j('/api/admin/activities', {
-    method: 'POST', headers: adminH,
-    body: { activities: base.map((a, i) => (i === 0
-      ? { ...a, page: { rows: [{ label: 'X', src: '../../etc/passwd' }] } } : a)) },
-  });
-  check('活动版式里不认识的数据来源也被拒', badPageSrc.status === 400);
-
-  // 回到跟随模版
-  const back = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
-  check('去掉 page 之后回到跟随模版', back.body.activities[0].page === undefined);
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
 // 20. 活动状态（从原来那个全局「游戏状态」搬过来的）
@@ -416,6 +363,20 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('版式存得下来', saved.status === 200 && b.length === 4, JSON.stringify(b).slice(0, 100));
   check('横框上那两行字能改', b[0]?.word === '打卡' && b[0].brand === 'GCGCM 迎新');
   check('栏目块能只留一栏', b[1]?.rows?.length === 1 && b[1].cols === 3);
+
+  // 栏目条能绑「持照人」那一组的每一个来源
+  const holder = ['player', 'code', 'passport', 'contact', 'team', 'visited', 'signed', 'stampDate'];
+  const bound = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0 ? { ...a, blocks: [{
+      kind: 'fields', x: 4, y: 27, w: 92, h: 58, cols: 3,
+      rows: holder.map((src, k) => ({ key: `k${k}`, label: src.toUpperCase(), src })),
+    }] } : a)) },
+  });
+  check('持照人那一组的来源都收得下',
+    bound.status === 200
+    && bound.body.activities[0].blocks[0].rows.map((r) => r.src).join(',') === holder.join(','),
+    JSON.stringify(bound.body.activities?.[0]?.blocks?.[0]?.rows?.map((r) => r.src)));
   check('撞了的 id 被错开', b[0]?.id !== b[1]?.id, `${b[0]?.id} / ${b[1]?.id}`);
   check('坐标被夹回合理范围', b[2]?.x <= 120 && b[2]?.y >= -20, `x=${b[2]?.x} y=${b[2]?.y}`);
   check('旋转被夹回 ±180', Math.abs(b[2]?.rot) <= 180, `rot=${b[2]?.rot}`);

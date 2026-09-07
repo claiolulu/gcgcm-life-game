@@ -42,9 +42,13 @@ const KIND_NAME = Object.fromEntries(PALETTE.map((p) => [p.kind, p.name]));
 /** 编辑器里用的示例数据。真页面上这些每个人都不一样。 */
 function sampleData(activity) {
   return blockData({
-    station: activity, passportNo: 'GCGCM000001', pageNo: '01',
+    station: activity,
+    me: { name: '林小满', code: '01', contact: 'wx: xiaoman' },
+    passportNo: 'GCGCM000001', pageNo: '01',
     surname: '林', given: '小满', identityLabel: 'SOLO',
     visaScore: null, isCheckin: false, stampTone: '',
+    stampDate: '13 SEP 2026', doneCount: 3,
+    teamBadge: { en: 'RED', symbol: '★' }, signed: true,
     mrz1: 'P<GCGCMPLAYER<<ONE<<<<<<<<<<<<<<<<<<',
     mrz2: 'GCGCM000001<GCGCM——<00PTS<<<<<<<<<<',
   });

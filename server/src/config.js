@@ -127,18 +127,32 @@ export const THEME = {
  * 哪几场没变，没人说得清。
  */
 export const VISA_ROW_SOURCES = [
-  { key: 'text',     name: '固定文字',   hint: '这一栏所有人看到的都一样' },
-  { key: 'post',     name: '签发站',     hint: 'GCGCM + 页码' },
-  { key: 'control',  name: '控制号',     hint: '护照号/页码' },
-  { key: 'surname',  name: '姓',         hint: '选手资料页上的姓' },
-  { key: 'given',    name: '名',         hint: '选手资料页上的名' },
-  { key: 'identity', name: '身份',       hint: 'SOLO / DUO / TRIO' },
-  { key: 'tag',      name: '活动类型',   hint: '活动清单里的「类型」' },
-  { key: 'host',     name: '负责人',     hint: '活动清单里的「负责人」' },
-  { key: 'date',     name: '活动日期',   hint: '没填就印「TBC 待定」' },
-  { key: 'name',     name: '活动名',     hint: '' },
-  { key: 'en',       name: '活动英文名', hint: '' },
-  { key: 'status',   name: '出席状态',   hint: '盖过章印 ✓，没盖印 — —' },
+  { key: 'text',      group: '自己填', name: '固定文字',   hint: '这一栏所有人看到的都一样' },
+
+  // 持照人 —— 每个人不一样，服务端按人算，同工填不出来
+  { key: 'player',    group: '持照人', name: '名字',       hint: '护照上的名字（报名时填的那个）' },
+  { key: 'surname',   group: '持照人', name: '姓',         hint: '资料页上的姓' },
+  { key: 'given',     group: '持照人', name: '名',         hint: '资料页上的名' },
+  { key: 'code',      group: '持照人', name: '编号',       hint: '找回护照用的那个号' },
+  { key: 'passport',  group: '持照人', name: '护照号',     hint: 'GCGCM000001' },
+  { key: 'contact',   group: '持照人', name: '联系方式',   hint: '报名时留的微信 / 邮箱，没留就空着' },
+  { key: 'identity',  group: '持照人', name: '身份',       hint: 'SOLO / DUO / TRIO' },
+  { key: 'team',      group: '持照人', name: '队伍',       hint: '颜色 + 符号，没编队就印「——」' },
+  { key: 'visited',   group: '持照人', name: '参加过几场', hint: '整本护照上盖了几个章' },
+
+  // 这一场活动 —— 全场一样，在活动详情页里改
+  { key: 'name',      group: '这一场', name: '活动名',     hint: '' },
+  { key: 'en',        group: '这一场', name: '活动英文名', hint: '' },
+  { key: 'tag',       group: '这一场', name: '活动类型',   hint: '活动清单里的「类型」' },
+  { key: 'host',      group: '这一场', name: '负责人',     hint: '活动清单里的「负责人」' },
+  { key: 'date',      group: '这一场', name: '活动日期',   hint: '没填就印「TBC 待定」' },
+
+  // 这一页 —— 跟这个人在这一场的关系
+  { key: 'status',    group: '这一页', name: '出席状态',   hint: '盖过章印 ✓，没盖印 — —' },
+  { key: 'stampDate', group: '这一页', name: '盖章日期',   hint: '还没盖就空着' },
+  { key: 'signed',    group: '这一页', name: '报名状态',   hint: '报了印「已报名」，没报印「——」' },
+  { key: 'post',      group: '这一页', name: '签发站',     hint: 'GCGCM + 页码' },
+  { key: 'control',   group: '这一页', name: '控制号',     hint: '护照号/页码' },
 ];
 
 export const VISA_TEMPLATE = {
