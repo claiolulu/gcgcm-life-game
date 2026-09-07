@@ -5,6 +5,7 @@ import { NetBar, Sheet, useToast, useConfirm, useLocalState, ago } from '../comp
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster } from '../lib/staff.js';
+import { themeVarsOf, coverBgOf } from './book/bookVals.js';
 
 export default function Admin() {
   const nav = useNavigate();
@@ -184,6 +185,84 @@ export default function Admin() {
       setActsDirty(false);
       await loadConfig();          // 让本页的 config 立刻拿到新清单
       toast(`已保存 ${res.activities.length} 场活动`, 'ok');
+    } catch (err) {
+      toast(err.message || '保存失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /* -------------------------- 活动配图 -------------------------- */
+
+  /**
+   * 上传前先在浏览器里压一遍。
+   *
+   * 手机直出的照片是四五兆、四千像素宽，原样传上去护照页要加载好几秒，
+   * 而签证页上那块图只有八十来像素高 —— 传原图纯粹是浪费所有人的流量。
+   * 1280px / q0.82 之后一般在 200KB 上下，放大看也还清楚。
+   *
+   * imageOrientation 要显式给：手机竖着拍的照片方向记在 EXIF 里，
+   * 不给的话画到 canvas 上会躺倒。
+   */
+  async function shrink(file) {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const max = 1280;
+    const k = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * k));
+    const h = Math.max(1, Math.round(bitmap.height * k));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    return canvas.toDataURL('image/jpeg', 0.82);
+  }
+
+  async function pickPhoto(i, file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) return toast('只能选图片', 'err');
+    setBusy(`photo-${i}`);
+    try {
+      const res = await api('/api/admin/upload', {
+        method: 'POST', body: { data: await shrink(file) }, token,
+      });
+      editAct(i, { photo: res.url });
+      toast(`配图已上传（${Math.round(res.bytes / 1024)}KB），记得保存`, 'ok');
+    } catch (err) {
+      toast(err.message || '上传失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /* -------------------------- 护照模版 -------------------------- */
+
+  const [theme, setTheme] = useState(null);        // null = 还没从配置载入
+  const [themeDirty, setThemeDirty] = useState(false);
+  const presets = config?.themePresets || [];
+
+  useEffect(() => {
+    if (themeDirty) return;
+    if (config?.theme) setTheme({ ...config.theme });
+  }, [config, themeDirty]);
+
+  const editTheme = (patch) => {
+    setTheme((cur) => ({ ...cur, ...patch }));
+    setThemeDirty(true);
+  };
+
+  const applyPreset = (pre) => {
+    const { key, name, ...colors } = pre;
+    editTheme({ ...colors, preset: key });
+  };
+
+  async function saveTheme() {
+    setBusy('theme');
+    try {
+      const res = await api('/api/admin/theme', { method: 'POST', body: theme, token });
+      setTheme(res.theme);
+      setThemeDirty(false);
+      await loadConfig();
+      toast('模版已保存，所有人的护照都换了', 'ok');
     } catch (err) {
       toast(err.message || '保存失败', 'err');
     } finally {
@@ -545,6 +624,39 @@ export default function Admin() {
               </div>
               <input className="input" value={a.desc} maxLength={200} placeholder="这场活动是什么（显示在签证页上）"
                 onChange={(e) => editAct(i, { desc: e.target.value })} />
+
+              {/* 配图：贴在签证页右栏最上面。上传完还要点保存才算数 */}
+              <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <div style={{
+                  flex: '0 0 68px', height: 44, border: '1px solid var(--line)',
+                  borderRadius: 3, overflow: 'hidden', background: 'var(--ink-3)',
+                  backgroundImage: a.photo ? `url("${a.photo}")` : 'none',
+                  backgroundSize: 'cover', backgroundPosition: 'center',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {!a.photo && <span className="tiny dim">无图</span>}
+                </div>
+                <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+                  {busy === `photo-${i}` ? '上传中…' : a.photo ? '换一张' : '＋ 配图'}
+                  <input
+                    type="file" accept="image/*" hidden
+                    disabled={busy === `photo-${i}`}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      // 清空 value：同一张图选第二次也要能触发 change
+                      e.target.value = '';
+                      pickPhoto(i, f);
+                    }}
+                  />
+                </label>
+                {a.photo && (
+                  <button className="btn btn--sm btn--ghost" onClick={() => editAct(i, { photo: '' })}>
+                    去掉
+                  </button>
+                )}
+                <div className="tiny dim grow">签证页右上角那张图，横构图最好看</div>
+              </div>
+
               <div className="tiny dim">
                 id <code>{a.id}</code> · 已有 {stampCount[a.id] || 0} 人盖章
                 {stampCount[a.id] ? '（删掉之后这些记录会失去归属）' : ''}
@@ -564,6 +676,213 @@ export default function Admin() {
           </button>
         </div>
       </div>
+
+      {/* 护照模版 */}
+      {theme && (
+        <div className="card stack" style={{ marginBottom: 12 }}>
+          <div className="section-title">🎨 护照模版</div>
+          <div className="tiny dim">
+            改的是所有人手机上那本护照的样子。保存之后立刻生效，不用重启，
+            也不用让人重新打开页面。
+          </div>
+
+          {/* 预览：跟真页面用同一套算法算颜色，所见即所得 */}
+          <div
+            style={{
+              ...themeVarsOf(theme),
+              display: 'flex', gap: 8, padding: 10, borderRadius: 6,
+              background: '#141110', border: '1px solid var(--line)',
+            }}
+          >
+            {/* 封面 */}
+            <div style={{
+              flex: '0 0 92px', height: 132, background: coverBgOf(theme),
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', gap: 6, position: 'relative',
+            }}>
+              <div style={{ position: 'absolute', inset: 6, border: '1px solid rgba(var(--pp-gold-2-rgb),.45)' }} />
+              <div style={{ fontSize: 7, letterSpacing: '.3em', color: 'var(--pp-gold-2)' }}>
+                {theme.coverIssuer}
+              </div>
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%',
+                border: '1px solid rgba(var(--pp-gold-2-rgb),.6)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                fontSize: 14, color: 'var(--pp-gold)', fontFamily: "'EB Garamond',serif",
+              }}>M</div>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.14em', color: 'var(--pp-gold)' }}>
+                {theme.coverTitle}
+              </div>
+              <div style={{ fontSize: 7, letterSpacing: '.24em', color: 'rgba(var(--pp-gold-rgb),.78)' }}>
+                {theme.coverEn}
+              </div>
+            </div>
+
+            {/* 签证页 */}
+            <div style={{
+              flex: 1, minWidth: 0, height: 132, background: theme.paper,
+              display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{
+                flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 7px',
+                borderBottom: '1px solid rgba(var(--pp-ink-rgb),.4)',
+              }}>
+                <div style={{
+                  width: 14, height: 14, border: '1px solid rgba(var(--pp-ink-rgb),.35)',
+                  color: 'var(--pp-ink)', fontSize: 8, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>T</div>
+                <div style={{ flex: 1, fontSize: 7, letterSpacing: '.16em', color: 'var(--pp-ink)' }}>
+                  🎓 迎新之夜
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--pp-ink)' }}>06</div>
+              </div>
+              <div style={{ padding: 7, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div style={{ display: 'flex', height: 16, background: '#ece5d6', border: '1px solid rgba(var(--pp-ink-rgb),.35)' }}>
+                  <div style={{
+                    flex: '0 0 38%', display: 'flex', alignItems: 'center', paddingLeft: 5,
+                    fontSize: 8, letterSpacing: '.2em', color: 'var(--pp-ink)',
+                  }}>VISA</div>
+                  <div style={{
+                    flex: 1, background: 'var(--pp-ink)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'flex-end', paddingRight: 5,
+                    fontSize: 6, letterSpacing: '.16em', color: 'var(--pp-gold)',
+                  }}>{theme.visaBrand}</div>
+                </div>
+                <div style={{ fontSize: 6, letterSpacing: '.12em', color: 'rgba(var(--pp-text-rgb),.55)' }}>
+                  ANNOTATION 备注
+                </div>
+                <div style={{ fontSize: 8, lineHeight: 1.6, color: 'var(--pp-text)' }}>
+                  新学年的第一场。分数会归零，但今晚认识的人还在。
+                </div>
+              </div>
+              {/* 水印：用护照里真实那张图，浓度就是滑块的值 */}
+              <div style={{
+                position: 'absolute', right: '4%', top: '18%', width: '38%', bottom: '10%',
+                backgroundImage: 'url("/wm/city-chambers.png")', backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
+                opacity: theme.watermark, pointerEvents: 'none',
+              }} />
+              <div style={{
+                position: 'absolute', right: 8, bottom: 6, width: 40, height: 40,
+                borderRadius: '50%', border: `2px solid ${theme.stamp}`, color: theme.stamp,
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', opacity: 0.9, transform: 'rotate(-12deg)',
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</div>
+                <div style={{ fontSize: 5.5, fontWeight: 700, marginTop: 1 }}>已参加</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 预设 */}
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {presets.map((pre) => (
+              <button
+                key={pre.key}
+                className={`btn btn--sm ${theme.preset === pre.key ? 'btn--primary' : 'btn--ghost'}`}
+                onClick={() => applyPreset(pre)}
+              >
+                <span style={{
+                  display: 'inline-block', width: 9, height: 9, borderRadius: '50%',
+                  background: pre.ink, border: `1px solid ${pre.gold}`, marginRight: 5,
+                  verticalAlign: 'middle',
+                }} />
+                {pre.name}
+              </button>
+            ))}
+          </div>
+
+          {/* 四个色 */}
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+            {[
+              ['ink', '主色', '抬头、边框、签证横幅'],
+              ['gold', '烫金', '封面的字和线'],
+              ['paper', '纸色', '内页的底'],
+              ['text', '正文', '正文黑'],
+              ['stamp', '盖章', '「已参加」那个章'],
+            ].map(([key, label, hint]) => (
+              <label key={key} className="stack-sm" style={{ gap: 3 }} title={hint}>
+                <div className="tiny dim">{label}</div>
+                <div className="row" style={{ gap: 5, alignItems: 'center' }}>
+                  <input
+                    type="color" value={theme[key] || '#000000'}
+                    onChange={(e) => editTheme({ [key]: e.target.value, preset: 'custom' })}
+                    style={{
+                      width: 34, height: 28, padding: 0, border: '1px solid var(--line)',
+                      background: 'none', cursor: 'pointer',
+                    }}
+                  />
+                  <code className="tiny dim">{theme[key]}</code>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {/* 水印浓度 */}
+          <label className="stack-sm" style={{ gap: 4 }}>
+            <div className="tiny dim">
+              水印浓度 <b>{Number(theme.watermark).toFixed(2)}</b>
+              —— 每页底下那张地标图。调太浓会压住正文，所以上限卡在 0.30
+            </div>
+            <input
+              type="range" min="0" max="0.3" step="0.01"
+              value={theme.watermark}
+              onChange={(e) => editTheme({ watermark: Number(e.target.value) })}
+              style={{ width: '100%' }}
+            />
+          </label>
+
+          {/* 印在护照上的字 */}
+          <div className="stack-sm">
+            <div className="tiny dim">
+              印在护照上的字。别的团契要用这本册子，改的就是这几行 ——
+              代码里没有写死任何一处。
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <input className="input grow" value={theme.coverTitle} maxLength={12}
+                placeholder="封面大字" aria-label="封面大字"
+                onChange={(e) => editTheme({ coverTitle: e.target.value })} />
+              <input className="input grow" value={theme.coverEn} maxLength={20}
+                placeholder="封面英文" aria-label="封面英文"
+                onChange={(e) => editTheme({ coverEn: e.target.value })} />
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <input className="input grow" value={theme.coverIssuer} maxLength={20}
+                placeholder="签发机构" aria-label="签发机构"
+                onChange={(e) => editTheme({ coverIssuer: e.target.value })} />
+              <input className="input grow" value={theme.coverSub} maxLength={24}
+                placeholder="封面副题" aria-label="封面副题"
+                onChange={(e) => editTheme({ coverSub: e.target.value })} />
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <input className="input grow" value={theme.visaBrand} maxLength={24}
+                placeholder="签证横幅英文" aria-label="签证横幅英文"
+                onChange={(e) => editTheme({ visaBrand: e.target.value })} />
+              <input className="input grow" value={theme.visaBrandCn} maxLength={16}
+                placeholder="签证横幅中文" aria-label="签证横幅中文"
+                onChange={(e) => editTheme({ visaBrandCn: e.target.value })} />
+            </div>
+          </div>
+
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="btn btn--sm btn--ghost grow"
+              disabled={!themeDirty}
+              onClick={() => { setTheme({ ...config.theme }); setThemeDirty(false); }}
+            >
+              还原
+            </button>
+            <button
+              className="btn btn--sm btn--primary grow"
+              disabled={busy === 'theme' || !themeDirty}
+              onClick={saveTheme}
+            >
+              {busy === 'theme' ? '保存中…' : themeDirty ? '保存模版' : '已保存'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 每组的关卡顺序 */}
       {routes.length > 0 && (

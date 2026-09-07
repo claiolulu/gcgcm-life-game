@@ -52,6 +52,17 @@ export default defineConfig({
             },
           },
           {
+            // 活动配图：后台上传的照片。文件名是内容哈希，换图就是换地址，
+            // 所以可以放心 CacheFirst —— 缓存永远不会是「旧图」，只会是没有
+            urlPattern: ({ url }) => url.pathname.startsWith('/uploads/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'mlg-photos',
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 120 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // 字体：一旦下过就永久用缓存，断网后已经显示过的字仍然是宋体
             urlPattern: ({ url }) => url.pathname.startsWith('/fonts/'),
             handler: 'CacheFirst',

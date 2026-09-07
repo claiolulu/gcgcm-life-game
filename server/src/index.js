@@ -2,6 +2,7 @@ import express from 'express';
 import compression from 'compression';
 import cors from 'cors';
 import http from 'node:http';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,12 +11,12 @@ import { Server as SocketServer } from 'socket.io';
 import {
   GAME, STATIONS, FUNCTIONAL, IDENTITIES, LIFE_EVENT_CARDS, CARD_KINDS,
   GRACE_OPTIONS, AWARDS, GROUP_COLORS, GROUP_SYMBOLS, TIER_LABELS, RESET_PIN,
-  ACTIVITIES,
+  ACTIVITIES, THEME_PRESETS,
 } from './config.js';
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
-  getActivities, setActivities,
+  getActivities, setActivities, getTheme, setTheme, UPLOAD_DIR,
 } from './db.js';
 import {
   playerState, roster, leaderboard, rankOf, applyOp, drawIdentities,
@@ -38,17 +39,37 @@ const io = new SocketServer(server, { cors: { origin: true, credentials: true } 
 app.set('trust proxy', 1);
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '512kb' }));
+// 上传活动配图那一条要走大 body，其余接口卡在 512kb ——
+// 一个开放的 4mb 入口够别人拿来灌满磁盘了
+const jsonSmall = express.json({ limit: '512kb' });
+const jsonImage = express.json({ limit: '4mb' });
+app.use((req, res, next) => (
+  req.path === '/api/admin/upload' ? jsonImage : jsonSmall
+)(req, res, next));
+
+// 上传的图。放在 API 之前 —— 静态文件不该走那些鉴权中间件
+app.use('/uploads', express.static(UPLOAD_DIR, {
+  maxAge: '30d',              // 文件名是内容哈希，改图就是换名字，可以放心长缓存
+  immutable: true,
+  fallthrough: false,         // 找不到就 404，不要落到 SPA 的 index.html 上
+}));
 
 /* ------------------------------ 实时广播 ------------------------------ */
 // 只广播一个"有变化"的信号，不推数据 —— payload 极小，客户端各自按需拉增量。
 // 弱网下这比推全量安全得多。
 let broadcastTimer = null;
+let broadcastReason = 'update';
 function broadcast(reason = 'update') {
+  // 400ms 内的多次广播合并成一次，但原因不能随便丢：
+  // config / settings 是客户端要据此重新拉配置的信号，被一条普通的
+  // update 盖掉的话，改了模版或活动清单，已经开着页面的人就收不到。
+  if (reason === 'config' || reason === 'settings') broadcastReason = reason;
   if (broadcastTimer) return;
   broadcastTimer = setTimeout(() => {
+    const r = broadcastReason;
     broadcastTimer = null;
-    io.emit('tick', { ts: Date.now(), reason });
+    broadcastReason = 'update';
+    io.emit('tick', { ts: Date.now(), reason: r });
   }, 400);
 }
 
@@ -100,6 +121,8 @@ app.get('/api/config', (_req, res) => {
     groupSymbols: GROUP_SYMBOLS,
     tierLabels: TIER_LABELS,
     resetPin: RESET_PIN,
+    theme: getTheme(),
+    themePresets: THEME_PRESETS,
     settings: getSettings(),
     serverTs: Date.now(),
   });
@@ -549,12 +572,99 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       host: String(a?.host || '').trim().slice(0, 20),
       desc: String(a?.desc || '').trim().slice(0, 200),
       landmarkKey: String(a?.landmarkKey || '').trim().slice(0, 40),
+      photo: safePhoto(a?.photo),
     });
   }
 
   setActivities(clean);
   broadcast('config');
   res.json({ activities: clean });
+});
+
+/**
+ * 配图地址只收两种：本机上传的 /uploads/xxx，或者一个 https 外链。
+ *
+ * 不能直收任意字符串 —— 这个值会变成签证页上的 background-image，
+ * 塞个 javascript: 或 data: 进去就是一条 XSS。
+ */
+function safePhoto(v) {
+  const s = String(v || '').trim().slice(0, 300);
+  if (!s) return '';
+  if (/^\/uploads\/[A-Za-z0-9_-]+\.(jpg|png|webp)$/.test(s)) return s;
+  if (/^https:\/\/[^\s"'<>]+$/i.test(s)) return s;
+  return '';
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * 改护照模版。字段少但都要卡死 —— 颜色直接进 CSS 变量，
+ * 放任意字符串进去等于把一个样式注入口开在所有人的护照上。
+ */
+app.post('/api/admin/theme', staffAuth('admin'), (req, res) => {
+  const b = req.body || {};
+  const patch = {};
+
+  for (const k of ['ink', 'gold', 'paper', 'text', 'stamp']) {
+    if (b[k] === undefined) continue;
+    if (!HEX.test(String(b[k]))) return res.status(400).json({ error: `${k} 要是 #rrggbb 格式的颜色` });
+    patch[k] = String(b[k]).toLowerCase();
+  }
+
+  if (b.watermark !== undefined) {
+    const n = Number(b.watermark);
+    if (!Number.isFinite(n) || n < 0 || n > 0.3) {
+      return res.status(400).json({ error: '水印浓度要在 0 到 0.3 之间' });
+    }
+    patch.watermark = Math.round(n * 100) / 100;
+  }
+
+  for (const [k, max] of [
+    ['coverIssuer', 20], ['coverSub', 24], ['coverTitle', 12], ['coverEn', 20],
+    ['visaBrand', 24], ['visaBrandCn', 16], ['preset', 20],
+  ]) {
+    if (b[k] === undefined) continue;
+    patch[k] = String(b[k]).replace(/[\r\n]/g, ' ').trim().slice(0, max);
+  }
+
+  setTheme(patch);
+  broadcast('config');
+  res.json({ theme: getTheme() });
+});
+
+/**
+ * 上传一张活动配图。
+ *
+ * 收 data URL 而不是 multipart：前端本来就要在 canvas 里压缩一遍
+ * （手机直出的照片有四五兆，原样传上来护照页要加载好几秒），
+ * 压完手里拿到的就是 data URL，再包成 multipart 只是白绕一圈。
+ *
+ * 文件名用内容哈希：同一张图传几次都只存一份，也不用管重名。
+ */
+app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
+  const raw = String(req.body?.data || '');
+  const m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+  if (!m) return res.status(400).json({ error: '只收 jpeg / png / webp 图片' });
+
+  let buf;
+  try { buf = Buffer.from(m[2], 'base64'); } catch { return res.status(400).json({ error: '图片数据坏了' }); }
+  if (buf.length < 64) return res.status(400).json({ error: '图片数据坏了' });
+  if (buf.length > 2_000_000) return res.status(413).json({ error: '图片太大了（压缩后上限 2MB）' });
+
+  // 认头几个字节，不认它自己声明的类型 —— 声明是客户端说了算的
+  const ext =
+    buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff ? 'jpg'
+    : buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'png'
+    : buf.subarray(0, 4).toString('latin1') === 'RIFF'
+      && buf.subarray(8, 12).toString('latin1') === 'WEBP' ? 'webp'
+    : null;
+  if (!ext) return res.status(400).json({ error: '这不是一张图片' });
+
+  const name = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16) + '.' + ext;
+  const file = path.join(UPLOAD_DIR, name);
+  if (!fs.existsSync(file)) fs.writeFileSync(file, buf);
+
+  res.json({ url: `/uploads/${name}`, bytes: buf.length });
 });
 
 app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {

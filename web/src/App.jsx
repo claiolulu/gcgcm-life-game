@@ -5,6 +5,7 @@ import { ToastProvider, ConfirmProvider, Loading } from './components/ui.jsx';
 import { loadConfig, useConfig } from './lib/config.js';
 import { startPlayerSync, usePlayer, hasSession } from './lib/player.js';
 import { startStaffSync, useStaff } from './lib/staff.js';
+import { onTick } from './lib/realtime.js';
 
 import Register from './pages/Register.jsx';
 import PassportBook from './pages/book/PassportBook.jsx';
@@ -105,6 +106,12 @@ export default function App() {
     loadConfig().finally(() => setBooted(true));
     startPlayerSync();
     startStaffSync();
+    // 后台改了活动清单或护照模版会广播 config。原来只在启动时拉一次，
+    // 于是现场改完之后，已经把护照开在手里的人要自己刷新才看得到 ——
+    // 而「不用让人重新打开页面」正是总控台上写着的承诺。
+    return onTick((p) => {
+      if (p.reason === 'config' || p.reason === 'settings') loadConfig();
+    });
   }, []);
 
   if (!booted && !config) return <Loading label="正在载入游戏…" />;

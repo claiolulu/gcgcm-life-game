@@ -266,16 +266,21 @@ export default function PassportBook() {
    * 失败无所谓，水印只是底纹。
    */
   useEffect(() => {
-    const keys = (config?.stations || []).map((st) => st.landmarkKey)
-      .concat(['cathedral', 'university', 'wellington'])
+    // 签证页现在按活动装订，水印要跟着活动的 landmarkKey 取 ——
+    // 原来读的是 stations（游戏版的八个关卡），预取的是一批翻不到的图
+    const acts = config?.activities || [];
+    const urls = acts.map((a) => (a.landmarkKey ? `/wm/${a.landmarkKey}.png` : null))
+      .concat(['cathedral', 'university', 'wellington'].map((k) => `/wm/${k}.png`))
+      // 活动配图也一起预取：它比水印更值得提前拿，那是页面上唯一的实照
+      .concat(acts.map((a) => a.photo || null))
       .filter(Boolean);
-    if (keys.length === 0) return;
+    if (urls.length === 0) return;
 
     let cancelled = false;
     const run = async () => {
-      for (const k of [...new Set(keys)]) {
+      for (const u of [...new Set(urls)]) {
         if (cancelled) return;
-        try { await fetch(`/wm/${k}.png`, { cache: 'force-cache' }); } catch { /* 装饰性资源，失败就算了 */ }
+        try { await fetch(u, { cache: 'force-cache' }); } catch { /* 装饰性资源，失败就算了 */ }
       }
     };
     const id = window.requestIdleCallback

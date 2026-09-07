@@ -72,6 +72,50 @@ export const ACTIVITIES = [
 ];
 
 /**
+ * ========================= 护照模版 =========================
+ *
+ * 护照页的样式。总控台可改（存在 settings 的 _theme 下），这里是出厂默认值。
+ *
+ * 颜色只有四个可调项，因为设计稿里真正成体系的就这四种：
+ *   ink    主色。抬头、边框、按钮、签证横幅的左半边
+ *   gold   烫金。封面的字和线，深色块上的字；两种更深的金是从它算出来的
+ *   paper  纸色。所有内页的底
+ *   text   正文黑
+ *
+ * 其余的颜色（盖章的绿、水印的灰）跟着这四个走，或者本来就不该由人调。
+ *
+ * 生成的 CSS 变量注入在护照册最外层，设计稿里那些写死的色值在转换时
+ * 已经被机械替换成 var(--ink) 之类（见 design/convert.py 的调色板补丁）。
+ */
+export const THEME = {
+  preset: 'classic',
+  ink: '#5c1a22',
+  gold: '#e6cd91',
+  paper: '#f3ede0',
+  text: '#2a2320',
+  // 地标水印的浓度。太浓会压住正文，上限卡在 0.3
+  watermark: 0.13,
+  // 盖章的颜色。打卡本只有「参加了」一种章，所以只有一个色
+  stamp: '#2f6148',
+  // 封面
+  coverIssuer: 'GCGCM',
+  coverSub: '迷 你 人 生 国',
+  coverTitle: '人生护照',
+  coverEn: 'PASSPORT',
+  // 签证页横幅右侧那两行
+  visaBrand: 'MINI LIFE GAME',
+  visaBrandCn: '迷你人生游戏',
+};
+
+/** 四套预设。总控台点一下就把上面那几个色值整套换掉。 */
+export const THEME_PRESETS = [
+  { key: 'classic',  name: '经典酒红', ink: '#5c1a22', gold: '#e6cd91', paper: '#f3ede0', text: '#2a2320', stamp: '#2f6148' },
+  { key: 'midnight', name: '午夜深蓝', ink: '#1f3a5c', gold: '#d9c48a', paper: '#eef1f4', text: '#1e2833', stamp: '#2a5f6b' },
+  { key: 'forest',   name: '林地墨绿', ink: '#26452f', gold: '#dcc98d', paper: '#f1f0e4', text: '#232a22', stamp: '#7a3b2a' },
+  { key: 'kraft',    name: '牛皮纸',   ink: '#4a3524', gold: '#e0c48f', paper: '#efe4d2', text: '#2f2519', stamp: '#5a4a2c' },
+];
+
+/**
  * 8 个主线签证站 —— 与 Claude Design 的护照册设计保持一致，满分 72。
  *
  * minutes 是每组预计占用的时间（含记分和复位），用来排关卡顺序 ——

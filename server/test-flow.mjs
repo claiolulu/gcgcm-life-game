@@ -163,5 +163,91 @@ check('普通工作人员不能调管理员接口', noAuth.status === 403);
 const badPin = await j('/api/staff/login', { method: 'POST', body: { pin: '0000' } });
 check('错误 PIN 被拒', badPin.status === 401);
 
+// 16. 护照模版
+{
+  const before = await j('/api/config');
+  check('配置里带着模版和预设',
+    !!before.body.theme?.ink && Array.isArray(before.body.themePresets) && before.body.themePresets.length > 0);
+
+  const ok = await j('/api/admin/theme', {
+    method: 'POST', headers: adminH,
+    body: { ink: '#1F3A5C', watermark: 0.2, coverTitle: '打卡护照', preset: 'midnight' },
+  });
+  check('管理员能改模版', ok.status === 200 && ok.body.theme.ink === '#1f3a5c', JSON.stringify(ok.body));
+
+  const after = await j('/api/config');
+  check('改完立刻下发给所有人',
+    after.body.theme.ink === '#1f3a5c' && after.body.theme.watermark === 0.2
+    && after.body.theme.coverTitle === '打卡护照');
+  check('没提到的字段保持不变', after.body.theme.gold === before.body.theme.gold);
+
+  const badHex = await j('/api/admin/theme', { method: 'POST', headers: adminH, body: { ink: 'red; background:url(x)' } });
+  check('非法颜色被拒', badHex.status === 400, `状态码 ${badHex.status}`);
+
+  const badWm = await j('/api/admin/theme', { method: 'POST', headers: adminH, body: { watermark: 5 } });
+  check('水印浓度越界被拒', badWm.status === 400, `状态码 ${badWm.status}`);
+
+  const notAdmin = await j('/api/admin/theme', { method: 'POST', headers: staffH, body: { ink: '#000000' } });
+  check('普通工作人员改不了模版', notAdmin.status === 403);
+
+  // 改回默认，免得留给后面的测试一套花里胡哨的颜色
+  await j('/api/admin/theme', {
+    method: 'POST', headers: adminH,
+    body: { ink: '#5c1a22', watermark: 0.13, coverTitle: '人生护照', preset: 'classic' },
+  });
+}
+
+// 17. 活动配图
+{
+  // 最小的合法 PNG（1×1 透明），够走完嗅探那一段
+  const png1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+    + 'YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+  const up = await j('/api/admin/upload', {
+    method: 'POST', headers: adminH, body: { data: `data:image/png;base64,${png1x1}` },
+  });
+  check('能上传配图', up.status === 200 && /^\/uploads\/[a-f0-9]{16}\.png$/.test(up.body.url || ''),
+    JSON.stringify(up.body));
+
+  const again = await j('/api/admin/upload', {
+    method: 'POST', headers: adminH, body: { data: `data:image/png;base64,${png1x1}` },
+  });
+  check('同一张图传两次是同一个地址（按内容哈希存）', again.body.url === up.body.url);
+
+  const got = await fetch(BASE + up.body.url);
+  check('上传的图能直接访问', got.status === 200 && (got.headers.get('content-type') || '').includes('png'));
+
+  // 声明是 png、内容是一段文本 —— 认头几个字节才拦得住
+  const fake = await j('/api/admin/upload', {
+    method: 'POST', headers: adminH,
+    body: { data: 'data:image/png;base64,' + Buffer.from('<svg onload=alert(1)>'.repeat(8)).toString('base64') },
+  });
+  check('伪装成图片的文件被拒', fake.status === 400, `状态码 ${fake.status}`);
+
+  const notAdmin = await j('/api/admin/upload', {
+    method: 'POST', headers: staffH, body: { data: `data:image/png;base64,${png1x1}` },
+  });
+  check('普通工作人员不能上传', notAdmin.status === 403);
+
+  const missing = await fetch(BASE + '/uploads/deadbeefdeadbeef.jpg');
+  check('不存在的图返回 404，不会掉到首页上', missing.status === 404, `状态码 ${missing.status}`);
+
+  // 存进活动里
+  const cfg = await j('/api/config');
+  const acts = cfg.body.activities.map((a, i) => (i === 0 ? { ...a, photo: up.body.url } : a));
+  const saved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: acts } });
+  check('配图存得进活动', saved.status === 200 && saved.body.activities[0].photo === up.body.url,
+    JSON.stringify(saved.body?.activities?.[0]));
+
+  const evil = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: acts.map((a, i) => (i === 0 ? { ...a, photo: 'javascript:alert(1)' } : a)) },
+  });
+  check('危险的配图地址被清空（不是原样存下来）',
+    evil.status === 200 && evil.body.activities[0].photo === '', JSON.stringify(evil.body?.activities?.[0]));
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: cfg.body.activities } });
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

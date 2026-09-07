@@ -568,6 +568,139 @@ def apply_patches(jsx):
             jsx = jsx[:line_start] + intro + jsx[loop_end:]
             n += 1
 
+
+    # ================== 护照模版：让后台能改样式 ==================
+    #
+    # 下面这几段必须放在所有其它补丁之后：最后那一步会把设计稿里写死的
+    # 色值整体换成 CSS 变量，前面补丁里注入的色值也一并被换掉。
+    # 反过来（先换变量再打补丁）那些以色值为锚点的补丁会全部失配。
+
+    # 8) 封面底色跟着主色走。
+    #    设计稿是一条三段渐变（亮 → 主色 → 暗），后台只给一个主色，
+    #    另外两段在 bookVals 里按固定比例算出来 —— 让人分别调三档，
+    #    调出来的只会更难看。
+    before = jsx
+    jsx = jsx.replace(
+        'background: "linear-gradient(155deg,#6b2129 0%,#5c1a22 45%,#48131a 100%)"',
+        'background: v.coverBg', 1)
+    assert jsx != before, "没找到封面底色"
+    n += 1
+
+    # 9) 封面和签证横幅上的字改成可配置。
+    #    这几行是整本护照里唯一带「机构身份」的地方 —— 别的团契要用这套
+    #    册子，改的就是这四行加签证横幅那两行，不该为此改代码。
+    #
+    #    「GCGCM」在别处还出现四次（正文、签发方、盖章），所以先把范围
+    #    缩到封面那一块再替换 —— 按缩进匹配不行，别处也有同样缩进的那行。
+    c0 = jsx.find('{v.isCover ? (')
+    c1 = jsx.find('{v.isPaper ? (')
+    assert 0 <= c0 < c1, "没找到封面区块"
+    cover = jsx[c0:c1]
+    for needle, val in (
+        ('GCGCM',           '{v.coverIssuer}'),
+        ('迷 你 人 生 国',   '{v.coverSub}'),
+        ('人生护照',         '{v.coverTitle}'),
+        ('PASSPORT',        '{v.coverEn}'),
+    ):
+        assert cover.count(needle) == 1, f"封面文案锚点不唯一：{needle}"
+        cover = cover.replace(needle, val, 1)
+    jsx = jsx[:c0] + cover + jsx[c1:]
+
+    for needle, val in (
+        ('MINI LIFE GAME', '{v.visaBrand}'),
+        ('迷你人生游戏',    '{v.visaBrandCn}'),
+    ):
+        assert jsx.count(needle) == 1, f"签证横幅锚点不唯一：{needle}"
+        jsx = jsx.replace(needle, val, 1)
+    n += 1
+
+    # 10) 水印浓度可调。竖版页 .13、横版页 .11 是设计稿定的，
+    #     后台给一个值，两处一起跟着走（横版页的水印面积小，本来就该浅一点，
+    #     但差 0.02 的讲究没必要留给人调）。
+    before = jsx
+    jsx = jsx.replace('opacity: ".13", backgroundRepeat', 'opacity: v.wmOpacity, backgroundRepeat', 1)
+    jsx = jsx.replace('opacity: ".11", backgroundRepeat', 'opacity: v.wmOpacity, backgroundRepeat', 1)
+    assert jsx.count('opacity: v.wmOpacity') == 2, "没找到两处水印"
+    n += 1
+
+    # 11) 签证页配上这一场的照片。
+    #
+    #     放在右栏最上面（关卡名之前）—— 那一栏本来就是「这一页在讲哪件事」，
+    #     照片是这句话最直接的说法。没配图就整块不渲染，不留空框：
+    #     签证页是一整块排版，一个占位框比没有更显得没做完。
+    marker = ('<div style={{flex: "none", width: "40%", display: "flex", '
+              'flexDirection: "column", gap: "9px"}}>\n')
+    i11 = jsx.find(marker)
+    assert i11 != -1, "没找到签证页右栏"
+    end11 = i11 + len(marker)
+    line_start = jsx.rfind('\n', 0, i11) + 1
+    indent = jsx[line_start:i11] + '  '
+    photo = (
+        indent + '{v.hasVisaPhoto ? (\n'
+        + indent + '  <div style={{flex: "none", padding: "3px", background: "#fff", '
+        'border: "1px solid rgba(92,26,34,.35)", boxShadow: "0 1px 5px rgba(60,40,30,.2)"}}>\n'
+        + indent + '    <div style={{width: "100%", height: "78px", backgroundImage: v.visaPhoto, '
+        'backgroundSize: "cover", backgroundPosition: "center", '
+        'filter: "saturate(.86) contrast(1.04)"}} />\n'
+        + indent + '  </div>\n'
+        + indent + ') : null}\n'
+    )
+    jsx = jsx[:end11] + photo + jsx[end11:]
+    n += 1
+
+    # 11b) 章中间那个大字改由 bookVals 决定。
+    #      设计稿印的是「+分数」，打卡本没有分数这一说，盖的章上写「+0」
+    #      看着像这场活动被判了零分。
+    before = jsx
+    jsx = jsx.replace('+{v.visaScore}\n', '{v.stampBig}\n', 1)
+    assert jsx != before, "没找到盖章上的分数"
+    n += 1
+
+    # 12) 把设计稿写死的色值换成 CSS 变量。
+    #
+    #     变量名一律带 pp- 前缀：App 自己的设计令牌里已经有 --ink / --gold /
+    #     --text（深墨蓝、亮金、近白），护照册这一层如果同名重定义，
+    #     子树里所有用 App 样式类的元素（弹层、按钮）都会跟着变色。
+    #
+    #     变量由 bookVals 的 themeVarsOf() 算出来、挂在最外层容器上，
+    #     所以整棵树（包括翻页时克隆出去的那份影子页，它在容器内部）都继承得到。
+    #
+    #     金色在设计稿里有三档（#e6cd91 / #c6a45f / #9c7c3c），后台只调最亮的
+    #     那一档，另外两档按比例算 —— 见 bookVals 的 shade()。
+    #
+    #     rgba(var(--ink-rgb),.35) 这种写法靠的是 var() 在解析色值之前就完成
+    #     替换，浏览器看到的仍然是一个普通的 rgba()。
+    PALETTE = [
+        ('#5c1a22',             'var(--pp-ink)'),
+        ('rgba(92,26,34,',      'rgba(var(--pp-ink-rgb),'),
+        ('#e6cd91',             'var(--pp-gold)'),
+        ('rgba(230,205,145,',   'rgba(var(--pp-gold-rgb),'),
+        ('#c6a45f',             'var(--pp-gold-2)'),
+        ('rgba(198,164,95,',    'rgba(var(--pp-gold-2-rgb),'),
+        ('#9c7c3c',             'var(--pp-gold-3)'),
+        ('#b9913f',             'var(--pp-gold-3)'),
+        ('rgba(156,124,60,',    'rgba(var(--pp-gold-3-rgb),'),
+        ('#2a2320',             'var(--pp-text)'),
+        ('rgba(42,35,32,',      'rgba(var(--pp-text-rgb),'),
+    ]
+    swapped = 0
+    for old, new in PALETTE:
+        c = jsx.count(old)
+        assert c > 0, f"调色板里的 {old} 一处都没找到，设计稿改过了？"
+        jsx = jsx.replace(old, new)
+        swapped += c
+    print(f'  调色板：{swapped} 处色值换成 CSS 变量')
+    n += 1
+
+    # 13) 变量挂到最外层。
+    #     必须在安全区那个补丁之后 —— 它改的是同一个开标签。
+    before = jsx
+    jsx = jsx.replace(
+        '<div style={{height: "100dvh", boxSizing: "border-box", ',
+        '<div style={{...v.themeVars, height: "100dvh", boxSizing: "border-box", ', 1)
+    assert jsx != before, "没找到最外层容器"
+    n += 1
+
     print(f'  应用了 {n} 处定制补丁')
     return jsx
 

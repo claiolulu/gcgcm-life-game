@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_SETTINGS, ACTIVITIES } from './config.js';
+import { DEFAULT_SETTINGS, ACTIVITIES, THEME } from './config.js';
 import { randomToken, safeJSON } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,6 +11,14 @@ const DATA_DIR = process.env.MLG_DATA_DIR || path.join(__dirname, '..', 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 export const DB_PATH = path.join(DATA_DIR, 'game.db');
+
+/**
+ * 总控台上传的活动配图。跟数据库放在一起 —— data/ 是整个部署里唯一
+ * 需要挂持久卷的目录，图片放别处升级一次就没了。
+ * 文件名是内容哈希，所以同一张图传两次不会存两份。
+ */
+export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 export const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');   // 并发读不阻塞写，断电也不会烂库
@@ -132,6 +140,22 @@ export function getActivities() {
 
 export function setActivities(list) {
   setSetting('_activities', list);
+}
+
+/**
+ * 护照模版。和活动清单一样存在 settings 里，没改过就是 config.js 的默认值。
+ *
+ * 一定要和默认值合并再返回：以后往 THEME 里加字段时，库里那份老记录
+ * 缺这个键，不合并的话前端拿到 undefined，页面上就是一块没颜色的地方。
+ */
+export function getTheme() {
+  const row = getSettingStmt.get('_theme');
+  const saved = row ? safeJSON(row.value, null) : null;
+  return { ...THEME, ...(saved && typeof saved === 'object' ? saved : {}) };
+}
+
+export function setTheme(patch) {
+  setSetting('_theme', { ...getTheme(), ...patch });
 }
 
 export function getSettings() {

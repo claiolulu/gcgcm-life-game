@@ -23,7 +23,7 @@ const C39 = {
   'Z':'nwwnwnnnn','-':'nwnnnnwnw','*':'nwnnwnwnn',
 };
 
-function code39(no, unit = 1.5, color = '#2a2320') {
+function code39(no, unit = 1.5, color = 'var(--pp-text)') {
   const out = [];
   const chars = ('*' + no + '*').split('');
   chars.forEach((ch, ci) => {
@@ -39,6 +39,62 @@ function code39(no, unit = 1.5, color = '#2a2320') {
 /* ------------------------------ 常量 ------------------------------ */
 
 const TONES = { cream: '#f3ede0', ivory: '#f7f2e7', blue: '#eceff0' };
+
+/* ---------------------------- 护照模版 ---------------------------- */
+
+/**
+ * 后台改不到、或者还没拉到配置时用的兜底。字段和 server/src/config.js
+ * 的 THEME 一一对应 —— 那边是权威，这边只保证离线首帧不至于没颜色。
+ */
+const THEME_FALLBACK = {
+  ink: '#5c1a22', gold: '#e6cd91', paper: '#f3ede0', text: '#2a2320',
+  watermark: 0.13, stamp: '#2f6148',
+  coverIssuer: 'GCGCM', coverSub: '迷 你 人 生 国',
+  coverTitle: '人生护照', coverEn: 'PASSPORT',
+  visaBrand: 'MINI LIFE GAME', visaBrandCn: '迷你人生游戏',
+};
+
+const hex2rgb = (h) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '').trim());
+  if (!m) return [0, 0, 0];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+const rgbStr = (h) => hex2rgb(h).join(',');
+const shade = (h, k) => {
+  // k < 1 变暗，k > 1 变亮。设计稿里有三档金，后台只让人调最亮的那档，
+  // 另外两档按固定比例跟着走 —— 让人分别调三个金色，调出来的只会更难看
+  const [r, g, b] = hex2rgb(h);
+  const f = (x) => Math.max(0, Math.min(255, Math.round(k <= 1 ? x * k : x + (255 - x) * (k - 1))));
+  return `#${[f(r), f(g), f(b)].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+};
+
+/**
+ * 把模版摊成 CSS 变量，注入在护照册最外层。
+ *
+ * 设计稿里那些写死的色值在转换时已经被机械替换成 var(--pp-ink) 之类
+ * （见 design/convert.py 的调色板补丁），所以这里给出的变量名和数量
+ * 必须和那份补丁对得上，改名要两边一起改。
+ */
+export function themeVarsOf(theme) {
+  const t = { ...THEME_FALLBACK, ...(theme || {}) };
+  const gold2 = shade(t.gold, 0.86);   // 设计稿里的 #c6a45f：封面的细线和圆环
+  const gold3 = shade(t.gold, 0.68);   // 设计稿里的 #9c7c3c：恩典代币的深边
+  return {
+    '--pp-ink': t.ink, '--pp-ink-rgb': rgbStr(t.ink),
+    '--pp-gold': t.gold, '--pp-gold-rgb': rgbStr(t.gold),
+    '--pp-gold-2': gold2, '--pp-gold-2-rgb': rgbStr(gold2),
+    '--pp-gold-3': gold3, '--pp-gold-3-rgb': rgbStr(gold3),
+    '--pp-text': t.text, '--pp-text-rgb': rgbStr(t.text),
+    '--pp-paper': t.paper,
+  };
+}
+
+/** 封面那块烫金压纹的底：从主色上下各推一档，比单色平涂有厚度 */
+export function coverBgOf(theme) {
+  const ink = (theme || {}).ink || THEME_FALLBACK.ink;
+  return `linear-gradient(155deg,${shade(ink, 1.14)} 0%,${ink} 45%,${shade(ink, 0.82)} 100%)`;
+}
 
 // 盖章颜色对应分档：3 勉强 / 6 正常 / 9 出色
 const STAMP_TONE = { 3: '#4a5b6a', 6: '#2f6148', 9: '#a63a2a' };
@@ -157,6 +213,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
    * 活动是按时间顺序装订的，不走关卡那套按忙闲排班的路线 ——
    * 那是为了把人从同一个门口摊开，活动分散在几个月里，没这个问题。
    */
+  const theme = { ...THEME_FALLBACK, ...(config?.theme || {}) };
   const stations = config?.activities || [];
   const pages = buildPages(stations);
   const cur = pages[ui.page] || pages[0];
@@ -287,7 +344,19 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     syncLabel: syncMeta.label,
     syncHex: syncMeta.hex,
 
-    paper: TONES.cream,
+    /* ---- 模版 ---- */
+    // 变量挂在最外层，护照册整棵树（包括翻页时克隆出去的那份影子页）都继承
+    themeVars: themeVarsOf(theme),
+    coverBg: coverBgOf(theme),
+    coverIssuer: theme.coverIssuer,
+    coverSub: theme.coverSub,
+    coverTitle: theme.coverTitle,
+    coverEn: theme.coverEn,
+    visaBrand: theme.visaBrand,
+    visaBrandCn: theme.visaBrandCn,
+    wmOpacity: String(theme.watermark),
+
+    paper: theme.paper || TONES.cream,
     // 关掉设计稿那层放射状底纹，只留地标水印，页面更干净
     guilloche: 0,
     watermark: landmarkKey ? `url("/wm/${landmarkKey}.png")` : 'none',
@@ -350,8 +419,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       return {
         en: m.en,
         bg: on ? m.color : 'transparent',
-        fg: on ? '#f3ede0' : 'rgba(42,35,32,.7)',
-        bd: on ? m.color : 'rgba(92,26,34,.3)',
+        fg: on ? '#f3ede0' : 'rgba(var(--pp-text-rgb),.7)',
+        bd: on ? m.color : 'rgba(var(--pp-ink-rgb),.3)',
         pick: noop, // 身份由总控台抽签决定，这里只是显示
       };
     }),
@@ -370,10 +439,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
         fg: teamBadge ? teamBadge.hex : undefined },
       { label: 'PLACE OF ISSUE 签发地', value: 'GLASGOW, UK' },
       { label: 'DATE OF ISSUE 签发日期', value: '28 AUG 2026' },
-      { label: 'DATE OF EXPIRY 有效期至', value: 'ETERNAL 无尽无穷', fg: '#5c1a22' },
+      { label: 'DATE OF EXPIRY 有效期至', value: 'ETERNAL 无尽无穷', fg: 'var(--pp-ink)' },
       { label: 'AUTHORITY 签发机关', value: 'GCGCM' },
       { label: 'SCORE 累计积分', value: String(total).padStart(2, '0') },
-    ].map((f) => ({ ...f, fg: f.fg || '#2a2320' })),
+    ].map((f) => ({ ...f, fg: f.fg || 'var(--pp-text)' })),
 
     mrzOn: true,
     mrz1: mrzLine(1, { surname, given, passportNo, identity: identityLabel, total }),
@@ -395,10 +464,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
     /* ---- 导航页 ---- */
     navCards: [
-      { cn: '实时排行', en: 'LEADERBOARD', glyph: 'T', chip: 'rgba(92,26,34,.06)',
+      { cn: '实时排行', en: 'LEADERBOARD', glyph: 'T', chip: 'rgba(var(--pp-ink-rgb),.06)',
         desc: '查看当前积分与全场排名。', go: () => actions.setOverlay('board') },
       { cn: '恩典站', en: 'GRACE STATION', glyph: 'G',
-        chip: 'radial-gradient(circle at 36% 30%,#e6cd91,#b9913f)',
+        chip: 'radial-gradient(circle at 36% 30%,var(--pp-gold),var(--pp-gold-3))',
         desc: '全场只有一枚代币，卡关时可以递出求助。',
         go: () => actions.goto(pages.findIndex((p) => p.kind === 'grace')) },
       { cn: '玩法说明', en: 'HOW TO PLAY', glyph: '?', chip: 'rgba(44,74,90,.08)',
@@ -448,16 +517,26 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       { label: 'ENTRIES 入境次数', value: 'ONE 一次' },
       // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
       { label: 'ISSUING DATE 签发日期', value: station.date || 'TBC 待定' },
-      { label: 'EXPIRATION DATE 有效期', value: 'ETERNAL 无尽无穷', fg: '#5c1a22' },
+      { label: 'EXPIRATION DATE 有效期', value: 'ETERNAL 无尽无穷', fg: 'var(--pp-ink)' },
       { label: isCheckin ? 'ATTENDED 出席' : 'SCORE 得分',
         value: visaScore == null ? '— —' : isCheckin ? '✓' : (visaScore > 0 ? '+' : '') + visaScore,
-        fg: visaScore == null ? 'rgba(42,35,32,.45)' : (STAMP_TONE[visaScore] || '#2a2320') },
-    ].map((f) => ({ ...f, fg: f.fg || '#2a2320' })) : [],
+        fg: visaScore == null ? 'rgba(var(--pp-text-rgb),.45)' : (STAMP_TONE[visaScore] || 'var(--pp-text)') },
+    ].map((f) => ({ ...f, fg: f.fg || 'var(--pp-text)' })) : [],
+
+    /**
+     * 这一场的配图。后台上传，没传就没有 —— 签证页本来就是一整块
+     * 排版，图是加分项，缺了不该留一个空框在那儿。
+     */
+    visaPhoto: station && station.photo ? `url("${station.photo}")` : '',
+    hasVisaPhoto: !!(station && station.photo),
 
     visaStamped: station != null && visaScore != null,
     visaScore,
+    // 章中间那个大字。打卡本盖的是「来过」，不是分数 —— 印一个「+0」
+    // 反而像这场活动被判了零分
+    stampBig: isCheckin ? '✓' : `${visaScore > 0 ? '+' : ''}${visaScore ?? ''}`,
     // 打卡盖的章写「已参加」，不写分数档位 —— 那一笔本来就不是评分
-    stampColor: isCheckin ? '#2f6148' : (STAMP_TONE[visaScore] || '#4a5b6a'),
+    stampColor: isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || '#4a5b6a'),
     stampLabel: isCheckin
       ? '已参加'
       : (STAMP_WORD[visaScore] || (visaScore != null ? `${visaScore} 分` : '')),
@@ -503,8 +582,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     tokenBody: me?.tokensLeft > 0
       ? '卡关、遇到难关，或抽到「大凶」被扣分时，随时可前往场地中央的恩典站，把这枚代币交给同工。'
       : '恩典站已经为你提供了帮助，并换给你一张恩典卡。代币不可再次使用。',
-    tokenTitleFg: me?.tokensLeft > 0 ? '#5c1a22' : 'rgba(42,35,32,.45)',
-    tokenBodyFg: me?.tokensLeft > 0 ? 'rgba(42,35,32,.75)' : 'rgba(42,35,32,.45)',
+    tokenTitleFg: me?.tokensLeft > 0 ? 'var(--pp-ink)' : 'rgba(var(--pp-text-rgb),.45)',
+    tokenBodyFg: me?.tokensLeft > 0 ? 'rgba(var(--pp-text-rgb),.75)' : 'rgba(var(--pp-text-rgb),.45)',
     helpOpts: HELP_OPTS,
     // 只读：代币由恩典站同工当面收下并在工作人员端记录，这里只弹一个说明
     askToken: () => actions.setModal('token'),
@@ -545,11 +624,11 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       identity: r.identity ? (IDENTITY_META[r.identity]?.en || '') : '——',
       score: String(r.total).padStart(2, '0'),
       bg: r.id === me?.id ? 'rgba(198,164,95,.22)' : 'transparent',
-      fg: r.id === me?.id ? '#5c1a22' : '#2a2320',
+      fg: r.id === me?.id ? 'var(--pp-ink)' : 'var(--pp-text)',
       hasTag: i < 3,
       tag: ['THE CHAMPION 冠军', 'THE CONNECTOR 联结者', 'THE CREATIVE 创意奖'][i] || '',
-      tagFg: ['#a63a2a', '#2f6148', '#4a5b6a'][i] || '#2a2320',
-      tagBd: ['rgba(166,58,42,.5)', 'rgba(47,97,72,.5)', 'rgba(74,91,106,.5)'][i] || 'rgba(92,26,34,.3)',
+      tagFg: ['#a63a2a', '#2f6148', '#4a5b6a'][i] || 'var(--pp-text)',
+      tagBd: ['rgba(166,58,42,.5)', 'rgba(47,97,72,.5)', 'rgba(74,91,106,.5)'][i] || 'rgba(var(--pp-ink-rgb),.3)',
     })),
   };
 }
