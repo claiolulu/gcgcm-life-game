@@ -234,6 +234,80 @@ export default function Admin() {
     }
   }
 
+  /* ------------------------ 签证页模版 ------------------------ */
+
+  const [tpl, setTpl] = useState(null);           // null = 还没从配置载入
+  const [tplDirty, setTplDirty] = useState(false);
+  const sources = config?.visaSources || [];
+
+  useEffect(() => {
+    if (tplDirty) return;
+    if (config?.visaTemplate) setTpl(JSON.parse(JSON.stringify(config.visaTemplate)));
+  }, [config, tplDirty]);
+
+  const editTpl = (patch) => {
+    setTpl((cur) => ({ ...cur, ...patch }));
+    setTplDirty(true);
+  };
+
+  /**
+   * 栏目表的增删改查。模版和「某场活动自己那套」用的是同一批函数 ——
+   * 两边的数据结构本来就是同一个，分成两套只会写岔。
+   *
+   * rows 传进来，改完的 rows 传出去，谁来存由调用方决定。
+   */
+  const rowOps = (rows, save) => ({
+    edit: (i, patch) => save(rows.map((r, k) => (k === i ? { ...r, ...patch } : r))),
+    move: (i, d) => {
+      const next = [...rows];
+      [next[i], next[i + d]] = [next[i + d], next[i]];
+      save(next);
+    },
+    remove: (i) => save(rows.filter((_, k) => k !== i)),
+    add: () => save([...rows, {
+      key: `r${Date.now().toString(36)}`, label: '', src: 'text', text: '', accent: false,
+    }]),
+  });
+
+  async function saveTpl() {
+    setBusy('tpl');
+    try {
+      const res = await api('/api/admin/visa-template', { method: 'POST', body: tpl, token });
+      setTpl(res.visaTemplate);
+      setTplDirty(false);
+      await loadConfig();
+      toast('签证页模版已保存', 'ok');
+    } catch (err) {
+      toast(err.message || '保存失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /* ---------------- 某场活动自己那套版式 / 页面链接 ---------------- */
+
+  /** 从跟随模版切成自己一套：把模版整份抄一份给它，之后两边各走各的 */
+  function detachPage(i) {
+    editAct(i, { page: JSON.parse(JSON.stringify(tpl || config?.visaTemplate || {})) });
+  }
+  function attachPage(i) {
+    editAct(i, { page: undefined });
+  }
+  const editPage = (i, patch) => {
+    const cur = acts[i].page || {};
+    editAct(i, { page: { ...cur, ...patch } });
+  };
+
+  const linkOps = (i) => {
+    const links = acts[i].links || [];
+    const save = (next) => editAct(i, { links: next });
+    return {
+      edit: (k, patch) => save(links.map((l, j) => (j === k ? { ...l, ...patch } : l))),
+      remove: (k) => save(links.filter((_, j) => j !== k)),
+      add: () => save([...links, { icon: '🔗', label: '', url: '' }]),
+    };
+  };
+
   /* -------------------------- 护照模版 -------------------------- */
 
   const [theme, setTheme] = useState(null);        // null = 还没从配置载入
@@ -657,6 +731,94 @@ export default function Admin() {
                 <div className="tiny dim grow">签证页右上角那张图，横构图最好看</div>
               </div>
 
+              {/* 页面链接：签证页底下那一排可点的小图标 */}
+              <details className="stack-sm">
+                <summary className="tiny dim" style={{ cursor: 'pointer' }}>
+                  🔗 页面链接（{(a.links || []).length}）
+                  —— 相册、报名表、场地地图，点一下直接打开
+                </summary>
+                <div className="stack-sm" style={{ marginTop: 6 }}>
+                  {(a.links || []).map((l, k) => (
+                    <div key={k} className="row" style={{ gap: 6 }}>
+                      <input className="input" style={{ flex: '0 0 46px', textAlign: 'center' }}
+                        value={l.icon} maxLength={4} aria-label="图标"
+                        onChange={(e) => linkOps(i).edit(k, { icon: e.target.value })} />
+                      <input className="input" style={{ flex: '0 0 92px' }}
+                        value={l.label} maxLength={12} placeholder="名字"
+                        onChange={(e) => linkOps(i).edit(k, { label: e.target.value })} />
+                      <input className="input grow" value={l.url} maxLength={300}
+                        placeholder="https://…" inputMode="url"
+                        onChange={(e) => linkOps(i).edit(k, { url: e.target.value })} />
+                      <button className="btn btn--sm btn--ghost"
+                        onClick={() => linkOps(i).remove(k)} title="删掉">✕</button>
+                    </div>
+                  ))}
+                  {(a.links || []).length < 6 && (
+                    <button className="btn btn--sm btn--ghost" onClick={() => linkOps(i).add()}>
+                      + 加一个链接
+                    </button>
+                  )}
+                  <div className="tiny dim">
+                    地址要以 http:// 或 https:// 开头。只填名字不填地址的那一条会被丢掉。
+                  </div>
+                </div>
+              </details>
+
+              {/* 这一页的版式：跟随模版，或者自己一套 */}
+              <details className="stack-sm">
+                <summary className="tiny dim" style={{ cursor: 'pointer' }}>
+                  🎫 这一页的版式 —— {a.page ? <b style={{ color: 'var(--gold)' }}>自己一套</b> : '跟随模版'}
+                </summary>
+                <div className="stack-sm" style={{ marginTop: 6 }}>
+                  {!a.page ? (
+                    <>
+                      <div className="tiny dim">
+                        这一页现在长得和「🎫 签证页模版」一样，改模版它就跟着变。
+                      </div>
+                      <button className="btn btn--sm btn--ghost" onClick={() => detachPage(i)}>
+                        改成自己一套
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="tiny dim">
+                        这一页已经脱离模版了 —— 之后改模版<b>不会</b>再动到它。
+                      </div>
+                      <div className="row" style={{ gap: 6 }}>
+                        <input className="input grow" value={a.page.banner ?? ''} maxLength={16}
+                          placeholder="横幅上那个词"
+                          onChange={(e) => editPage(i, { banner: e.target.value })} />
+                        <input className="input grow" value={a.page.stationLabel ?? ''} maxLength={30}
+                          placeholder="右栏标题"
+                          onChange={(e) => editPage(i, { stationLabel: e.target.value })} />
+                      </div>
+                      <input className="input" value={a.page.annotationLabel ?? ''} maxLength={30}
+                        placeholder="备注标题"
+                        onChange={(e) => editPage(i, { annotationLabel: e.target.value })} />
+                      <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
+                        {[['showPhoto', '显示配图'], ['showAnnotation', '显示备注'], ['showLinks', '显示链接']]
+                          .map(([k, label]) => (
+                            <label key={k} className="tiny row" style={{ gap: 5, alignItems: 'center' }}>
+                              <input type="checkbox" checked={a.page[k] !== false}
+                                onChange={(e) => editPage(i, { [k]: e.target.checked })} />
+                              {label}
+                            </label>
+                          ))}
+                      </div>
+                      <RowEditor
+                        dense
+                        rows={a.page.rows || []}
+                        sources={sources}
+                        ops={rowOps(a.page.rows || [], (rows) => editPage(i, { rows }))}
+                      />
+                      <button className="btn btn--sm btn--ghost" onClick={() => attachPage(i)}>
+                        回到跟随模版（自己这套会丢掉）
+                      </button>
+                    </>
+                  )}
+                </div>
+              </details>
+
               <div className="tiny dim">
                 id <code>{a.id}</code> · 已有 {stampCount[a.id] || 0} 人盖章
                 {stampCount[a.id] ? '（删掉之后这些记录会失去归属）' : ''}
@@ -676,6 +838,71 @@ export default function Admin() {
           </button>
         </div>
       </div>
+
+      {/* 签证页模版 */}
+      {tpl && (
+        <div className="card stack" style={{ marginBottom: 12 }}>
+          <div className="section-title">🎫 签证页模版</div>
+          <div className="tiny dim">
+            现在护照上那一页就是这份模版。改它，所有<b>跟随模版</b>的活动一起变；
+            某一场想长得不一样，去「活动清单」里把那一场改成「自己一套」——
+            之后改模版就不会再动到它。
+          </div>
+
+          <div className="row" style={{ gap: 6 }}>
+            <label className="stack-sm grow" style={{ gap: 3 }}>
+              <div className="tiny dim">横幅上那个词</div>
+              <input className="input" value={tpl.banner} maxLength={16}
+                onChange={(e) => editTpl({ banner: e.target.value })} />
+            </label>
+            <label className="stack-sm grow" style={{ gap: 3 }}>
+              <div className="tiny dim">右栏标题（活动名上面）</div>
+              <input className="input" value={tpl.stationLabel} maxLength={30}
+                onChange={(e) => editTpl({ stationLabel: e.target.value })} />
+            </label>
+          </div>
+          <label className="stack-sm" style={{ gap: 3 }}>
+            <div className="tiny dim">备注标题（活动说明上面）</div>
+            <input className="input" value={tpl.annotationLabel} maxLength={30}
+              onChange={(e) => editTpl({ annotationLabel: e.target.value })} />
+          </label>
+
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
+            {[
+              ['showPhoto', '显示配图'],
+              ['showAnnotation', '显示备注'],
+              ['showLinks', '显示页面链接'],
+            ].map(([k, label]) => (
+              <label key={k} className="tiny row" style={{ gap: 5, alignItems: 'center' }}>
+                <input type="checkbox" checked={tpl[k] !== false}
+                  onChange={(e) => editTpl({ [k]: e.target.checked })} />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          <div className="tiny dim" style={{ marginTop: 4 }}>
+            左边那片栏目。「固定文字」是同工填的死字，其余都按人算 ——
+            姓名、编号、出席与否每个人不一样，填不出来。
+          </div>
+          <RowEditor
+            rows={tpl.rows || []}
+            sources={sources}
+            ops={rowOps(tpl.rows || [], (rows) => editTpl({ rows }))}
+          />
+
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn btn--sm btn--ghost grow" disabled={!tplDirty}
+              onClick={() => { setTpl(JSON.parse(JSON.stringify(config.visaTemplate))); setTplDirty(false); }}>
+              还原
+            </button>
+            <button className="btn btn--sm btn--primary grow"
+              disabled={busy === 'tpl' || !tplDirty} onClick={saveTpl}>
+              {busy === 'tpl' ? '保存中…' : tplDirty ? '保存模版' : '已保存'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 护照模版 */}
       {theme && (
@@ -1349,6 +1576,65 @@ function NumberList({ label, hint, value, onChange }) {
         <input className="input grow" value={text} onChange={(e) => setText(e.target.value)} inputMode="numeric" />
         <button className="btn btn--sm" onClick={commit}>保存</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 签证页栏目表的编辑器。
+ *
+ * 模版和「某场活动自己那套」共用它 —— 两边的数据结构本来就是同一个。
+ * 定义在模块作用域而不是 Admin 里面：写在组件里的话每次渲染都是一个
+ * 新的组件类型，React 会整棵重建，打一个字就丢一次焦点。
+ */
+function RowEditor({ rows, ops, sources, dense = false }) {
+  return (
+    <div className="stack-sm">
+      {rows.map((r, i) => (
+        <div key={r.key || i} className="card card--tight stack-sm" style={{ padding: dense ? 8 : undefined }}>
+          <div className="row" style={{ gap: 6 }}>
+            <input
+              className="input grow" value={r.label} maxLength={40} placeholder="栏目标题，例如 VISA TYPE 类型"
+              onChange={(e) => ops.edit(i, { label: e.target.value })}
+            />
+            <button className="btn btn--sm btn--ghost" disabled={i === 0}
+              onClick={() => ops.move(i, -1)} title="上移">↑</button>
+            <button className="btn btn--sm btn--ghost" disabled={i === rows.length - 1}
+              onClick={() => ops.move(i, 1)} title="下移">↓</button>
+            <button className="btn btn--sm btn--ghost" onClick={() => ops.remove(i)} title="删掉这一栏">✕</button>
+          </div>
+          {/* 来源和「加重」排一行，内容单独一行 —— 三样挤一行在 400px 的
+              手机上会把右边两样压成一条竖缝 */}
+          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            <select
+              className="input grow" style={{ minWidth: 0 }} value={r.src}
+              onChange={(e) => ops.edit(i, { src: e.target.value })}
+            >
+              {sources.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+            </select>
+            <label
+              className="tiny dim row"
+              style={{ gap: 4, flex: '0 0 auto', alignItems: 'center', whiteSpace: 'nowrap' }}
+              title="用主色印，比其它栏目重"
+            >
+              <input type="checkbox" checked={!!r.accent}
+                onChange={(e) => ops.edit(i, { accent: e.target.checked })} />
+              加重
+            </label>
+          </div>
+          {r.src === 'text' ? (
+            <input
+              className="input" value={r.text || ''} maxLength={40} placeholder="印在这一栏的字"
+              onChange={(e) => ops.edit(i, { text: e.target.value })}
+            />
+          ) : (
+            <div className="tiny dim">
+              {sources.find((s) => s.key === r.src)?.hint || '这一栏的内容按人算，不用填'}
+            </div>
+          )}
+        </div>
+      ))}
+      <button className="btn btn--sm btn--ghost" onClick={ops.add}>+ 加一栏</button>
     </div>
   );
 }

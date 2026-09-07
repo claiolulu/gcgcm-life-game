@@ -107,6 +107,56 @@ export const THEME = {
   visaBrandCn: '迷你人生游戏',
 };
 
+/**
+ * ========================= 签证页模版 =========================
+ *
+ * 下面这一份就是现在护照上那一页 —— 把它写出来，是为了让同工能改它。
+ *
+ * rows 是左边那片两列栏目。每一栏只有两件事：印什么标题（label），
+ * 内容从哪来（src）。src 里除了 text 是「固定文字」，其余都是绑定值 ——
+ * 绑定的东西每个人不一样（姓名、编号、出席与否），不该由同工填。
+ *
+ * 每场活动可以整份覆盖 rows（见活动的 page 字段）。覆盖是「有就全用自己的」，
+ * 不做逐条合并 —— 逐条合并写起来简单，但同工改完模版之后，哪几场跟着变了
+ * 哪几场没变，没人说得清。
+ */
+export const VISA_ROW_SOURCES = [
+  { key: 'text',     name: '固定文字',   hint: '这一栏所有人看到的都一样' },
+  { key: 'post',     name: '签发站',     hint: 'GCGCM + 页码' },
+  { key: 'control',  name: '控制号',     hint: '护照号/页码' },
+  { key: 'surname',  name: '姓',         hint: '选手资料页上的姓' },
+  { key: 'given',    name: '名',         hint: '选手资料页上的名' },
+  { key: 'identity', name: '身份',       hint: 'SOLO / DUO / TRIO' },
+  { key: 'tag',      name: '活动类型',   hint: '活动清单里的「类型」' },
+  { key: 'host',     name: '负责人',     hint: '活动清单里的「负责人」' },
+  { key: 'date',     name: '活动日期',   hint: '没填就印「TBC 待定」' },
+  { key: 'name',     name: '活动名',     hint: '' },
+  { key: 'en',       name: '活动英文名', hint: '' },
+  { key: 'status',   name: '出席状态',   hint: '盖过章印 ✓，没盖印 — —' },
+];
+
+export const VISA_TEMPLATE = {
+  banner: 'VISA',
+  stationLabel: 'STATION 关卡',
+  annotationLabel: 'ANNOTATION 备注',
+  showPhoto: true,
+  showAnnotation: true,
+  showLinks: true,
+  rows: [
+    { key: 'post',    label: 'ISSUING POST 签发站',     src: 'post' },
+    { key: 'control', label: 'CONTROL NUMBER 控制号',   src: 'control' },
+    { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
+    { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },
+    { key: 'type',    label: 'VISA TYPE 类型',          src: 'tag' },
+    { key: 'class',   label: 'CLASS 身份',              src: 'identity' },
+    { key: 'staff',   label: 'STAFF 工作人员',          src: 'host' },
+    { key: 'entries', label: 'ENTRIES 入境次数',        src: 'text', text: 'ONE 一次' },
+    { key: 'issued',  label: 'ISSUING DATE 签发日期',   src: 'date' },
+    { key: 'expiry',  label: 'EXPIRATION DATE 有效期',  src: 'text', text: 'ETERNAL 无尽无穷', accent: true },
+    { key: 'status',  label: 'ATTENDED 出席',           src: 'status' },
+  ],
+};
+
 /** 四套预设。总控台点一下就把上面那几个色值整套换掉。 */
 export const THEME_PRESETS = [
   { key: 'classic',  name: '经典酒红', ink: '#5c1a22', gold: '#e6cd91', paper: '#f3ede0', text: '#2a2320', stamp: '#2f6148' },

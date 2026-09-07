@@ -249,5 +249,107 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: cfg.body.activities } });
 }
 
+// 18. 签证页模版
+{
+  const before = await j('/api/config');
+  check('配置里带着签证页模版和可选的数据来源',
+    Array.isArray(before.body.visaTemplate?.rows) && before.body.visaTemplate.rows.length === 11
+    && (before.body.visaSources || []).some((x) => x.key === 'text'));
+
+  const ok = await j('/api/admin/visa-template', {
+    method: 'POST', headers: adminH,
+    body: {
+      banner: '打卡', annotationLabel: '这场是什么',
+      showLinks: true,
+      rows: [
+        { key: 'a', label: '活动 EVENT', src: 'name' },
+        { key: 'a', label: '日期 DATE', src: 'date' },       // key 撞了，服务端该自己补开
+        { key: 'c', label: '出席 ATTENDED', src: 'status', accent: true },
+      ],
+    },
+  });
+  check('管理员能改签证页模版', ok.status === 200 && ok.body.visaTemplate.banner === '打卡',
+    JSON.stringify(ok.body).slice(0, 120));
+  check('栏目表整份替换（3 栏就是 3 栏，不和默认的 11 栏合并）',
+    ok.body.visaTemplate.rows.length === 3);
+  check('撞了的 key 被自动错开',
+    new Set(ok.body.visaTemplate.rows.map((r) => r.key)).size === 3,
+    JSON.stringify(ok.body.visaTemplate.rows.map((r) => r.key)));
+  check('没提到的字段保持不变',
+    ok.body.visaTemplate.stationLabel === before.body.visaTemplate.stationLabel);
+
+  const badSrc = await j('/api/admin/visa-template', {
+    method: 'POST', headers: adminH, body: { rows: [{ label: 'X', src: 'rm -rf' }] } });
+  check('不认识的数据来源被拒', badSrc.status === 400, `状态码 ${badSrc.status}`);
+
+  const noLabel = await j('/api/admin/visa-template', {
+    method: 'POST', headers: adminH, body: { rows: [{ label: '   ', src: 'text' }] } });
+  check('没有标题的栏目被拒', noLabel.status === 400);
+
+  const noRows = await j('/api/admin/visa-template', {
+    method: 'POST', headers: adminH, body: { rows: [] } });
+  check('一栏都不剩的模版被拒', noRows.status === 400);
+
+  const notAdmin = await j('/api/admin/visa-template', {
+    method: 'POST', headers: staffH, body: { banner: 'X' } });
+  check('普通工作人员改不了签证页模版', notAdmin.status === 403);
+
+  // 改回默认
+  await j('/api/admin/visa-template', {
+    method: 'POST', headers: adminH,
+    body: { banner: 'VISA', annotationLabel: 'ANNOTATION 备注', rows: before.body.visaTemplate.rows },
+  });
+}
+
+// 19. 每场活动自己那套版式 + 页面链接
+{
+  const cfg = await j('/api/config');
+  const base = cfg.body.activities;
+
+  const withPage = base.map((a, i) => (i === 0 ? {
+    ...a,
+    page: { banner: '迎新', rows: [{ key: 'only', label: '就一栏', src: 'name' }] },
+    links: [
+      { icon: '📷', label: '相册', url: 'https://photos.example.com/freshers' },
+      { icon: '📝', label: '报名', url: 'https://forms.example.com/x' },
+      { icon: '💬', label: '没地址的', url: '' },
+    ],
+  } : a));
+  const saved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withPage } });
+  const a0 = saved.body.activities?.[0];
+  check('活动能带上自己那套版式', saved.status === 200 && a0?.page?.banner === '迎新' && a0?.page?.rows?.length === 1,
+    JSON.stringify(a0?.page));
+  check('其它活动仍然跟随模版（没有 page 字段）',
+    saved.body.activities.slice(1).every((a) => a.page === undefined));
+  check('页面链接存下来了', a0?.links?.length === 2 && a0.links[0].label === '相册',
+    JSON.stringify(a0?.links));
+  check('只填名字没填地址的那条被丢掉', !(a0?.links || []).some((l) => l.label === '没地址的'));
+
+  const evil = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0
+      ? { ...a, links: [{ icon: '💀', label: 'x', url: 'javascript:alert(1)' }] } : a)) },
+  });
+  check('javascript: 链接被拒（整份不保存）', evil.status === 400, `状态码 ${evil.status}`);
+
+  const tooMany = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0
+      ? { ...a, links: Array.from({ length: 7 }, () => ({ url: 'https://a.example.com' })) } : a)) },
+  });
+  check('超过 6 个链接被拒', tooMany.status === 400);
+
+  const badPageSrc = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0
+      ? { ...a, page: { rows: [{ label: 'X', src: '../../etc/passwd' }] } } : a)) },
+  });
+  check('活动版式里不认识的数据来源也被拒', badPageSrc.status === 400);
+
+  // 回到跟随模版
+  const back = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+  check('去掉 page 之后回到跟随模版', back.body.activities[0].page === undefined);
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

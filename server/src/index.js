@@ -11,12 +11,13 @@ import { Server as SocketServer } from 'socket.io';
 import {
   GAME, STATIONS, FUNCTIONAL, IDENTITIES, LIFE_EVENT_CARDS, CARD_KINDS,
   GRACE_OPTIONS, AWARDS, GROUP_COLORS, GROUP_SYMBOLS, TIER_LABELS, RESET_PIN,
-  ACTIVITIES, THEME_PRESETS,
+  ACTIVITIES, THEME_PRESETS, VISA_ROW_SOURCES,
 } from './config.js';
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
   getActivities, setActivities, getTheme, setTheme, UPLOAD_DIR,
+  getVisaTemplate, setVisaTemplate,
 } from './db.js';
 import {
   playerState, roster, leaderboard, rankOf, applyOp, drawIdentities,
@@ -123,6 +124,8 @@ app.get('/api/config', (_req, res) => {
     resetPin: RESET_PIN,
     theme: getTheme(),
     themePresets: THEME_PRESETS,
+    visaTemplate: getVisaTemplate(),
+    visaSources: VISA_ROW_SOURCES,
     settings: getSettings(),
     serverTs: Date.now(),
   });
@@ -562,6 +565,13 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
     const name = String(a?.name || '').trim().slice(0, 20);
     if (!name) return res.status(400).json({ error: '每个活动都要有名字' });
 
+    let page, links;
+    try {
+      page = cleanPage(a?.page, `「${name}」`);
+      links = cleanLinks(a?.links, `「${name}」`);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
     clean.push({
       id, name,
       order: clean.length + 1,
@@ -573,6 +583,9 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       desc: String(a?.desc || '').trim().slice(0, 200),
       landmarkKey: String(a?.landmarkKey || '').trim().slice(0, 40),
       photo: safePhoto(a?.photo),
+      links: links || [],
+      // page 不在就整个不写：字段在不在，就是「这一页跟不跟随模版」本身
+      ...(page ? { page } : {}),
     });
   }
 
@@ -593,6 +606,77 @@ function safePhoto(v) {
   if (/^\/uploads\/[A-Za-z0-9_-]+\.(jpg|png|webp)$/.test(s)) return s;
   if (/^https:\/\/[^\s"'<>]+$/i.test(s)) return s;
   return '';
+}
+
+const SRC_KEYS = new Set(VISA_ROW_SOURCES.map((x) => x.key));
+
+/**
+ * 签证页的栏目表。
+ *
+ * 只有 src === 'text' 的那一栏能带同工填的内容；其余都是绑定值，
+ * 内容由服务端按人算。把 text 也一起收下反而更省事 —— 存着无害，
+ * 同工把一栏从「固定文字」改成「活动日期」再改回来，原来打的字还在。
+ */
+function cleanRows(raw, where) {
+  if (!Array.isArray(raw)) throw new Error(`${where}的栏目要是一个数组`);
+  if (raw.length > 20) throw new Error(`${where}最多 20 栏`);
+  const seen = new Set();
+  return raw.map((r, i) => {
+    const src = String(r?.src || 'text');
+    if (!SRC_KEYS.has(src)) throw new Error(`${where}第 ${i + 1} 栏的数据来源「${src}」不认识`);
+    const label = String(r?.label || '').replace(/[\r\n]/g, ' ').trim().slice(0, 40);
+    if (!label) throw new Error(`${where}第 ${i + 1} 栏没有标题`);
+    // key 只用来做 React 的 key 和去重，不进历史数据，撞了就补一个后缀
+    let key = String(r?.key || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || `r${i + 1}`;
+    while (seen.has(key)) key += '_';
+    seen.add(key);
+    return {
+      key, label, src,
+      text: String(r?.text || '').replace(/[\r\n]/g, ' ').trim().slice(0, 40),
+      accent: !!r?.accent,
+    };
+  });
+}
+
+/**
+ * 页面上那几个可跳转的小图标。
+ *
+ * 只收 http(s)：这个值会变成 <a href>，收 javascript: 就是一条 XSS，
+ * 而 mailto:/tel: 这类在护照页上也没有用武之地。
+ */
+function cleanLinks(raw, where) {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) throw new Error(`${where}的链接要是一个数组`);
+  if (raw.length > 6) throw new Error(`${where}最多放 6 个链接`);
+  const out = [];
+  for (const l of raw) {
+    const url = String(l?.url || '').trim().slice(0, 300);
+    if (!url) continue;                      // 只填了名字没填地址：当没加
+    if (!/^https?:\/\/[^\s"'<>]+$/i.test(url)) {
+      throw new Error(`链接地址「${url.slice(0, 40)}」不合法，要以 http:// 或 https:// 开头`);
+    }
+    out.push({
+      icon: String(l?.icon || '🔗').trim().slice(0, 4) || '🔗',
+      label: String(l?.label || '').replace(/[\r\n]/g, ' ').trim().slice(0, 12),
+      url,
+    });
+  }
+  return out;
+}
+
+/** 某一场活动自己那套版式。没有就返回 undefined，表示跟随模版。 */
+function cleanPage(raw, where) {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const page = {};
+  for (const [k, max] of [['banner', 16], ['stationLabel', 30], ['annotationLabel', 30]]) {
+    if (raw[k] === undefined) continue;
+    page[k] = String(raw[k]).replace(/[\r\n]/g, ' ').trim().slice(0, max);
+  }
+  for (const k of ['showPhoto', 'showAnnotation', 'showLinks']) {
+    if (raw[k] !== undefined) page[k] = !!raw[k];
+  }
+  if (raw.rows !== undefined) page.rows = cleanRows(raw.rows, where);
+  return Object.keys(page).length ? page : undefined;
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -665,6 +749,39 @@ app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
   if (!fs.existsSync(file)) fs.writeFileSync(file, buf);
 
   res.json({ url: `/uploads/${name}`, bytes: buf.length });
+});
+
+/**
+ * 改签证页模版。
+ *
+ * 只动模版本身，不碰各场活动自己那套 —— 一场活动一旦「自己一套」，
+ * 就应该只受自己的编辑影响，否则同工改模版会悄悄改掉那几场刻意做得不一样的。
+ */
+app.post('/api/admin/visa-template', staffAuth('admin'), (req, res) => {
+  const b = req.body || {};
+  const tpl = {};
+  try {
+    for (const [k, max] of [['banner', 16], ['stationLabel', 30], ['annotationLabel', 30]]) {
+      if (b[k] === undefined) continue;
+      const v = String(b[k]).replace(/[\r\n]/g, ' ').trim().slice(0, max);
+      if (!v) throw new Error(`${k} 不能留空`);
+      tpl[k] = v;
+    }
+    for (const k of ['showPhoto', 'showAnnotation', 'showLinks']) {
+      if (b[k] !== undefined) tpl[k] = !!b[k];
+    }
+    if (b.rows !== undefined) {
+      const rows = cleanRows(b.rows, '模版');
+      if (!rows.length) throw new Error('模版至少要留一栏');
+      tpl.rows = rows;
+    }
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  setVisaTemplate(tpl);
+  broadcast('config');
+  res.json({ visaTemplate: getVisaTemplate() });
 });
 
 app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {

@@ -569,6 +569,82 @@ def apply_patches(jsx):
             n += 1
 
 
+    # ============ 签证页模版：栏目、标题、页面链接 ============
+    #
+    # 签证页从「一张写死的版式」变成「一份能改的模版」：栏目表、横幅上那个词、
+    # 右栏两个标题都由 v 注入（见 bookVals 的 resolveVisaTemplate）。
+    # 每场活动可以整份覆盖这套版式，所以这里能做的只是把插槽留出来。
+
+    # 14) 横幅上那个词、右栏两个标题
+    for needle, val in (
+        ('                            VISA\n',      '{v.visaBanner}'),
+        ('STATION 关卡',                            '{v.visaStationLabel}'),
+        ('ANNOTATION 备注',                         '{v.visaAnnotationLabel}'),
+    ):
+        assert jsx.count(needle) == 1, f"签证页模版锚点不唯一：{needle.strip()}"
+        rep = needle.replace(needle.strip(), val) if needle.endswith('\n') else val
+        jsx = jsx.replace(needle, rep, 1)
+    n += 1
+
+    # 15) 备注整块可以关掉。
+    #     有些活动就是一句话说不清也不用说 —— 与其留一个空的「ANNOTATION 备注」
+    #     标题在那儿，不如整块不出现。
+    marker = '{v.visaAnnotationLabel}'
+    i15 = jsx.find(marker)
+    assert i15 != -1, "没找到备注标题"
+    # 往上找到包住「标题 + 正文」的那个 div
+    block_start = jsx.rfind('<div>', 0, i15)
+    assert block_start != -1, "没找到备注区块的起点"
+    line_start = jsx.rfind('\n', 0, block_start) + 1
+    indent = jsx[line_start:block_start]
+    # 往下找这个 div 的闭合：备注区块内部只有两层，找第二个同缩进的 </div>
+    close = jsx.find('\n' + indent + '</div>\n', i15)
+    assert close != -1, "没找到备注区块的终点"
+    end = close + len('\n' + indent + '</div>\n')
+    body = jsx[line_start:end]
+    wrapped = (
+        indent + '{v.showAnnotation ? (\n'
+        + ''.join('  ' + ln + '\n' for ln in body.rstrip('\n').split('\n'))
+        + indent + ') : null}\n'
+    )
+    jsx = jsx[:line_start] + wrapped + jsx[end:]
+    n += 1
+
+    # 16) 页面链接：一排可点的小图标，压在机读区上面。
+    #
+    #     用真的 <a> 而不是 div + onClick —— pageTap 靠 closest('a') 判断
+    #     「这一下不是翻页」，长按也才有「复制链接」。
+    #
+    #     放在机读区之上、正文之外：正文那一块是 overflow:auto 的，
+    #     链接跟进去会被滚走，而这几个图标是这一页最该一眼看到的东西之一。
+    mrz = ('<div style={{position: "relative", zIndex: "4", flex: "none", '
+           'padding: "6px 18px 9px", background: "#eae3d2"')
+    i16 = jsx.find(mrz)
+    assert i16 != -1, "没找到签证页的机读区"
+    line_start = jsx.rfind('\n', 0, i16) + 1
+    indent = jsx[line_start:i16]
+    links = (
+        indent + '{(v.visaLinks || []).length ? (\n'
+        + indent + '  <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", '
+        'flexWrap: "wrap", gap: "6px", padding: "0 18px 7px"}}>\n'
+        + indent + '    {(v.visaLinks || []).map((l, i) => (\n'
+        + indent + '      <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" '
+        'onClick={v.stop} style={{display: "inline-flex", alignItems: "center", gap: "4px", '
+        'padding: "3px 8px", border: "1px solid rgba(92,26,34,.32)", '
+        'background: "rgba(92,26,34,.05)", color: "#5c1a22", textDecoration: "none", '
+        'lineHeight: 1, whiteSpace: "nowrap"}}>\n'
+        + indent + '        <span style={{fontSize: "11px"}}>{l.icon}</span>\n'
+        + indent + '        {l.label ? (\n'
+        + indent + '          <span style={{fontFamily: "\'EB Garamond\',serif", fontSize: "9px", letterSpacing: ".06em"}}>{l.label}</span>\n'
+        + indent + '        ) : null}\n'
+        + indent + '      </a>\n'
+        + indent + '    ))}\n'
+        + indent + '  </div>\n'
+        + indent + ') : null}\n'
+    )
+    jsx = jsx[:line_start] + links + jsx[line_start:]
+    n += 1
+
     # ================== 护照模版：让后台能改样式 ==================
     #
     # 下面这几段必须放在所有其它补丁之后：最后那一步会把设计稿里写死的

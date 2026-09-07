@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_SETTINGS, ACTIVITIES, THEME } from './config.js';
+import { DEFAULT_SETTINGS, ACTIVITIES, THEME, VISA_TEMPLATE } from './config.js';
 import { randomToken, safeJSON } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -156,6 +156,25 @@ export function getTheme() {
 
 export function setTheme(patch) {
   setSetting('_theme', { ...getTheme(), ...patch });
+}
+
+/**
+ * 签证页模版。和模版、活动清单一样存在 settings 里。
+ *
+ * rows 整份替换，不和默认值合并 —— 同工删掉一栏，就该真的没了；
+ * 按 key 合并的话删不掉，只会变成「默认那份又长回来」。
+ * 其余字段（横幅、标题、开关）走浅合并，方便以后加新开关。
+ */
+export function getVisaTemplate() {
+  const row = getSettingStmt.get('_visaTpl');
+  const saved = row ? safeJSON(row.value, null) : null;
+  const base = { ...VISA_TEMPLATE, ...(saved && typeof saved === 'object' ? saved : {}) };
+  if (!Array.isArray(base.rows) || !base.rows.length) base.rows = VISA_TEMPLATE.rows;
+  return base;
+}
+
+export function setVisaTemplate(tpl) {
+  setSetting('_visaTpl', { ...getVisaTemplate(), ...tpl });
 }
 
 export function getSettings() {

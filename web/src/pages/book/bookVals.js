@@ -90,6 +90,49 @@ export function themeVarsOf(theme) {
   };
 }
 
+/* -------------------------- 签证页模版 -------------------------- */
+
+/**
+ * 拉不到配置时的兜底，字段和 server/src/config.js 的 VISA_TEMPLATE 对应。
+ * 这份只保证首帧不至于是一张白页，权威在服务端。
+ */
+const VISA_TPL_FALLBACK = {
+  banner: 'VISA',
+  stationLabel: 'STATION 关卡',
+  annotationLabel: 'ANNOTATION 备注',
+  showPhoto: true, showAnnotation: true, showLinks: true,
+  rows: [
+    { key: 'post',    label: 'ISSUING POST 签发站',     src: 'post' },
+    { key: 'control', label: 'CONTROL NUMBER 控制号',   src: 'control' },
+    { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
+    { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },
+    { key: 'type',    label: 'VISA TYPE 类型',          src: 'tag' },
+    { key: 'class',   label: 'CLASS 身份',              src: 'identity' },
+    { key: 'staff',   label: 'STAFF 工作人员',          src: 'host' },
+    { key: 'entries', label: 'ENTRIES 入境次数',        src: 'text', text: 'ONE 一次' },
+    { key: 'issued',  label: 'ISSUING DATE 签发日期',   src: 'date' },
+    { key: 'expiry',  label: 'EXPIRATION DATE 有效期',  src: 'text', text: 'ETERNAL 无尽无穷', accent: true },
+    { key: 'status',  label: 'ATTENDED 出席',           src: 'status' },
+  ],
+};
+
+/**
+ * 这一页最终用哪一套版式。
+ *
+ * 活动身上有 page 就整份用它的，没有就用模版 —— 「有没有 page」本身
+ * 就是「这一页跟不跟随模版」。rows 单独判断：同工可能只改了横幅、
+ * 没动栏目，那栏目还该跟着模版走。
+ */
+export function resolveVisaTemplate(template, station) {
+  const tpl = { ...VISA_TPL_FALLBACK, ...(template || {}) };
+  if (!Array.isArray(tpl.rows) || !tpl.rows.length) tpl.rows = VISA_TPL_FALLBACK.rows;
+  const own = station && station.page ? station.page : null;
+  if (!own) return tpl;
+  const merged = { ...tpl, ...own };
+  if (!Array.isArray(own.rows) || !own.rows.length) merged.rows = tpl.rows;
+  return merged;
+}
+
 /** 封面那块烫金压纹的底：从主色上下各推一档，比单色平涂有厚度 */
 export function coverBgOf(theme) {
   const ink = (theme || {}).ink || THEME_FALLBACK.ink;
@@ -314,6 +357,40 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   };
   const syncMeta = SYNC[ui.sync] || SYNC.live;
 
+  /* ---- 签证页的版式：模版打底，这场活动可以整份覆盖 ---- */
+  const visaTpl = resolveVisaTemplate(config?.visaTemplate, station);
+  const pageNo2 = String(cur.i + 1).padStart(2, '0');
+
+  /**
+   * 把一栏的「数据来源」翻成这一页、这个人身上的值。
+   *
+   * 只有 text 是同工填的死字，其余都在这里算 —— 姓名、编号、出席与否
+   * 每个人不一样，让同工去填这些只会填错。
+   */
+  const bindRow = (r) => {
+    switch (r.src) {
+      case 'post':     return { value: 'GCGCM ' + pageNo2 };
+      case 'control':  return { value: passportNo + '/' + pageNo2 };
+      // 这里显示真名（中文照常显示）；只有下方 MRZ 机读区才做 ASCII 化，
+      // 因为真实护照的机读区本来就只允许 A-Z0-9
+      case 'surname':  return { value: surname || clean(surname, 'PLAYER') };
+      case 'given':    return { value: given || clean(given, 'ONE') };
+      case 'identity': return { value: identityLabel };
+      case 'tag':      return { value: station?.tag || '' };
+      case 'host':     return { value: station?.host || station?.staff || '' };
+      // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
+      case 'date':     return { value: station?.date || 'TBC 待定' };
+      case 'name':     return { value: station?.name || '' };
+      case 'en':       return { value: String(station?.en || '').toUpperCase() };
+      case 'status':   return {
+        value: visaScore == null ? '— —' : isCheckin ? '✓' : (visaScore > 0 ? '+' : '') + visaScore,
+        fg: visaScore == null ? 'rgba(var(--pp-text-rgb),.45)'
+          : isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || 'var(--pp-text)'),
+      };
+      default:         return { value: r.text || '' };
+    }
+  };
+
   const noop = () => {};
 
   // 向后翻时动的是克隆出来的旧页（PassportBook 直接改它的 style），
@@ -504,31 +581,40 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     visaCn: station ? station.name : '',
     visaEn: station ? String(station.en || '').toUpperCase() : '',
     visaAnnotation: station ? (station.desc || station.rule || '') : '',
-    visaFields: station ? [
-      { label: 'ISSUING POST 签发站', value: 'GCGCM ' + String(cur.i + 1).padStart(2, '0') },
-      { label: 'CONTROL NUMBER 控制号', value: passportNo + '/' + String(cur.i + 1).padStart(2, '0') },
-      // 这里显示真名（中文照常显示）；只有下方 MRZ 机读区才做 ASCII 化，
-      // 因为真实护照的机读区本来就只允许 A-Z0-9
-      { label: 'SURNAME 姓', value: surname || clean(surname, 'PLAYER') },
-      { label: 'GIVEN NAMES 名', value: given || clean(given, 'ONE') },
-      { label: 'VISA TYPE 类型', value: station.tag || '' },
-      { label: 'CLASS 身份', value: identityLabel },
-      { label: 'STAFF 工作人员', value: station.host || station.staff || '' },
-      { label: 'ENTRIES 入境次数', value: 'ONE 一次' },
-      // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
-      { label: 'ISSUING DATE 签发日期', value: station.date || 'TBC 待定' },
-      { label: 'EXPIRATION DATE 有效期', value: 'ETERNAL 无尽无穷', fg: 'var(--pp-ink)' },
-      { label: isCheckin ? 'ATTENDED 出席' : 'SCORE 得分',
-        value: visaScore == null ? '— —' : isCheckin ? '✓' : (visaScore > 0 ? '+' : '') + visaScore,
-        fg: visaScore == null ? 'rgba(var(--pp-text-rgb),.45)' : (STAMP_TONE[visaScore] || 'var(--pp-text)') },
-    ].map((f) => ({ ...f, fg: f.fg || 'var(--pp-text)' })) : [],
+    visaFields: station ? visaTpl.rows.map((r) => {
+      const v = bindRow(r);
+      return {
+        label: r.label,
+        value: v.value,
+        // 有效期那种要加重的栏目用主色；出席状态跟着章的颜色走
+        fg: v.fg || (r.accent ? 'var(--pp-ink)' : 'var(--pp-text)'),
+      };
+    }) : [],
+
+    /* ---- 这一页的版式（模版 + 这场活动自己的覆盖） ---- */
+    visaBanner: visaTpl.banner,
+    visaStationLabel: visaTpl.stationLabel,
+    visaAnnotationLabel: visaTpl.annotationLabel,
+    showAnnotation: visaTpl.showAnnotation !== false,
+
+    /**
+     * 这一页上那几个可跳转的小图标 —— 活动相册、报名表、场地地图。
+     * 地址在服务端已经卡死只能是 http(s)，这里再挡一次：配置是缓存在
+     * IndexedDB 里的，万一存进去过一条脏数据，也不该在页面上变成可点的。
+     */
+    visaLinks: station && visaTpl.showLinks !== false
+      ? (station.links || [])
+          .filter((l) => /^https?:\/\//i.test(String(l?.url || '')))
+          .slice(0, 6)
+          .map((l) => ({ icon: l.icon || '🔗', label: l.label || '', url: l.url }))
+      : [],
 
     /**
      * 这一场的配图。后台上传，没传就没有 —— 签证页本来就是一整块
      * 排版，图是加分项，缺了不该留一个空框在那儿。
      */
     visaPhoto: station && station.photo ? `url("${station.photo}")` : '',
-    hasVisaPhoto: !!(station && station.photo),
+    hasVisaPhoto: !!(station && station.photo && visaTpl.showPhoto !== false),
 
     visaStamped: station != null && visaScore != null,
     visaScore,

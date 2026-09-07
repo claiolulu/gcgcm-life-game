@@ -585,7 +585,7 @@ export default function PassportBookView({ v }) {
                         <div style={{position: "absolute", left: "0", top: "0", bottom: "0", width: "44%", background: "linear-gradient(120deg,rgba(44,74,90,.22),rgba(var(--pp-ink-rgb),.12))"}} />
                         <div style={{position: "relative", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px"}}>
                           <div style={{fontFamily: "'EB Garamond',serif", fontSize: "19px", letterSpacing: ".34em", color: "var(--pp-ink)", textIndent: ".34em"}}>
-                            VISA
+                            {v.visaBanner}
                           </div>
                           <div style={{textAlign: "right"}}>
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".24em", color: "var(--pp-gold)", textIndent: ".24em"}}>
@@ -620,7 +620,7 @@ export default function PassportBookView({ v }) {
                           ) : null}
                           <div>
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".14em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                              STATION 关卡
+                              {v.visaStationLabel}
                             </div>
                             <div style={{marginTop: "3px", fontSize: "19px", fontWeight: "700", lineHeight: "1.25", color: "var(--pp-ink)"}}>
                               {v.visaCn}
@@ -629,14 +629,16 @@ export default function PassportBookView({ v }) {
                               {v.visaEn}
                             </div>
                           </div>
-                          <div>
-                            <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".14em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                              ANNOTATION 备注
+                          {v.showAnnotation ? (
+                            <div>
+                              <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7.5px", letterSpacing: ".14em", color: "rgba(var(--pp-text-rgb),.55)"}}>
+                                {v.visaAnnotationLabel}
+                              </div>
+                              <div style={{marginTop: "4px", fontSize: "11.5px", fontWeight: "600", lineHeight: "1.75", color: "var(--pp-text)", textWrap: "pretty"}}>
+                                {v.visaAnnotation}
+                              </div>
                             </div>
-                            <div style={{marginTop: "4px", fontSize: "11.5px", fontWeight: "600", lineHeight: "1.75", color: "var(--pp-text)", textWrap: "pretty"}}>
-                              {v.visaAnnotation}
-                            </div>
-                          </div>
+                          ) : null}
                         </div>
                       </div>
                       {v.checking ? (
@@ -667,6 +669,18 @@ export default function PassportBookView({ v }) {
                         </>
                       ) : null}
                     </div>
+                    {(v.visaLinks || []).length ? (
+                      <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", flexWrap: "wrap", gap: "6px", padding: "0 18px 7px"}}>
+                        {(v.visaLinks || []).map((l, i) => (
+                          <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" onClick={v.stop} style={{display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px", border: "1px solid rgba(var(--pp-ink-rgb),.32)", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", textDecoration: "none", lineHeight: 1, whiteSpace: "nowrap"}}>
+                            <span style={{fontSize: "11px"}}>{l.icon}</span>
+                            {l.label ? (
+                              <span style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".06em"}}>{l.label}</span>
+                            ) : null}
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                     <div style={{position: "relative", zIndex: "4", flex: "none", padding: "6px 18px 9px", background: "#eae3d2", borderTop: "1px solid rgba(var(--pp-ink-rgb),.4)", overflow: "hidden"}}>
                       <div style={{fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "10.5px", lineHeight: "1.65", letterSpacing: ".1em", color: "var(--pp-text)", whiteSpace: "nowrap"}}>
                         {v.mrz1}
