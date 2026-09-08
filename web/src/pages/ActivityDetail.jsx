@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
 import IconPicker from '../components/IconPicker.jsx';
+import DateField from '../components/DateField.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
@@ -271,18 +272,21 @@ export default function ActivityDetail() {
           <input className="input grow" value={draft.name} maxLength={20} placeholder="活动名"
             onChange={(e) => edit({ name: e.target.value })} />
         </div>
+        {/* 日期独占一行：它旁边还挂着日历按钮，再和「类型」挤一行的话，
+            368px 宽的一栏里日期只剩「13 SEP 20」 */}
+        <DateField
+          value={draft.date}
+          placeholder="日期（可留空，也可以写「每周三」）"
+          onChange={(date) => edit({ date })}
+        />
         <div className="row" style={{ gap: 6 }}>
-          <input className="input grow" value={draft.date} maxLength={20} placeholder="日期（留空显示「待定」）"
-            onChange={(e) => edit({ date: e.target.value })} />
           <input className="input grow" value={draft.tag} maxLength={12} placeholder="类型"
             onChange={(e) => edit({ tag: e.target.value })} />
-        </div>
-        <div className="row" style={{ gap: 6 }}>
-          <input className="input grow" value={draft.en} maxLength={40} placeholder="英文名（选填）"
-            onChange={(e) => edit({ en: e.target.value })} />
           <input className="input grow" value={draft.host} maxLength={20} placeholder="负责人"
             onChange={(e) => edit({ host: e.target.value })} />
         </div>
+        <input className="input" value={draft.en} maxLength={40} placeholder="英文名（选填）"
+          onChange={(e) => edit({ en: e.target.value })} />
         {/* 每一栏该填什么就写在灰字提示里，不再在框下面另起一行解释 ——
             解释常年占着地方，而真正要看它的只有第一次填的那一下 */}
         <input className="input" value={draft.issuer || ''} maxLength={24}
