@@ -257,19 +257,6 @@ export function Empty({ icon = '🗒', title, hint, children }) {
 
 /* ------------------------------ 身份卡徽标 ------------------------------ */
 
-export function IdentityChip({ identity, identities, teamColor, teamSymbol, colors }) {
-  if (!identity) return <span className="chip">身份未抽取</span>;
-  const meta = identities?.[identity];
-  const color = colors?.find((c) => c.key === teamColor);
-  return (
-    <span className="chip" style={{ borderColor: meta?.color, color: meta?.color }}>
-      {meta?.icon} {meta?.name}
-      {teamSymbol && color && (
-        <span style={{ color: color.hex, fontWeight: 800 }}>{teamSymbol}</span>
-      )}
-    </span>
-  );
-}
 
 /* --------------------------- 数字滚动（分数） --------------------------- */
 

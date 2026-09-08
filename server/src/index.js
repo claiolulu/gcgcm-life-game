@@ -9,9 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { Server as SocketServer } from 'socket.io';
 
 import {
-  GAME, STATIONS, FUNCTIONAL, IDENTITIES, LIFE_EVENT_CARDS, CARD_KINDS,
-  GRACE_OPTIONS, AWARDS, GROUP_COLORS, GROUP_SYMBOLS, TIER_LABELS, RESET_PIN,
-  ACTIVITIES, THEME_PRESETS, VISA_ROW_SOURCES,
+  GAME, RESET_PIN, ACTIVITIES, THEME_PRESETS, VISA_ROW_SOURCES,
 } from './config.js';
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
@@ -20,9 +18,7 @@ import {
   getVisaTemplate,
 } from './db.js';
 import {
-  playerState, roster, leaderboard, rankOf, applyOp, drawIdentities,
-  assignTeam, clearIdentities,
-  assignRoutes, assignRouteFor, syncTeamRoutes, stationLoad, teamBoard, renameTeam,
+  playerState, roster, leaderboard, rankOf, applyOp,
 } from './game.js';
 import {
   formatPlayerId, canonCode, extractCode, isValidPin, randomPin, uid, randomToken,
@@ -108,19 +104,7 @@ app.get('/healthz', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 app.get('/api/config', (_req, res) => {
   res.json({
     game: GAME,
-    stations: STATIONS,
-    // 签证页现在按活动来（见 config.js 的 ACTIVITIES）；
-    // STATIONS 仍然下发，游戏机制那一套还在用
     activities: getActivities(),
-    functional: FUNCTIONAL,
-    identities: IDENTITIES,
-    cards: LIFE_EVENT_CARDS,
-    cardKinds: CARD_KINDS,
-    graceOptions: GRACE_OPTIONS,
-    awards: AWARDS,
-    groupColors: GROUP_COLORS,
-    groupSymbols: GROUP_SYMBOLS,
-    tierLabels: TIER_LABELS,
     resetPin: RESET_PIN,
     theme: getTheme(),
     themePresets: THEME_PRESETS,
@@ -194,7 +178,7 @@ app.post('/api/register', (req, res) => {
       given,
       avatar,
       contact,
-      tokens_total: settings.helpTokens ?? 1,
+      tokens_total: 0,   // Help Token 跟着恩典站一起去掉了，列还在（老数据用）
       created_at: now,
       updated_at: now,
     };
@@ -213,7 +197,6 @@ app.post('/api/register', (req, res) => {
 
   // 已经开赛还在报名（同工手动开了通道），立刻按当前各关的排队情况
   // 给他排一条路线，从最空的那一关切入。赛前不排 —— 等宣布开始时统一排。
-  if (settings.gameState !== 'lobby') assignRouteFor(player.id);
 
   broadcast('register');
 
@@ -425,27 +408,12 @@ app.get('/api/leaderboard', (req, res) => {
   // 组队榜搭同一个响应，不额外发请求 —— 排行榜每 20 秒就要拉一次
   res.json({
     board: leaderboard({ limit }),
-    teams: teamBoard(),
     hidden: false,
     gameState: settings.gameState,
     serverTs: Date.now(),
   });
 });
 
-/**
- * 改队名。队员自己改，不需要同工。
- *
- * 不卡游戏阶段 —— 身份是开场之后才抽的，正是这时候大家才想给
- * 自己的队起个名字。改名换头像那条 lobby 限制针对的是个人展示信息，
- * 队名是队伍共有的，不影响个人排名。
- */
-app.post('/api/team/name', playerAuth, (req, res) => {
-  const r = renameTeam(req.player.id, req.body?.name);
-  if (!r.ok) return res.status(400).json({ error: r.error });
-  broadcast('team');
-  const fresh = stmts.playerById.get(req.player.id);
-  res.json({ player: playerState(fresh), ...rankOf(fresh.id) });
-});
 
 /* ---------------------------- 工作人员接口 ---------------------------- */
 
@@ -492,8 +460,6 @@ app.post('/api/staff/sync', staffAuth('staff'), (req, res) => {
     full: since <= 0,
     epoch: serverEpoch,
     settings,
-    // 各关忙闲：搭现有响应的顺风车，不额外发请求。八个数，可以忽略不计
-    load: stationLoad(),
     serverTs: Date.now(),
   });
 });
@@ -518,31 +484,7 @@ app.get('/api/staff/player/:code', staffAuth('staff'), (req, res) => {
 
 /* ------------------------------ 管理员接口 ------------------------------ */
 
-app.post('/api/admin/draw', staffAuth('admin'), (req, res) => {
-  // mode='fill' 只补分配还没有身份的人（陆续有人报名时用）；'all' 全部重新洗牌
-  const mode = req.body?.mode === 'all' ? 'all' : 'fill';
-  const result = drawIdentities({ ...(req.body?.ratios || {}), mode });
-  // 已经开赛时才需要处理：编队变了，同队的人必须走同一条路线，
-  // 否则 Duo/Trio 会被指向不同的关卡。只修不一致的队，不动其他人。
-  if (getSettings().gameState === 'running') syncTeamRoutes();
-  broadcast('draw');
-  // 把更新后的花名册一起带回去，管理端就不用再发一次同步请求了
-  res.json({ ...result, players: roster(0), epoch: epoch(), serverTs: Date.now() });
-});
 
-/** 手动把勾选的几个人编成一队 */
-app.post('/api/admin/team', staffAuth('admin'), (req, res) => {
-  const ids = Array.isArray(req.body?.playerIds) ? req.body.playerIds.slice(0, 12) : [];
-  const result = assignTeam({
-    playerIds: ids,
-    identity: req.body?.identity || null,
-    startStation: req.body?.startStation || null,
-  });
-  if (!result.ok) return res.status(400).json({ error: result.message });
-    if (getSettings().gameState === 'running') syncTeamRoutes();
-  broadcast('team');
-  res.json({ ...result, players: roster(0), epoch: epoch(), serverTs: Date.now() });
-});
 
 /**
  * 把勾选的人的密码统一重置成 RESET_PIN。
@@ -568,13 +510,6 @@ app.post('/api/admin/reset-pin', staffAuth('admin'), (req, res) => {
   res.json({ ok: true, pin: RESET_PIN, players: done, epoch: epoch(), serverTs: Date.now() });
 });
 
-/** 把勾选的人退回「未分配」 */
-app.post('/api/admin/unassign', staffAuth('admin'), (req, res) => {
-  const ids = Array.isArray(req.body?.playerIds) ? req.body.playerIds.slice(0, 400) : [];
-  const result = clearIdentities(ids);
-  broadcast('team');
-  res.json({ ...result, players: roster(0), epoch: epoch(), serverTs: Date.now() });
-});
 
 /**
  * 改活动清单。总控台整份替换，不做增量 —— 排序、删除、改字段
@@ -892,11 +827,8 @@ app.get('/api/admin/activity/:id/signups', staffAuth('admin'), (req, res) => {
 
 app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {
   const patch = req.body || {};
-  const before = getSettings();
-  const allowed = [
-    'gameState', 'scoreTiers', 'maxStationScore', 'lifeEventThresholds',
-    'helpTokens', 'registrationOpen', 'leaderboardPublic', 'showFullNames',
-  ];
+  // 记分档位、盲盒红线、Help Token 这几项跟着迎新游戏一起去掉了
+  const allowed = ['gameState', 'registrationOpen', 'leaderboardPublic', 'showFullNames'];
   for (const [k, v] of Object.entries(patch)) {
     if (allowed.includes(k)) setSetting(k, v);
   }
@@ -906,16 +838,6 @@ app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {
     setSetting('registrationOpen', false);
   }
 
-  // 宣布开始的那一刻才排关卡顺序 —— 排早了后面还有人报名，人数一变
-  // 分配就不均了。赛前签证页是空的，从这里开始才按各人的顺序显示。
-  if (patch.gameState === 'running' && before.gameState !== 'running') {
-    // onlyMissing 默认为真：第一次开赛时人人都没有路线，等于全场排一遍；
-    // 中途切回「入场」放人进来再切回来时，只补新人，不动已经在跑的人。
-    const r = assignRoutes();
-    if (r.groups > 0) {
-      console.log(`[route] ${r.mode === 'bulk' ? '开赛' : '补发'}：为 ${r.groups} 组 / ${r.players} 人排定关卡顺序`);
-    }
-  }
   broadcast('settings');
   res.json({ settings: getSettings() });
 });
@@ -942,47 +864,29 @@ app.post('/api/admin/player/:id', staffAuth('admin'), (req, res) => {
   res.json({ player: playerState(stmts.playerById.get(p.id)) });
 });
 
-app.post('/api/admin/award', staffAuth('admin'), (req, res) => {
-  const { awardId, playerId, note } = req.body || {};
-  if (!awardId) return res.status(400).json({ error: '缺少奖项' });
-  if (playerId) stmts.setAward.run(awardId, playerId, String(note || ''), Date.now());
-  else stmts.clearAward.run(awardId);
-  broadcast('award');
-  res.json({ awards: stmts.allAwards.all() });
-});
 
-app.get('/api/awards', (_req, res) => {
-  const rows = stmts.allAwards.all();
-  res.json({
-    awards: rows.map((a) => {
-      const p = a.player_id ? stmts.playerById.get(a.player_id) : null;
-      return {
-        awardId: a.award_id,
-        note: a.note,
-        player: p ? { id: p.id, name: p.name, code: p.code, avatar: safeJSON(p.avatar, {}) } : null,
-      };
-    }),
-  });
-});
 
 app.get('/api/admin/export.csv', staffAuth('admin'), (_req, res) => {
   const board = leaderboard();
-  const stationIds = STATIONS.map((s) => s.id);
+  // 一场活动一列，打了勾的写盖章日期 —— 比写个分数有用，
+  // 打卡本里每一场的分都是 1
+  const acts = getActivities();
   const header = [
-    '排名', '编号', '密码', '姓名', '身份', '队伍', '总分', '完成关卡数',
-    ...STATIONS.map((s) => s.name), 'Token 剩余', '盲盒次数', '联系方式', '备注',
+    '排名', '编号', '密码', '姓名', '参加过几场',
+    ...acts.map((a) => a.name), '联系方式', '备注',
   ];
   const lines = [header.map(csvEscape).join(',')];
+
+  const day = (ts) => new Date(ts).toLocaleDateString('en-GB',
+    { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
 
   for (const row of board) {
     const p = stmts.playerById.get(row.id);
     const st = playerState(p);
     lines.push([
-      row.rank, row.code, p.pin, row.name,
-      IDENTITIES[row.identity]?.name || '', row.teamId || '',
-      st.total, st.stationsDone,
-      ...stationIds.map((id) => (st.stations[id] ? st.stations[id].points : '')),
-      st.tokensLeft, st.lifeEventsTaken, p.contact, p.notes,
+      row.rank, row.code, p.pin, row.name, st.stationsDone,
+      ...acts.map((a) => (st.stations[a.id] ? day(st.stations[a.id].at) : '')),
+      p.contact, p.notes,
     ].map(csvEscape).join(','));
   }
 

@@ -32,9 +32,9 @@ const H = { authorization: `Bearer ${login.token}` };
 /* --------- 场景 1：三台设备同时推送互不重叠的记分 --------- */
 
 const deviceOps = [
-  [{ opId: 'c-a1', type: 'score', playerId: player.id, stationId: 'music', points: 6, operator: '设备A' }],
-  [{ opId: 'c-b1', type: 'score', playerId: player.id, stationId: 'uk', points: 9, operator: '设备B' }],
-  [{ opId: 'c-c1', type: 'score', playerId: player.id, stationId: 'photo', points: 3, operator: '设备C' }],
+  [{ opId: 'c-a1', type: 'score', playerId: player.id, stationId: 'freshers', points: 6, operator: '设备A' }],
+  [{ opId: 'c-b1', type: 'score', playerId: player.id, stationId: 'bible-study', points: 9, operator: '设备B' }],
+  [{ opId: 'c-c1', type: 'score', playerId: player.id, stationId: 'christmas', points: 3, operator: '设备C' }],
 ];
 
 await Promise.all(
@@ -61,8 +61,8 @@ check('事件条数不变（仍为 3 条）', me.player.history.length === 3, `�
 /* --------- 场景 3：两台设备抢同一个关卡（只能有一个赢） --------- */
 
 const race = await Promise.all([
-  j('/api/staff/sync', { method: 'POST', headers: H, body: { ops: [{ opId: 'c-r1', type: 'score', playerId: player.id, stationId: 'memory', points: 9, operator: '设备A' }], since: 0 } }),
-  j('/api/staff/sync', { method: 'POST', headers: H, body: { ops: [{ opId: 'c-r2', type: 'score', playerId: player.id, stationId: 'memory', points: 3, operator: '设备B' }], since: 0 } }),
+  j('/api/staff/sync', { method: 'POST', headers: H, body: { ops: [{ opId: 'c-r1', type: 'score', playerId: player.id, stationId: 'retreat', points: 9, operator: '设备A' }], since: 0 } }),
+  j('/api/staff/sync', { method: 'POST', headers: H, body: { ops: [{ opId: 'c-r2', type: 'score', playerId: player.id, stationId: 'retreat', points: 3, operator: '设备B' }], since: 0 } }),
 ]);
 const statuses = race.map((r) => r.results[0].status).sort();
 check('同一关卡的竞争只有一方成功', JSON.stringify(statuses) === '["conflict","ok"]', JSON.stringify(statuses));
@@ -90,7 +90,10 @@ for (let i = 0; i < 50; i++) {
   const r = await j('/api/register', { method: 'POST', body: { name: `压测${i}`, avatar: {} } });
   players.push(r.player);
 }
-const stations = ['music', 'uk', 'interview', 'photo', 'memory', 'blindbox', 'library', 'decisions'];
+// 活动清单是可改的，压测直接按当前这份来 —— 写死一串 id 的话，
+// 哪天活动改了这条压测就静悄悄地全变成「未知关卡」
+const cfg0 = await j('/api/config');
+const stations = cfg0.activities.map((a) => a.id);
 const bulk = [];
 players.forEach((p, pi) => {
   stations.forEach((s, si) => {

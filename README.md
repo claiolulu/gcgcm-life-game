@@ -397,6 +397,25 @@ PIN 的取值是**环境变量优先、其次才是数据库里存的值**。这
 
 报名存在 `signups` 表，主键是 `(活动, 人)` —— 重复提交天然幂等，取消就是删掉那一行。名单带联系方式，所以只有管理员看得到；公开的活动接口只给名字、日期、说明和报名人数。
 
+### 迎新游戏那一套已经拆干净了
+
+这条分支（`passport-checkin`）是打卡本，不是那一晚的闯关游戏。原来两套东西并存，现在把游戏那一套整个拆掉了：
+
+| 拆掉的 | 原来是什么 |
+|---|---|
+| 记分档位 3/6/9 | 同工按表现给分。现在只有「到了就盖章」，不评分 |
+| 人生盲盒 | 总分跨红线要去抽卡，可能加分减半、可能挂个「下一关最多 1 分」 |
+| 恩典站 / Help Token | 全场一枚代币，卡关时递出求助 |
+| 身份 Solo/Duo/Trio | 开局抽签定，护照资料页上的 CLASS 一栏 |
+| 分队（颜色 + 符号） | 页眉那枚队伍徽记、队友面板、资料页的 TEAM 一栏 |
+| 关卡顺序排班 | 把 50 个人摊到 8 个关卡上的贪心算法 |
+| 颁奖 | The Connector / The Creative 那些 |
+| 资料页的「SCORE 累计积分」 | 页眉左上角一直显示着，同一个数印两遍 |
+
+服务端一并删了 `/api/admin/draw`、`/api/admin/team`、`/api/admin/unassign`、`/api/admin/award`、`/api/awards`，以及 `applyOp` 里的 `life_event` / `grace` / `clear_modifiers` 三个分支。`config.js` 从 412 行降到 215 行（STATIONS、IDENTITIES、LIFE_EVENT_CARDS、GRACE_OPTIONS、AWARDS、GROUP_COLORS…… 全没了），`game.js` 从 967 行降到 298 行。`/api/config` 下发的东西从 17 项减到 9 项。
+
+**留下的**：`events` 表还认 `station` 和 `adjust` 两种；老数据里那些 `life_event` / `grace` 记录还在库里（删表是另一回事），只是不再有代码读它们。`players` 表的 `identity` / `team_id` / `tokens_total` 几列也留着 —— 删列要重建表，收益不抵风险。
+
 ### 栏目条能绑什么
 
 栏目条（签发站、控制号、姓、名……）每一条只有两件事：**印什么标题**（自己写），**内容从哪来**。来源按组分开，下拉里好找：

@@ -3,8 +3,6 @@ import { AvatarContent } from '../components/Avatar.jsx';
 import { useToast, Empty } from '../components/ui.jsx';
 import { usePlayer } from '../lib/player.js';
 import { useConfig } from '../lib/config.js';
-import { api } from '../lib/api.js';
-import { kvGet, kvSet } from '../lib/idb.js';
 
 /**
  * 结业徽章：可保存、可分享朋友圈。
@@ -17,33 +15,14 @@ export default function Badge() {
   const svgRef = useRef(null);
   const [png, setPng] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [myAwards, setMyAwards] = useState([]);
-
-  const stations = config?.stations || [];
-  const identities = config?.identities || {};
+  const stations = config?.activities || [];
   const game = config?.game || {};
-  const awardDefs = config?.awards || [];
-
-  useEffect(() => {
-    if (!me) return;
-    (async () => {
-      try {
-        const res = await api('/api/awards', { timeout: 6000 });
-        await kvSet('awards', res.awards);
-        setMyAwards((res.awards || []).filter((a) => a.player?.id === me.id));
-      } catch {
-        const cached = await kvGet('awards');
-        setMyAwards((cached || []).filter((a) => a.player?.id === me.id));
-      }
-    })();
-  }, [me?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!me) return <div className="page"><Empty icon="🛂" title="还没有护照" hint="先去报名领一本护照吧" /></div>;
 
-  const identity = identities[me.identity];
-  const awardName = myAwards
-    .map((a) => awardDefs.find((d) => d.id === a.awardId))
-    .filter(Boolean)[0];
+  // 身份和奖项跟着迎新游戏一起去掉了：这张徽章现在只讲「参加过哪几场」
+  const identity = null;
+  const awardName = null;
 
   async function render() {
     setBusy(true);

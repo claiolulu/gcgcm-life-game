@@ -8,7 +8,8 @@ export default function StaffLogin() {
   const nav = useNavigate();
   const toast = useToast();
   const { config } = useConfig();
-  const stations = [...(config?.stations || []), ...(config?.functional || [])];
+  // 同工守的是某一场活动。原来这里是「关卡 + 功能站」，那是迎新游戏那套
+  const stations = config?.activities || [];
 
   const [pin, setPin] = useState('');
   const [name, setName] = useState('');

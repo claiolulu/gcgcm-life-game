@@ -182,8 +182,8 @@ export function resolveBlocks(template, station, theme) {
  * 那边加一行、这里加一个键、VisaBlocks 的 bindRow 加一个 case，三处齐了才生效。
  */
 export function blockData({
-  station, me, theme, passportNo, surname, given, identityLabel,
-  visaScore, isCheckin, stampTone, stampDate, doneCount, teamBadge, signed, mrz1, mrz2,
+  station, me, theme, passportNo, surname, given,
+  visaScore, isCheckin, stampTone, stampDate, doneCount, signed, mrz1, mrz2,
 }) {
   // 签发机构：这一场自己填的优先，没填就用护照模版上的那个（整本护照的签发方）
   const issuer = String(station?.issuer || '').trim() || theme?.coverIssuer || 'GCGCM';
@@ -194,7 +194,6 @@ export function blockData({
     code: me?.code || '',
     passport: passportNo,
     contact: me?.contact || '',
-    team: teamBadge ? `${teamBadge.en} ${teamBadge.symbol}` : '——',
     visited: String(doneCount ?? 0),
     // 这一页
     stampDate: stampDate || '',
@@ -204,7 +203,6 @@ export function blockData({
     // 每一页都一样，印在签证页上没说出任何关于这一场的事
     control: `${issuer}/${issued}`,
     surname, given,
-    identity: identityLabel,
     tag: station?.tag || '',
     host: station?.host || station?.staff || '',
     // 活动自己的日期；还没定的写「待定」，比印一个假日期诚实
@@ -249,25 +247,16 @@ const STAMP_SPOT = [
   { t: '56%', l: '60%', r: '13deg' },  { t: '46%', l: '24%', r: '-11deg' },
 ];
 
-const IDENTITY_META = {
-  solo: { key: 'SOLO', en: 'SOLO', cn: '独行侠', color: '#5c1a22' },
-  duo:  { key: 'DUO',  en: 'DUO',  cn: '双人搭档', color: '#2c4a5a' },
-  trio: { key: 'TRIO', en: 'TRIO', cn: '三股绳', color: '#37543c' },
-};
-const IDENTITY_ORDER = ['solo', 'duo', 'trio'];
-
-const HELP_OPTS = [
-  { n: 'I',   en: 'HINT / HELPER',  cn: '提供关卡关键提示，或安排一位 NPC 协助你完成。' },
-  { n: 'II',  en: 'SECOND CHANCE',  cn: '给予一次免费重新挑战该关卡的机会。' },
-  { n: 'III', en: 'GRACE CARD',     cn: '换得一张精美的恩典卡，可带走留念。' },
-];
-
+/** 玩法页（点页眉的 ? 打开）。原来讲的是迎新那一晚的闯关规则，改成讲打卡本 */
 const GUIDE = [
-  { n: 1, cn: '抽取身份', en: 'IDENTITY',   body: '开局抽签决定 Solo / Duo / Trio。人生起点不由自己选择，能力起点不同，关卡难度也不同。' },
-  { n: 2, cn: '挑战八关', en: 'EIGHT VISAS', body: '八张签证页自由顺序前往。每关由工作人员当场评分：3 分勉强完成、6 分正常完成、9 分出色完成，只在个人护照上盖章。' },
-  { n: 3, cn: '遇到意外', en: 'LIFE EVENT',  body: '总分首次跨过红线时，必须前往场地中央抽人生盲盒，可能加分也可能扣分。' },
-  { n: 4, cn: '寻求恩典', en: 'GRACE',       body: '卡关、遇到难关或抽到「大凶」被扣分时，随时可到恩典站递出 Help Token 求助。全场只有一枚。' },
-  { n: 5, cn: '结业颁奖', en: 'AWARDS',      body: '除最高积分奖外，另颁 The Connector、The Creative 等迎新向奖项，最后进入福音反思环节。' },
+  { n: 1, cn: '领一本护照', en: 'GET YOURS',
+    body: '报名之后这本护照就是你的。编号和密码记好，换手机了用它找回。' },
+  { n: 2, cn: '来一场活动', en: 'COME ALONG',
+    body: '迎新、查经、退修会、圣诞……每一场在护照里都是一页签证。' },
+  { n: 3, cn: '找同工盖章', en: 'GET STAMPED',
+    body: '到了现场把护照上的二维码给同工扫一下，当场盖章。每场只盖一次。' },
+  { n: 4, cn: '翻回来看看', en: 'LOOK BACK',
+    body: '一年下来翻开它，就是你在这里走过的路 —— 去过哪儿、和谁一起。' },
 ];
 
 /**
@@ -298,7 +287,6 @@ export function buildPages(stations) {
       kind: 'visa', i,
       label: `签证 ${String(i + 1).padStart(2, '0')} ${st.name}`,
     })),
-    { kind: 'grace',   label: '恩典站 GRACE' },
     { kind: 'closing', label: '结语 CLOSING' },
   ];
 }
@@ -330,10 +318,10 @@ export function passportNoOf(code) {
   return 'GCGCM' + String(code || '0').replace(/\D/g, '').padStart(6, '0');
 }
 
-function mrzLine(n, { surname, given, passportNo, identity, total }) {
+function mrzLine(n, { surname, given, passportNo, code, total }) {
   const pad = (s, len) => (s + '<'.repeat(Math.max(0, len - s.length))).slice(0, len);
   if (n === 1) return pad('P<GCGCM' + clean(surname, 'PLAYER') + '<<' + clean(given, 'ONE'), 38);
-  return pad(passportNo + '<GCGCM' + identity + '<' + String(total).padStart(2, '0') + 'PTS', 38);
+  return pad(passportNo + '<GCGCM<' + clean(code, '00') + '<' + String(total).padStart(2, '0') + 'PTS', 38);
 }
 
 /* ---------------------------- 主构建函数 ---------------------------- */
@@ -388,24 +376,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
    */
   const visaTotal = stations.length;
 
-  const identityKey = me?.identity || null;
-  const idt = IDENTITY_META[identityKey] || IDENTITY_META.solo;
-  const identityLabel = identityKey ? idt.en : '——';
-
   const passportNo = passportNoOf(me?.code);
 
-  // 队伍：颜色 + 符号是场内互相辨认的凭据，队友名单是真正好用的那一半
-  const colorMeta = (config?.groupColors || []).find((c) => c.key === me?.teamColor) || null;
-  const teamBadge = colorMeta && me?.teamSymbol
-    ? {
-        name: colorMeta.name,          // 中文单字，队友面板里用
-        // 页眉徽章用英文：场内隔着人群喊「RED」比喊「赤队」快，
-        // 而且颜色本身已经写在边框和字色上了，中文字反倒挤位置
-        en: String(colorMeta.key || '').toUpperCase(),
-        hex: colorMeta.hex, symbol: me.teamSymbol, teamId: me.teamId,
-      }
-    : null;
-  const teammates = me?.teammates || [];
   // 自己填的优先；只填了一个也认，另一个仍然用猜的补上
   const guessed = splitName(me?.name);
   const surname = (me?.surname || '').trim() || guessed.surname;
@@ -427,7 +399,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 签证页的页眉写活动名 —— 每页都写「VISA 签证」等于什么都没说，
     // 而翻到哪一场才是这一页唯一会变的信息
     visa: station ? `${station.icon || ''} ${station.name}`.trim() : 'VISA 签证',
-    grace: 'GRACE STATION 恩典站', guide: 'HOW TO PLAY 玩法',
+    guide: 'HOW TO PLAY 玩法',
     board: 'LEADERBOARD 实时排行', closing: 'CLOSING 结语',
   };
   const corners = {
@@ -436,7 +408,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     visa: station
       ? (visaScore != null ? '已参加 ✓' : `NO.${String(cur.i + 1).padStart(2, '0')} 待参加`)
       : '',
-    grace: 'YIHAN · 佳琪', guide: 'RULES · 点问号返回', board: 'LIVE · 点奖杯返回',
+    guide: 'RULES · 点问号返回', board: 'LIVE · 点奖杯返回',
     closing: 'JOHN 15:12',
   };
 
@@ -451,7 +423,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   const landmarkKey = station
     ? station.landmarkKey
     : { inside: 'cathedral', notes: 'wellington', data: 'university',
-        grace: 'cathedral', guide: 'wellington', board: 'university',
+        guide: 'wellington', board: 'university',
         closing: null }[kind] || null;
 
   // 同步状态：只用英文单词 + 颜色，一眼分辨，也不占地方
@@ -489,7 +461,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     isNotes: kind === 'notes',
     isData: kind === 'data',
     isVisa: kind === 'visa',
-    isGrace: kind === 'grace',
     isGuide: kind === 'guide',
     isBoard: kind === 'board',
     isClosing: kind === 'closing',
@@ -555,7 +526,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 不如把界面元素圈出来一条条指给他看
     goGuide: () => actions.startTour(),
     startTour: () => actions.startTour(),
-    goGrace: () => actions.goto(pages.findIndex((p) => p.kind === 'grace')),
     closeAside: () => {
       if (ui.overlay) return actions.setOverlay(null);
       actions.goto(pages.findIndex((p) => p.kind === 'notes'));
@@ -569,40 +539,24 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 只读：设计稿里这三个是输入框，这里已被设为 readOnly，处理器留空
     setName: noop, setSurname: noop, setGiven: noop,
 
-    identities: IDENTITY_ORDER.map((k) => {
-      const m = IDENTITY_META[k];
-      const on = k === identityKey;
-      return {
-        en: m.en,
-        bg: on ? m.color : 'transparent',
-        fg: on ? '#f3ede0' : 'rgba(var(--pp-text-rgb),.7)',
-        bd: on ? m.color : 'rgba(var(--pp-ink-rgb),.3)',
-        pick: noop, // 身份由总控台抽签决定，这里只是显示
-      };
-    }),
+    // 身份（SOLO/DUO/TRIO）是迎新游戏那套的，打卡本没有这回事。
+    // 设计稿里那三个按钮的位置由视图层按空数组收起
+    identities: [],
 
     fields: [
       { label: 'NATIONALITY 国籍', value: 'GCGCM' },
       { label: 'PASSPORT NO 护照号', value: passportNo },
       { label: 'PLAYER NO 编号', value: String(me?.code || '——') },
-      // Solo 没有 teamId，原来会把字面量 null 印在护照上。
-      // 改队名之后优先显示队名，没队伍就只显示颜色符号
-      { label: 'TEAM 队伍',
-        value: teamBadge
-          ? [`${teamBadge.name}${teamBadge.symbol}`, me?.teamName || teamBadge.teamId]
-              .filter(Boolean).join(' · ')
-          : '——',
-        fg: teamBadge ? teamBadge.hex : undefined },
       { label: 'PLACE OF ISSUE 签发地', value: 'GLASGOW, UK' },
       { label: 'DATE OF ISSUE 签发日期', value: '28 AUG 2026' },
       { label: 'DATE OF EXPIRY 有效期至', value: 'ETERNAL 无尽无穷', fg: 'var(--pp-ink)' },
       { label: 'AUTHORITY 签发机关', value: 'GCGCM' },
-      { label: 'SCORE 累计积分', value: String(total).padStart(2, '0') },
+      // 累计积分这一栏去掉了：页眉左上角一直显示着，同一个数印两遍
     ].map((f) => ({ ...f, fg: f.fg || 'var(--pp-text)' })),
 
     mrzOn: true,
-    mrz1: mrzLine(1, { surname, given, passportNo, identity: identityLabel, total }),
-    mrz2: mrzLine(2, { surname, given, passportNo, identity: identityLabel, total }),
+    mrz1: mrzLine(1, { surname, given, passportNo, code: me?.code, total }),
+    mrz2: mrzLine(2, { surname, given, passportNo, code: me?.code, total }),
     bars: code39(passportNo),
 
     /* ---- 二维码（由容器异步生成后传入） ---- */
@@ -611,8 +565,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     qrThumb: ui.qrThumb || null,
     qrBigImg: ui.qrBigImg || null,
     qrBig: ui.modal === 'qr',
-    teamBadge,
-    teammates,
+    // 队伍是迎新游戏那套的，打卡本不分队
+    // 队伍和队友是迎新游戏那套的（Solo/Duo/Trio 分队），打卡本不分队
+    teamBadge: null,
+    teammates: [],
     goTeam: () => actions.openTeam(),
     // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
     openTheme: () => actions.openTheme(),
@@ -624,10 +580,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     navCards: [
       { cn: '实时排行', en: 'LEADERBOARD', glyph: 'T', chip: 'rgba(var(--pp-ink-rgb),.06)',
         desc: '查看当前积分与全场排名。', go: () => actions.setOverlay('board') },
-      { cn: '恩典站', en: 'GRACE STATION', glyph: 'G',
-        chip: 'radial-gradient(circle at 36% 30%,var(--pp-gold),var(--pp-gold-3))',
-        desc: '全场只有一枚代币，卡关时可以递出求助。',
-        go: () => actions.goto(pages.findIndex((p) => p.kind === 'grace')) },
       { cn: '玩法说明', en: 'HOW TO PLAY', glyph: '?', chip: 'rgba(44,74,90,.08)',
         desc: '身份、关卡、评分与颁奖的完整规则。', go: () => actions.setOverlay('guide') },
     ],
@@ -671,16 +623,16 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
      */
     visaBlocks: station ? resolveBlocks(config?.visaTemplate, station, theme) : [],
     visaBlockData: station ? blockData({
-      station, me, theme, passportNo, surname, given, identityLabel,
-      visaScore, isCheckin, doneCount, teamBadge,
+      station, me, theme, passportNo, surname, given,
+      visaScore, isCheckin, doneCount,
       signed: (me?.signups || []).includes(station.id),
       stampDate: done[station.id]?.at
         ? new Date(done[station.id].at).toLocaleDateString('en-GB',
             { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
         : '',
       stampTone: isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || 'var(--pp-text)'),
-      mrz1: mrzLine(1, { surname, given, passportNo, identity: identityLabel, total }),
-      mrz2: mrzLine(2, { surname, given, passportNo, identity: identityLabel, total }),
+      mrz1: mrzLine(1, { surname, given, passportNo, code: me?.code, total }),
+      mrz2: mrzLine(2, { surname, given, passportNo, code: me?.code, total }),
     }) : {},
 
     visaStamped: station != null && visaScore != null,
@@ -726,23 +678,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       actions.checkStamp();
     },
 
-    /* ---- 恩典站 ---- */
-    coinFilter: me?.tokensLeft > 0 ? 'none' : 'grayscale(1) opacity(.5)',
-    tokenAvailable: (me?.tokensLeft ?? 0) > 0,
-    tokenUsed: (me?.tokensLeft ?? 0) <= 0,
-    usedAt: '',
-    tokenTitle: me?.tokensLeft > 0 ? '你有一枚 Help Token' : '代币已递出',
-    tokenBody: me?.tokensLeft > 0
-      ? '卡关、遇到难关，或抽到「大凶」被扣分时，随时可前往场地中央的恩典站，把这枚代币交给同工。'
-      : '恩典站已经为你提供了帮助，并换给你一张恩典卡。代币不可再次使用。',
-    tokenTitleFg: me?.tokensLeft > 0 ? 'var(--pp-ink)' : 'rgba(var(--pp-text-rgb),.45)',
-    tokenBodyFg: me?.tokensLeft > 0 ? 'rgba(var(--pp-text-rgb),.75)' : 'rgba(var(--pp-text-rgb),.45)',
-    helpOpts: HELP_OPTS,
-    // 只读：代币由恩典站同工当面收下并在工作人员端记录，这里只弹一个说明
-    askToken: () => actions.setModal('token'),
-    askingToken: ui.modal === 'token',
-    useToken: () => actions.setModal(null),
-
     guide: GUIDE,
 
     // 导航页的活动简介（原来那三张功能卡片换成了这个）
@@ -774,7 +709,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     boardRows: board.map((r, i) => ({
       rank: String(r.rank ?? i + 1).padStart(2, '0'),
       name: r.name,
-      identity: r.identity ? (IDENTITY_META[r.identity]?.en || '') : '——',
+      // 这一列原来印身份（SOLO/DUO/TRIO）。打卡本没有身份，改印参加过几场
+      identity: `${r.stationsDone ?? 0} 场`,
       score: String(r.total).padStart(2, '0'),
       bg: r.id === me?.id ? 'rgba(198,164,95,.22)' : 'transparent',
       fg: r.id === me?.id ? 'var(--pp-ink)' : 'var(--pp-text)',
@@ -786,4 +722,4 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   };
 }
 
-export { STAMP_TONE, STAMP_WORD, IDENTITY_META };
+export { STAMP_TONE, STAMP_WORD };

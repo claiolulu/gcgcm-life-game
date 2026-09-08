@@ -10,8 +10,7 @@ import { useConfig } from '../lib/config.js';
 export default function Leaderboard() {
   const { me } = usePlayer();
   const { config } = useConfig();
-  const identities = config?.identities || {};
-  const stationCount = config?.stations?.length ?? 8;
+  const stationCount = (config?.activities || []).length;
 
   const [board, setBoard] = useState([]);
 
@@ -165,8 +164,7 @@ export default function Leaderboard() {
   );
 }
 
-function Row({ row, isMe, identities, stationCount }) {
-  const meta = identities?.[row.identity];
+function Row({ row, isMe, stationCount }) {
   return (
     <div className={`lb-row ${isMe ? 'lb-row--me' : ''}`}>
       <div className={`lb-rank lb-rank--${row.rank}`}>{row.rank}</div>
@@ -176,7 +174,7 @@ function Row({ row, isMe, identities, stationCount }) {
           {row.name}{isMe && <span className="gold"> · 我</span>}
         </div>
         <div className="tiny dim">
-          {meta ? `${meta.icon} ${meta.name}` : '未抽身份'} · {row.stationsDone}/{stationCount} 关
+          参加过 {row.stationsDone}/{stationCount} 场
           {row.lifeEventsTaken > 0 && ` · 🎲${row.lifeEventsTaken}`}
           {row.tokensLeft === 0 && ' · 🪙已用'}
         </div>

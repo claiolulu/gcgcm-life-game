@@ -1,4 +1,4 @@
-// 端到端冒烟测试：验证幂等、每站一次、倍率结算、Token、排行榜
+// 端到端冒烟测试：验证幂等、一场只盖一次、盖章、排行榜
 const BASE = process.env.BASE || 'http://localhost:3000';
 const j = async (url, opts = {}) => {
   const r = await fetch(BASE + url, {
@@ -53,7 +53,7 @@ check('工作人员 PIN 登录', login.status === 200 && login.body.role === 'st
 const staffH = { authorization: `Bearer ${login.body.token}` };
 
 // 4. 记一次分
-const op1 = { opId: 'op-test-001', type: 'score', playerId: player.id, stationId: 'music', points: 6, operator: '梁潇' };
+const op1 = { opId: 'op-test-001', type: 'score', playerId: player.id, stationId: 'freshers', points: 6, operator: '梁潇' };
 const s1 = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op1], since: 0 } });
 check('音乐站记 6 分', s1.body.results[0].status === 'ok', JSON.stringify(s1.body.results[0]));
 
@@ -62,55 +62,36 @@ const s2 = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: {
 check('重复提交同一 opId 不重复加分', s2.body.results[0].status === 'duplicate');
 
 // 6. 每站只有一次机会：不同 opId、同一关卡
-const op2 = { opId: 'op-test-002', type: 'score', playerId: player.id, stationId: 'music', points: 9, operator: '益嘉' };
+const op2 = { opId: 'op-test-002', type: 'score', playerId: player.id, stationId: 'freshers', points: 9, operator: '益嘉' };
 const s3 = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op2], since: 0 } });
 check('同一关卡二次记分被拒', s3.body.results[0].status === 'conflict', JSON.stringify(s3.body.results[0]));
 
 // 7. 再拿几站分，凑过 15 分红线
 const more = [
-  { opId: 'op-test-003', type: 'score', playerId: player.id, stationId: 'uk', points: 6, operator: '逸欣' },
-  { opId: 'op-test-004', type: 'score', playerId: player.id, stationId: 'memory', points: 6, operator: '德浩' },
+  { opId: 'op-test-003', type: 'score', playerId: player.id, stationId: 'bible-study', points: 6, operator: '逸欣' },
+  { opId: 'op-test-004', type: 'score', playerId: player.id, stationId: 'retreat', points: 6, operator: '德浩' },
 ];
 await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: more, since: 0 } });
 const afterScores = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
 check('总分 = 6+6+6 = 18', afterScores.body.player.total === 18, `实际 ${afterScores.body.player.total}`);
-check('跨过 15 分红线后触发盲盒提醒', afterScores.body.player.pendingLifeEvents === 1,
-  `pending=${afterScores.body.player.pendingLifeEvents}`);
 
-// 8. 抽到「投资暴雷」→ 减半。验证乘法被结算成加法增量
-const op5 = { opId: 'op-test-005', type: 'life_event', playerId: player.id, cardId: 'crypto_crash', operator: '昊阳' };
-const s5 = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op5], since: 0 } });
-const ev5 = s5.body.results[0];
-check('盲盒减半：18 → 9，落库为 -9 的加法事件', ev5.status === 'ok' && ev5.event.points === -9,
-  JSON.stringify(ev5.event));
+// 8. 打卡：到了就盖章，不评分
+const chk = { opId: 'op-test-005', type: 'score', playerId: player.id, stationId: 'christmas',
+              points: 1, checkin: true, operator: '佳琪' };
+const s5 = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [chk], since: 0 } });
+check('盖章记下来了', s5.body.results[0].status === 'ok', JSON.stringify(s5.body.results[0]));
+check('盖章带 checkin 标记（印章据此写「已参加」）',
+  s5.body.results[0].event.meta?.checkin === true, JSON.stringify(s5.body.results[0].event.meta));
 
-const afterCrash = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
-check('减半后总分 = 9', afterCrash.body.player.total === 9, `实际 ${afterCrash.body.player.total}`);
-check('抽完盲盒后提醒清除', afterCrash.body.player.pendingLifeEvents === 0);
-
-// 9. 抽到「重感冒」→ 下一关最多 1 分
-const op6 = { opId: 'op-test-006', type: 'life_event', playerId: player.id, cardId: 'flu', operator: '静文' };
-await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op6], since: 0 } });
-const withMod = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
-check('状态效果已挂到选手身上', withMod.body.player.modifiers.some((m) => m.modifier === 'cap_next'));
-
-const op7 = { opId: 'op-test-007', type: 'score', playerId: player.id, stationId: 'photo', points: 9, operator: '任飞' };
-const s7 = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op7], since: 0 } });
-check('重感冒生效：给 9 分实际只记 1 分', s7.body.results[0].event.points === 1,
-  JSON.stringify(s7.body.results[0].event));
-
-const afterFlu = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
-check('状态效果用掉后自动消失', !afterFlu.body.player.modifiers.some((m) => m.modifier === 'cap_next'));
-
-// 10. Help Token
-const op8 = { opId: 'op-test-008', type: 'grace', playerId: player.id, option: 'second_chance', operator: 'Yihan' };
-await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op8], since: 0 } });
-const afterGrace = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
-check('Help Token 用掉后剩 0', afterGrace.body.player.tokensLeft === 0);
-
-const op9 = { opId: 'op-test-009', type: 'grace', playerId: player.id, option: 'hint', operator: 'Yihan' };
-const s9 = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op9], since: 0 } });
-check('Token 用完后再用被拒', s9.body.results[0].status === 'conflict');
+// 9. 迎新游戏那几种操作已经不认了
+for (const [label, op] of [
+  ['人生盲盒', { opId: 'gone-1', type: 'life_event', playerId: player.id, cardId: 'crypto_crash' }],
+  ['恩典站',   { opId: 'gone-2', type: 'grace', playerId: player.id, option: 'hint' }],
+]) {
+  const r = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [op], since: 0 } });
+  check(`${label}这种操作已经不认了`, r.body.results[0].status === 'error',
+    JSON.stringify(r.body.results[0]));
+}
 
 // 11. 增量同步（要带上数据纪元，否则会被判定为过期而强制回全量）
 const baseline = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [], since: 0, epoch: 0 } });
@@ -144,20 +125,13 @@ check('连续试错会被限速锁定', limited);
 const lb = await j('/api/leaderboard');
 check('排行榜可读且有名次', lb.status === 200 && lb.body.board.length > 0 && lb.body.board[0].rank === 1);
 
-// 14. 管理员抽身份
+// 14. 管理员登录
 const alogin = await j('/api/staff/login', { method: 'POST', body: { pin: 'stm2026', name: '昊阳' } });
 check('管理员登录', alogin.body.role === 'admin');
 const adminH = { authorization: `Bearer ${alogin.body.token}` };
-const draw = await j('/api/admin/draw', { method: 'POST', headers: adminH, body: {} });
-check('随机抽取身份/组队', draw.status === 200 && draw.body.assigned > 0,
-  JSON.stringify(draw.body.counts));
-
-const drawn = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
-check('选手拿到身份和首站', !!drawn.body.player.identity && !!drawn.body.player.startStation,
-  `${drawn.body.player.identity} / ${drawn.body.player.startStation}`);
 
 // 15. 权限
-const noAuth = await j('/api/admin/draw', { method: 'POST', headers: staffH, body: {} });
+const noAuth = await j('/api/admin/activities', { method: 'POST', headers: staffH, body: { activities: [] } });
 check('普通工作人员不能调管理员接口', noAuth.status === 403);
 
 const badPin = await j('/api/staff/login', { method: 'POST', body: { pin: '0000' } });

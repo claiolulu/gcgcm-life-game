@@ -63,19 +63,15 @@ check('护照信息确实没被改动', stillOld.body.player.name === '改了名
 check('开赛后仍能拉取自己的护照', stillOld.status === 200 && stillOld.body.player.code);
 const lb = await j('/api/leaderboard');
 check('开赛后仍能拉取排行榜', lb.status === 200 && Array.isArray(lb.body.board));
-const aw = await j('/api/awards');
-check('开赛后仍能拉取奖项', aw.status === 200 && Array.isArray(aw.body.awards));
-check('开赛后仍能拉取游戏配置', cfg.status === 200 && cfg.body.stations.length > 0,
-  `${cfg.body.stations?.length} 个关卡`);
+check('开赛后仍能拉取配置', cfg.status === 200 && cfg.body.activities.length > 0,
+  `${cfg.body.activities?.length} 场活动`);
 
 /* ---------- 拿着选手令牌打不动任何写接口 ---------- */
 
 const asPlayer = [
-  ['记分', '/api/staff/sync', { ops: [{ opId: 'ro-1', type: 'score', playerId, stationId: 'music', points: 9 }], since: 0 }],
-  ['抽身份', '/api/admin/draw', {}],
+  ['记分', '/api/staff/sync', { ops: [{ opId: 'ro-1', type: 'score', playerId, stationId: 'freshers', points: 9 }], since: 0 }],
   ['改游戏参数', '/api/admin/settings', { gameState: 'lobby' }],
   ['重置数据', '/api/admin/reset', { confirm: 'RESET' }],
-  ['颁奖', '/api/admin/award', { awardId: 'top_score', playerId }],
 ];
 for (const [label, path, body] of asPlayer) {
   const r = await j(path, { method: 'POST', headers: P, body });
@@ -103,58 +99,6 @@ check('结束后仍能拉取护照用于生成徽章', badgeData.status === 200)
 // 复位，别把库留在 ended 状态
 await setState('lobby');
 await j('/api/admin/settings', { method: 'POST', headers: A, body: { registrationOpen: true } });
-
-
-/* ---------- 身份分配：自动补齐 与 手动编队 ---------- */
-
-await setState('lobby');
-await j('/api/admin/settings', { method: 'POST', headers: A, body: { registrationOpen: true } });
-
-const newbies = [];
-for (const n of ['分配甲', '分配乙', '分配丙', '分配丁']) {
-  const r = await j('/api/register', { method: 'POST', body: { name: n, avatar: {} } });
-  newbies.push(r.body.player);
-}
-
-const fill1 = await j('/api/admin/draw', { method: 'POST', headers: A, body: { mode: 'fill' } });
-check('fill 模式给未分配的人分配了身份', fill1.body.assigned > 0, JSON.stringify(fill1.body.counts));
-
-// 再来一个新人，老人不应被打散
-const late = (await j('/api/register', { method: 'POST', body: { name: '迟到的', avatar: {} } })).body.player;
-const before = await j(`/api/staff/player/${newbies[0].code}`, { headers: A });
-const fill2 = await j('/api/admin/draw', { method: 'POST', headers: A, body: { mode: 'fill' } });
-const after = await j(`/api/staff/player/${newbies[0].code}`, { headers: A });
-check('fill 只分配新人，老人身份不变',
-  fill2.body.assigned === 1 && before.body.player.identity === after.body.player.identity &&
-  before.body.player.teamSymbol === after.body.player.teamSymbol,
-  `assigned=${fill2.body.assigned} skipped=${fill2.body.skipped}`);
-
-// 手动把三个人编成 Trio
-const trio = await j('/api/admin/team', {
-  method: 'POST', headers: A,
-  body: { playerIds: [newbies[0].id, newbies[1].id, newbies[2].id], identity: 'trio' },
-});
-check('手动编队成功', trio.status === 200 && trio.body.identity === 'trio', JSON.stringify(trio.body).slice(0, 120));
-
-const roster = (await j('/api/staff/sync', { method: 'POST', headers: A, body: { ops: [], since: 0 } })).body.players;
-const team = roster.filter((p) => p.teamId === trio.body.teamId);
-check('同队三人拿到同一个色号', team.length === 3 &&
-  new Set(team.map((p) => `${p.teamColor}|${p.teamSymbol}`)).size === 1);
-
-const byTeam = {};
-roster.forEach((p) => { if (p.teamId) byTeam[p.teamId] = `${p.teamColor}|${p.teamSymbol}`; });
-const combos = Object.values(byTeam);
-check('不同队之间没有撞色', new Set(combos).size === combos.length,
-  `${combos.length} 组 / ${new Set(combos).size} 种色号`);
-
-const un = await j('/api/admin/unassign', { method: 'POST', headers: A, body: { playerIds: [newbies[0].id] } });
-const cleared = await j(`/api/staff/player/${newbies[0].code}`, { headers: A });
-check('可以把人退回未分配', un.status === 200 && !cleared.body.player.identity);
-
-const asPlayerTeam = await j('/api/admin/team', { method: 'POST', headers: P, body: { playerIds: [late.id] } });
-check('选手令牌不能手动编队', asPlayerTeam.status === 401 || asPlayerTeam.status === 403, `状态码 ${asPlayerTeam.status}`);
-
-await setState('lobby');
 
 
 /* ---------- 数据纪元：重置后客户端不能留着幽灵数据 ---------- */
@@ -186,53 +130,6 @@ const sync3 = await j('/api/staff/sync', {
 });
 check('纪元一致时保持增量同步', sync3.body.full === false && sync3.body.players.length === 0,
   `full=${sync3.body.full} players=${sync3.body.players.length}`);
-
-await setState('lobby');
-
-
-/* ---------- 编队的人数校验与自动降级 ---------- */
-
-await setState('lobby');
-await j('/api/admin/settings', { method: 'POST', headers: A, body: { registrationOpen: true } });
-const crew = [];
-for (const n of ['编队甲', '编队乙', '编队丙', '编队丁']) {
-  crew.push((await j('/api/register', { method: 'POST', body: { name: n, avatar: {} } })).body.player);
-}
-const ids = crew.map((p) => p.id);
-const teamOf = async (code) => (await j(`/api/staff/player/${code}`, { headers: A })).body.player;
-
-const wrongTrio = await j('/api/admin/team', { method: 'POST', headers: A, body: { playerIds: ids.slice(0, 2), identity: 'trio' } });
-check('2 人不能编成 Trio', wrongTrio.status === 400, `状态码 ${wrongTrio.status} ${wrongTrio.body?.error || ''}`);
-
-const wrongDuo = await j('/api/admin/team', { method: 'POST', headers: A, body: { playerIds: ids.slice(0, 3), identity: 'duo' } });
-check('3 人不能编成 Duo', wrongDuo.status === 400, `状态码 ${wrongDuo.status}`);
-
-const wrongSolo = await j('/api/admin/team', { method: 'POST', headers: A, body: { playerIds: ids.slice(0, 2), identity: 'solo' } });
-check('2 人不能编成 Solo', wrongSolo.status === 400, `状态码 ${wrongSolo.status}`);
-
-const okTrio = await j('/api/admin/team', { method: 'POST', headers: A, body: { playerIds: ids.slice(0, 3), identity: 'trio' } });
-check('3 人可以编成 Trio', okTrio.status === 200 && okTrio.body.identity === 'trio');
-const teamId = okTrio.body.teamId;
-
-// 抽走一人 → 剩下两人自动降级成 Duo
-await j('/api/admin/team', { method: 'POST', headers: A, body: { playerIds: [ids[0]], identity: 'solo' } });
-const after1 = await Promise.all([teamOf(crew[1].code), teamOf(crew[2].code)]);
-check('三人队被抽走一人后，剩下两人自动降为 Duo',
-  after1.every((p) => p.identity === 'duo' && p.teamId === teamId),
-  after1.map((p) => `${p.name}:${p.identity}`).join(' '));
-
-// 再抽一人 → 剩下一人自动降级成 Solo，且不再属于任何队伍
-await j('/api/admin/team', { method: 'POST', headers: A, body: { playerIds: [ids[1]], identity: 'solo' } });
-const after2 = await teamOf(crew[2].code);
-check('两人队再被抽走一人后，剩下一人自动降为 Solo 且脱离队伍',
-  after2.identity === 'solo' && !after2.teamId, `${after2.identity} / ${after2.teamId}`);
-
-// 退回未分配也要触发降级
-const t2 = await j('/api/admin/team', { method: 'POST', headers: A, body: { playerIds: ids.slice(1, 4), identity: 'trio' } });
-await j('/api/admin/unassign', { method: 'POST', headers: A, body: { playerIds: [ids[1]] } });
-const after3 = await Promise.all([teamOf(crew[2].code), teamOf(crew[3].code)]);
-check('有人退回未分配后，同队剩下的人也会降级',
-  after3.every((p) => p.identity === 'duo'), after3.map((p) => `${p.name}:${p.identity}`).join(' '));
 
 await setState('lobby');
 

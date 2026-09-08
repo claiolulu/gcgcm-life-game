@@ -2,18 +2,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import Avatar from '../../components/Avatar.jsx';
-import CardArt from '../../components/CardArt.jsx';
 
 import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages } from './bookVals.js';
 import { FLIP_MS, FLIP_EASE } from './bookVals.js';
 import { useConfig } from '../../lib/config.js';
-import { usePlayer, refreshMe, renameTeam } from '../../lib/player.js';
+import { usePlayer, refreshMe } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
 import { kvGet, kvSet } from '../../lib/idb.js';
 import { onTick } from '../../lib/realtime.js';
 import { useLocalState } from '../../components/ui.jsx';
-import TeamPanel from './TeamPanel.jsx';
 import ThemeSheet from './ThemeSheet.jsx';
 import Tour from './Tour.jsx';
 
@@ -37,7 +35,6 @@ export default function PassportBook() {
   const [teamOpen, setTeamOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   // 抽到身份后自动弹一次队友面板 —— 这是选手最需要立刻知道的事
-  const [seenTeam, setSeenTeam] = useLocalState('mlg.teamSeen', null);
   const [tourOpen, setTourOpen] = useState(false);
   // 自动引导要等人先把封面翻开。否则新用户一进来就被拽到导航页，
   // 连封面都没看见，还以为程序坏了。
@@ -51,7 +48,7 @@ export default function PassportBook() {
       ? window.matchMedia('(orientation: landscape)').matches : false
   );
 
-  const stations = config?.stations || [];
+  const stations = config?.activities || [];
   // 签证页的内容来源：一场活动一页
   const activities = useMemo(() => config?.activities || [], [config]);
   // 签证页按活动装订，顺序就是配置里的先后（大致按时间）。
@@ -294,42 +291,6 @@ export default function PassportBook() {
     };
   }, [config]);
 
-  /* ------------------------- 欠盲盒的提醒 ------------------------- */
-  /**
-   * 总分跨过红线就必须去场地中央抽人生盲盒。服务端已经算好还欠几次
-   * （pendingLifeEvents），但选手端一直只在导航栏点了个小红点 —— 正在闯关的人
-   * 根本不会注意到，于是一路欠着跑到散场。
-   *
-   * 改成弹一次，并且把下一步写清楚：去哪、找谁、抽完才能继续。
-   * 同一个欠款次数只弹一次，抽完之后次数变了才会再弹。
-   */
-  /**
-   * 最新一条还没给本人看过的盲盒结果。
-   * 按事件 id 记「看过了」，同一张卡不会反复弹；再抽一次就是新的 id。
-   */
-  const [seenEvent, setSeenEvent] = useLocalState('mlg.seenLifeEvent', '');
-  const freshEvent = useMemo(() => {
-    const evs = (me?.history || []).filter((e) => e.kind === 'life_event' && e.cardId);
-    const last = evs[evs.length - 1];
-    if (!last || last.id === seenEvent) return null;
-    const card = (config?.cards || []).find((c) => c.id === last.cardId);
-    if (!card) return null;
-    return { ev: last, card, kind: { id: card.kind, ...(config?.cardKinds?.[card.kind] || {}) } };
-  }, [me, config, seenEvent]);
-
-  // 名字别用 pending —— 翻页队列已经占了那个标识符
-  const eventsDue = me?.pendingLifeEvents ?? 0;
-  const [lifeEventSeen, setLifeEventSeen] = useLocalState('mlg.lifeEventSeen', 0);
-  const lifeEventDue = eventsDue > 0 && eventsDue !== lifeEventSeen;
-
-  /* --------------------------- 主动查盖章 --------------------------- */
-  /**
-   * 在还没盖章的签证页上点一下 = 主动查一次是不是已经被记分。
-   * 三重保护，防止选手站在关卡前反复戳把请求打爆：
-   *   1. 已经有章的页面根本不会调到这里（见 bookVals 里的 stampTap）
-   *   2. 两次请求之间至少隔 3 秒
-   *   3. 同一时刻只允许一个请求在飞
-   */
   const checkStamp = useCallback(async () => {
     if (checking) return;
     const now = Date.now();
@@ -425,8 +386,6 @@ export default function PassportBook() {
       body: '以上这些随时可以重看。现在，翻开你的护照，去认识几个新朋友吧。' },
   ];
 
-  const shouldReveal = !!me.identity && seenTeam !== me.identity + (me.teamId || '');
-  const startStation = stations.find((st) => st.id === me.startStation);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -447,39 +406,11 @@ export default function PassportBook() {
         presets={config?.themePresets || []}
       />
 
-      <TeamPanel
-        open={teamOpen || shouldReveal}
-        onClose={() => {
-          setTeamOpen(false);
-          setSeenTeam(me.identity + (me.teamId || ''));
-        }}
-        identity={me.identity}
-        badge={v.teamBadge}
-        teamName={me.teamName}
-        onRename={renameTeam}
-        teammates={v.teammates}
-        startStation={startStation}
-      />
 
       {/* 我们自己的一条底栏：页码跳转 + 同步状态。
           必须放在底部而不是顶部 —— 横版页是整页旋转的，顶部浮层会盖住
           页面最左侧一列文字的开头。 */}
 
-      {/* 先给结果，再提醒还欠几次 —— 顺序反了会很奇怪 */}
-      {freshEvent && (
-        <LifeEventResult
-          card={freshEvent.card}
-          kind={freshEvent.kind}
-          points={freshEvent.ev.points}
-          onClose={() => setSeenEvent(freshEvent.ev.id)}
-        />
-      )}
-
-      <LifeEventPrompt
-        open={lifeEventDue && !freshEvent}
-        count={eventsDue}
-        onClose={() => setLifeEventSeen(eventsDue)}
-      />
     </div>
   );
 }
@@ -511,162 +442,3 @@ function BookSplash({ text }) {
  * 卡片数据在 /api/config 里本来就有，选手的 history 带 cardId，
  * 对一下就能还原完整的卡面，不用加接口。
  */
-function LifeEventResult({ card, kind, points, onClose }) {
-  if (!card) return null;
-  const c = kind?.color || '#8b8f9e';
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 82,
-        background: 'rgba(20,17,16,.78)',
-        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18,
-        animation: 'fadeIn .2s ease both',
-        fontFamily: "'Noto Serif SC','EB Garamond',serif",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%', maxWidth: 340,
-          background: '#f3ede0', color: '#2a2320',
-          border: `2px solid ${c}`, borderRadius: 3,
-          padding: '20px 20px 16px', textAlign: 'center',
-          boxShadow: '0 20px 60px rgba(0,0,0,.55)',
-          animation: 'stampIn .45s ease both',
-        }}
-      >
-        <div style={{
-          fontFamily: "'EB Garamond',serif", fontSize: 9.5, letterSpacing: '.24em',
-          textIndent: '.24em', color: c,
-        }}>
-          {kind?.label || 'LIFE EVENT'} · {kind?.cn || '人生盲盒'}
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0 10px' }}>
-          <CardArt id={card.id} color={c} size={88} />
-        </div>
-
-        <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.4 }}>{card.title}</div>
-        <div style={{ fontSize: 13, lineHeight: 1.9, color: 'rgba(42,35,32,.72)', marginTop: 6 }}>
-          {card.desc}
-        </div>
-
-        <div style={{
-          marginTop: 14, padding: '10px 12px',
-          border: `1px solid ${c}`, background: `${c}18`, borderRadius: 2,
-        }}>
-          <div style={{
-            fontFamily: "'EB Garamond',serif", fontSize: 9, letterSpacing: '.2em',
-            color: 'rgba(42,35,32,.5)',
-          }}>
-            结果
-          </div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 3, color: c }}>
-            {card.effectText}
-          </div>
-          {points !== 0 && points != null && (
-            <div style={{
-              fontFamily: "'Courier Prime',monospace", fontSize: 13, marginTop: 4,
-              color: 'rgba(42,35,32,.7)',
-            }}>
-              实际{points > 0 ? '加' : '扣'}了 {Math.abs(points)} 分
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={onClose}
-          style={{
-            width: '100%', marginTop: 15, padding: '12px',
-            background: '#5c1a22', border: '1px solid rgba(198,164,95,.6)', borderRadius: 2,
-            color: '#e6cd91', fontFamily: "'EB Garamond',serif",
-            fontSize: 11.5, letterSpacing: '.2em', textIndent: '.2em', cursor: 'pointer',
-          }}
-        >
-          {kind?.id === 'bad' || card.effectText.includes('-') || card.effectText.includes('减半')
-            ? '认了' : '收下'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * 欠人生盲盒的提醒。
- *
- * 只说「你触发了事件」没用 —— 人正站在关卡前，需要知道现在该干什么。
- * 所以把下一步写死：停下、去场地中央、找同工、抽完才继续。
- */
-function LifeEventPrompt({ open, count, onClose }) {
-  if (!open) return null;
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 80,
-        background: 'rgba(20,17,16,.74)',
-        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18,
-        animation: 'fadeIn .2s ease both',
-        fontFamily: "'Noto Serif SC','EB Garamond',serif",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%', maxWidth: 360,
-          background: '#f3ede0', color: '#2a2320',
-          border: '1px solid #b9913f', borderRadius: 2,
-          padding: '24px 20px 18px', textAlign: 'center',
-          boxShadow: '0 20px 60px rgba(0,0,0,.5)',
-          animation: 'pageIn .25s ease both',
-        }}
-      >
-        <div style={{ fontSize: 40, lineHeight: 1 }}>🎲</div>
-        <div style={{
-          marginTop: 10, fontFamily: "'EB Garamond',serif", fontSize: 10,
-          letterSpacing: '.24em', textIndent: '.24em', color: 'rgba(92,26,34,.6)',
-        }}>
-          LIFE EVENT 人生盲盒
-        </div>
-        <div style={{ marginTop: 8, fontSize: 18, fontWeight: 700 }}>
-          你的总分跨过红线了
-        </div>
-
-        <div style={{
-          marginTop: 14, padding: '12px 14px', textAlign: 'left',
-          border: '1px solid rgba(198,164,95,.55)', background: 'rgba(198,164,95,.12)',
-          borderRadius: 2, fontSize: 13.5, lineHeight: 1.9,
-        }}>
-          <b>现在要做的：</b>
-          <div style={{ marginTop: 4 }}>1. 停下手上的关卡，先别去下一关</div>
-          <div>2. 去<b>场地正中央</b>的人生盲盒站</div>
-          <div>3. 找同工出示这本护照，抽一张卡</div>
-          <div>4. 抽完再继续闯关</div>
-        </div>
-
-        <div style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.8, color: 'rgba(42,35,32,.7)' }}>
-          可能天降横财，也可能一夜归零。
-          {count > 1 && (
-            <><br /><b style={{ color: '#8b1e2d' }}>你已经欠了 {count} 次，要连抽 {count} 张。</b></>
-          )}
-        </div>
-
-        <button
-          onClick={onClose}
-          style={{
-            width: '100%', marginTop: 16, padding: '13px',
-            background: '#5c1a22', border: '1px solid rgba(198,164,95,.6)', borderRadius: 2,
-            color: '#e6cd91', fontFamily: "'EB Garamond',serif",
-            fontSize: 12, letterSpacing: '.2em', textIndent: '.2em', cursor: 'pointer',
-          }}
-        >
-          知道了，这就去
-        </button>
-      </div>
-    </div>
-  );
-}
-

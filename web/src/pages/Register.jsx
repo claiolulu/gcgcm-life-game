@@ -221,7 +221,7 @@ export default function Register() {
             <div className="card card--flat">
               <div className="section-title">这是什么</div>
               <div className="small muted" style={{ lineHeight: 1.7 }}>
-                这是一场 60 分钟的浓缩人生。你会抽到不同的起点，闯 {config?.stations?.length ?? 8} 个关卡赚取积分，
+                这是一本活动打卡护照。GCGCM 的每一场活动都是里面的一页签证，
                 途中可能撞上人生的意外，也可以随时去恩典站寻求帮助。
                 <br /><br />
                 你的护照和积分<span className="gold bold">绑定到个人</span>：

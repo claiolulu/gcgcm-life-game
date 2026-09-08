@@ -308,8 +308,10 @@ def apply_patches(jsx):
         jsx = jsx[:line_start] + hint + jsx[line_start:]
         n += 1
 
-    # 4) 页眉：在排行榜（奖杯）图标旁边加一枚队伍徽记，点开看队友。
-    #    竖版页 34px、横版页 30px 两处都要加。
+    # 4) 页眉：奖杯图标旁边补一个同步状态。
+    #
+    #    这儿原来还插一枚队伍徽记 —— 那是迎新游戏的东西（Solo/Duo/Trio 分队、
+    #    同色同符号在场内互相找），打卡本不分队，已经去掉了。
     for size in ('34px', '30px'):
         marker = (
             '<button onClick={v.goBoard} style={{flex: "none", width: "' + size + '", height: "' + size + '"'
@@ -323,31 +325,11 @@ def apply_patches(jsx):
         end = close + len('</button>\n')
         line_start = jsx.rfind('\n', 0, i4) + 1
         indent = jsx[line_start:i4]
-        # 队名字号压小一点：页眉一共要塞七样东西，徽章是最大的非弹性元素，
-        # 它多占一分，中间的页名就被截一分
-        fs = '11.5px' if size == '34px' else '10px'
-        ss = '8px' if size == '34px' else '7px'      # 状态字号，比队名再小一号
+        ss = '8px' if size == '34px' else '7px'
         badge = (
-            indent + '<button onClick={v.goTeam} data-tour="team" title="我的队友" '
-            'style={{flex: "none", height: "' + size + '", padding: "0 5px", '
-            'border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.35)"}`, '
-            'display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", '
-            'whiteSpace: "nowrap", lineHeight: 1, '
-            'color: v.teamBadge ? v.teamBadge.hex : "rgba(92,26,34,.5)"}}>\n'
-            + indent + '  {v.teamBadge ? (\n'
-            + indent + '    <>\n'
-            + indent + '      <span style={{fontSize: "' + fs + '"}}>{v.teamBadge.symbol}</span>\n'
-            # 颜色名用英文：场内喊「RED」比喊「赤队」快，颜色本身已经写在边框和字色上了
-            + indent + '      <span style={{fontSize: "' + fs + '", letterSpacing: ".08em", fontFamily: "\'EB Garamond\',serif"}}>{v.teamBadge.en}</span>\n'
-            + indent + '    </>\n'
-            + indent + '  ) : (\n'
-            + indent + '    <span style={{fontSize: "' + fs + '", opacity: .7}}>🪪 待分配</span>\n'
-            + indent + '  )}\n'
-            + indent + '</button>\n'
-            # 同步状态紧挨着队伍徽章：只有英文单词 + 颜色，
-            # 绿 LIVE / 黄 RECONNECTING / 红 OFFLINE。
+            # 同步状态：只有英文单词 + 颜色，绿 LIVE / 黄 RECONNECTING / 红 OFFLINE。
             # 原来是底部一条浮动药丸，占着位置又要人低头去看
-            + indent + '<div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", '
+            indent + '<div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", '
             'gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>\n'
             + indent + '  <span style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + ss + '", fontWeight: 700, letterSpacing: ".1em"}}>\n'
             + indent + '    {v.syncLabel}\n'
@@ -672,6 +654,69 @@ def apply_patches(jsx):
     jsx = jsx[:open_end] + btn + jsx[open_end:]
     n += 1
 
+    # ============ 拆掉迎新游戏留下的那几样 ============
+    #
+    # 设计稿画的是一晚上的闯关游戏：分队徽记、恩典代币、恩典站整整一页、
+    # 身份三选一。打卡本没有这些 —— 它记的是「你来过哪几场」。
+    # 留在页面上只会让人问「这个 G 是干什么的」。
+
+    # 页眉：恩典代币（G）那个按钮。竖版和横版各一个。
+    #
+    # 不按尺寸找 —— 前面收紧页眉那一步已经把 34px 全改成了 30px，
+    # 两个按钮长得一模一样，按尺寸只能捞到第一个
+    while True:
+        i = jsx.find('<button onClick={v.goGrace}')
+        if i == -1:
+            break
+        line_start = jsx.rfind('\n', 0, i) + 1
+        close = jsx.find('</button>\n', i)
+        assert close != -1, "恩典代币按钮没有收尾"
+        jsx = jsx[:line_start] + jsx[close + len('</button>\n'):]
+        n += 1
+
+    # 队伍徽章那个按钮（点开看队友）
+    while True:
+        i = jsx.find('<button onClick={v.goTeam}')
+        if i == -1:
+            break
+        line_start = jsx.rfind('\n', 0, i) + 1
+        close = jsx.find('</button>\n', i)
+        assert close != -1, "队伍徽章按钮没有收尾"
+        jsx = jsx[:line_start] + jsx[close + len('</button>\n'):]
+        n += 1
+
+    # 资料页的「CLASS 身份」：Solo / Duo / Trio 三选一。
+    # 那是迎新游戏开局抽签定的，打卡本没有这回事
+    i = jsx.find('CLASS 身份')
+    assert i != -1, "没找到 CLASS 身份"
+    block_start = jsx.rfind('<div>', 0, i)
+    line_start = jsx.rfind('\n', 0, block_start) + 1
+    indent = jsx[line_start:block_start]
+    close = '\n' + indent + '</div>\n'
+    end = jsx.index(close, i) + len(close)
+    jsx = jsx[:line_start] + jsx[end:]
+    n += 1
+
+    # 恩典站那一整页
+    i = jsx.find('{v.isGrace ? (\n')
+    assert i != -1, "没找到恩典站那一页"
+    line_start = jsx.rfind('\n', 0, i) + 1
+    indent = jsx[line_start:i]
+    close = '\n' + indent + ') : null}\n'
+    end = jsx.index(close, i) + len(close)
+    jsx = jsx[:line_start] + jsx[end:]
+    n += 1
+
+    # 「递出 Help Token？」那个弹层
+    i = jsx.find('{v.askingToken ? (\n')
+    if i != -1:
+        line_start = jsx.rfind('\n', 0, i) + 1
+        indent = jsx[line_start:i]
+        close = '\n' + indent + ') : null}\n'
+        end = jsx.index(close, i) + len(close)
+        jsx = jsx[:line_start] + jsx[end:]
+        n += 1
+
     # ================== 护照模版：让后台能改样式 ==================
     #
     # 下面这几段必须放在所有其它补丁之后：最后那一步会把设计稿里写死的
@@ -749,10 +794,13 @@ def apply_patches(jsx):
         ('#2a2320',             'var(--pp-text)'),
         ('rgba(42,35,32,',      'rgba(var(--pp-text-rgb),'),
     ]
+    # 有几个色只出现在被前面补丁删掉的那些块里（比如 #b9913f 只用在恩典
+    # 代币那个圆按钮上）。它们数到 0 是正常的，不该当成「设计稿改过了」
+    OPTIONAL = {'#b9913f', '#9c7c3c', 'rgba(156,124,60,'}
     swapped = 0
     for old, new in PALETTE:
         c = jsx.count(old)
-        assert c > 0, f"调色板里的 {old} 一处都没找到，设计稿改过了？"
+        assert c > 0 or old in OPTIONAL, f"调色板里的 {old} 一处都没找到，设计稿改过了？"
         jsx = jsx.replace(old, new)
         swapped += c
     print(f'  调色板：{swapped} 处色值换成 CSS 变量')

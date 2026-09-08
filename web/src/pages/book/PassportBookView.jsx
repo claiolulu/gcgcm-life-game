@@ -69,16 +69,6 @@ export default function PassportBookView({ v }) {
                             <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                           </svg>
                         </button>
-                        <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "30px", padding: "0 5px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(var(--pp-ink-rgb),.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(var(--pp-ink-rgb),.5)"}}>
-                          {v.teamBadge ? (
-                            <>
-                              <span style={{fontSize: "11.5px"}}>{v.teamBadge.symbol}</span>
-                              <span style={{fontSize: "11.5px", letterSpacing: ".08em", fontFamily: "'EB Garamond',serif"}}>{v.teamBadge.en}</span>
-                            </>
-                          ) : (
-                            <span style={{fontSize: "11.5px", opacity: .7}}>🪪 待分配</span>
-                          )}
-                        </button>
                         <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>
                           <span style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", fontWeight: 700, letterSpacing: ".1em"}}>
                             {v.syncLabel}
@@ -100,11 +90,6 @@ export default function PassportBookView({ v }) {
                             PTS
                           </div>
                         </div>
-                        <button onClick={v.goGrace} data-tour="grace" style={{flex: "none", width: "30px", height: "30px", borderRadius: "50%", border: "1px solid rgba(var(--pp-gold-3-rgb),.75)", background: "radial-gradient(circle at 36% 30%,var(--pp-gold),var(--pp-gold-3))", display: "flex", alignItems: "center", justifyContent: "center", filter: v.coinFilter}} style-active="transform:translateY(1px)">
-                          <span style={{fontFamily: "'EB Garamond',serif", fontSize: "12px", color: "var(--pp-ink)"}}>
-                            G
-                          </span>
-                        </button>
                         <button onClick={v.goGuide} data-tour="guide" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "15px", color: "var(--pp-ink)"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
                           ?
                         </button>
@@ -257,76 +242,6 @@ export default function PassportBookView({ v }) {
                           </div>
                         </>
                       ) : null}
-                      {v.isGrace ? (
-                        <>
-                          <div style={{position: "relative", zIndex: "4", flex: "1", minHeight: "0", overflow: "auto", padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: "18px", alignItems: "center"}}>
-                            <button onClick={v.closeAside} style={{alignSelf: "flex-start", padding: "8px 14px", border: "1px solid rgba(var(--pp-ink-rgb),.4)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "10px", letterSpacing: ".2em", textIndent: ".2em"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
-                              ← BACK 返回
-                            </button>
-                            <div style={{width: "104px", height: "104px", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", filter: v.coinFilter}}>
-                              <div style={{position: "absolute", inset: "0", borderRadius: "50%", border: "1px solid rgba(var(--pp-gold-3-rgb),.7)", background: "radial-gradient(circle at 36% 30%,rgba(var(--pp-gold-2-rgb),.5),rgba(var(--pp-gold-3-rgb),.14))"}} />
-                              <div style={{position: "absolute", inset: "11px", borderRadius: "50%", border: "1px solid rgba(var(--pp-gold-3-rgb),.45)", background: "repeating-conic-gradient(from 0deg,rgba(var(--pp-gold-3-rgb),.14) 0 2deg,transparent 2deg 9deg)"}} />
-                              <div style={{position: "relative", textAlign: "center"}}>
-                                <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".18em", color: "var(--pp-ink)"}}>
-                                  GRACE
-                                </div>
-                                <div style={{marginTop: "4px", fontSize: "17px", fontWeight: "700", color: "var(--pp-ink)"}}>
-                                  恩典
-                                </div>
-                              </div>
-                            </div>
-                            <div style={{textAlign: "center"}}>
-                              <div style={{fontSize: "19px", fontWeight: "700", letterSpacing: ".06em", color: v.tokenTitleFg}}>
-                                {v.tokenTitle}
-                              </div>
-                              <div style={{marginTop: "10px", fontSize: "13.5px", fontWeight: "600", lineHeight: "2", color: v.tokenBodyFg, textWrap: "pretty"}}>
-                                {v.tokenBody}
-                              </div>
-                            </div>
-                            <div style={{width: "100%", display: "flex", flexDirection: "column", gap: "11px"}}>
-                              {(v.helpOpts || []).map((o, i) => (
-                                <React.Fragment key={i}>
-                                  <div style={{padding: "12px 0", borderTop: "1px solid rgba(var(--pp-ink-rgb),.25)", display: "flex", gap: "12px", alignItems: "flex-start"}}>
-                                    <span style={{flex: "none", fontFamily: "'EB Garamond',serif", fontSize: "11px", letterSpacing: ".1em", color: "var(--pp-gold-3)", paddingTop: "2px"}}>
-                                      {o.n}
-                                    </span>
-                                    <div style={{minWidth: "0"}}>
-                                      <div style={{fontFamily: "'EB Garamond',serif", fontSize: "10px", letterSpacing: ".18em", color: "var(--pp-ink)"}}>
-                                        {o.en}
-                                      </div>
-                                      <div style={{marginTop: "6px", fontSize: "13px", fontWeight: "600", lineHeight: "1.9", color: "var(--pp-text)"}}>
-                                        {o.cn}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </React.Fragment>
-                              ))}
-                            </div>
-                            {v.tokenUsed ? (
-                              <>
-                                <div style={{width: "100%", padding: "18px", background: "var(--pp-ink)", animation: "fadeIn .4s ease both"}}>
-                                  <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".2em", color: "var(--pp-gold-2)"}}>
-                                    GRACE CARD 恩典卡 · {v.usedAt}
-                                  </div>
-                                  <div style={{marginTop: "12px", fontSize: "19px", fontWeight: "700", lineHeight: "1.8", color: "#f0e2c4"}}>
-                                    「我的恩典够你用的」
-                                  </div>
-                                  <div style={{marginTop: "10px", fontFamily: "'EB Garamond',serif", fontStyle: "italic", fontSize: "13px", lineHeight: "1.8", color: "rgba(240,226,196,.75)"}}>
-                                    My grace is sufficient for thee.
-                                  </div>
-                                </div>
-                              </>
-                            ) : null}
-                            {v.tokenAvailable ? (
-                              <>
-                                <button onClick={v.askToken} style={{width: "100%", marginTop: "auto", padding: "15px", background: "var(--pp-ink)", border: "1px solid rgba(var(--pp-gold-2-rgb),.6)", color: "var(--pp-gold)", fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".24em", textIndent: ".24em"}} style-active="opacity:.85">
-                                  USE TOKEN 递出代币
-                                </button>
-                              </>
-                            ) : null}
-                          </div>
-                        </>
-                      ) : null}
                       {v.isGuide ? (
                         <>
                           <div style={{position: "relative", zIndex: "4", flex: "1", minHeight: "0", overflow: "auto", padding: "18px 20px 20px", display: "flex", flexDirection: "column", gap: "14px"}}>
@@ -455,16 +370,6 @@ export default function PassportBookView({ v }) {
                       <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                     </svg>
                   </button>
-                  <button onClick={v.goTeam} data-tour="team" title="我的队友" style={{flex: "none", height: "30px", padding: "0 5px", border: `1px solid ${v.teamBadge ? v.teamBadge.hex : "rgba(var(--pp-ink-rgb),.35)"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", whiteSpace: "nowrap", lineHeight: 1, color: v.teamBadge ? v.teamBadge.hex : "rgba(var(--pp-ink-rgb),.5)"}}>
-                    {v.teamBadge ? (
-                      <>
-                        <span style={{fontSize: "10px"}}>{v.teamBadge.symbol}</span>
-                        <span style={{fontSize: "10px", letterSpacing: ".08em", fontFamily: "'EB Garamond',serif"}}>{v.teamBadge.en}</span>
-                      </>
-                    ) : (
-                      <span style={{fontSize: "10px", opacity: .7}}>🪪 待分配</span>
-                    )}
-                  </button>
                   <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>
                     <span style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", fontWeight: 700, letterSpacing: ".1em"}}>
                       {v.syncLabel}
@@ -487,11 +392,6 @@ export default function PassportBookView({ v }) {
                       PTS
                     </div>
                   </div>
-                  <button onClick={v.goGrace} style={{flex: "none", width: "30px", height: "30px", borderRadius: "50%", border: "1px solid rgba(var(--pp-gold-3-rgb),.75)", background: "radial-gradient(circle at 36% 30%,var(--pp-gold),var(--pp-gold-3))", display: "flex", alignItems: "center", justifyContent: "center", filter: v.coinFilter}} style-active="transform:translateY(1px)">
-                    <span style={{fontFamily: "'EB Garamond',serif", fontSize: "11px", color: "var(--pp-ink)"}}>
-                      G
-                    </span>
-                  </button>
                   <button onClick={v.goGuide} style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "14px", color: "var(--pp-ink)"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
                     ?
                   </button>
@@ -529,20 +429,6 @@ export default function PassportBookView({ v }) {
                               NICKNAME 昵称
                             </div>
                             <input value={v.name} onChange={v.setName} placeholder="\u8f93\u5165\u540d\u5b57" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.3)", fontSize: "14px", color: "var(--pp-text)", outline: "none"}} />
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                            CLASS 身份
-                          </div>
-                          <div style={{marginTop: "5px", display: "flex", gap: "8px"}}>
-                            {(v.identities || []).map((idt, i) => (
-                              <React.Fragment key={i}>
-                                <button onClick={idt.pick} style={{flex: "1", padding: "7px 2px", background: idt.bg, border: `1px solid ${idt.bd}`, color: idt.fg, fontFamily: "'EB Garamond',serif", fontSize: "10px", letterSpacing: ".18em", textIndent: ".18em"}}>
-                                  {idt.en}
-                                </button>
-                              </React.Fragment>
-                            ))}
                           </div>
                         </div>
                         <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 18px"}}>
@@ -619,31 +505,6 @@ export default function PassportBookView({ v }) {
             </>
           ) : null}
           </div>
-          {v.askingToken ? (
-            <>
-              <div onClick={v.closeModal} style={{position: "absolute", inset: "0", zIndex: "41", background: "rgba(20,17,16,.8)", display: "flex", alignItems: "center", justifyContent: "center", padding: "22px", animation: "fadeIn .18s ease both"}}>
-                <div onClick={v.stop} style={{width: "100%", maxWidth: "330px", background: "#f3ede0", border: "1px solid rgba(var(--pp-gold-2-rgb),.7)", padding: "24px 20px 18px", textAlign: "center"}}>
-                  <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".24em", color: "var(--pp-gold-3)"}}>
-                    HELP TOKEN
-                  </div>
-                  <div style={{marginTop: "12px", fontSize: "18px", fontWeight: "700", color: "var(--pp-ink)"}}>
-                    递出 Help Token？
-                  </div>
-                  <div style={{marginTop: "11px", fontSize: "13px", fontWeight: "600", lineHeight: "1.95", color: "rgba(var(--pp-text-rgb),.75)", textWrap: "pretty"}}>
-                    全场只有一枚。递出后工作人员提供 Hint / Helper 或 Second Chance（二选一），并换取一张恩典卡。使用后不可再用。
-                  </div>
-                  <div style={{marginTop: "18px", display: "flex", flexDirection: "column", gap: "9px"}}>
-                    <button onClick={v.useToken} style={{padding: "14px", background: "var(--pp-ink)", color: "var(--pp-gold)", fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".24em", textIndent: ".24em"}} style-active="opacity:.85">
-                      YES 确认使用
-                    </button>
-                    <button onClick={v.closeModal} style={{padding: "11px", fontFamily: "'EB Garamond',serif", fontSize: "11px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                      NOT YET 再撑一会儿
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : null}
           {v.qrBig ? (
             <>
               <div onClick={v.closeModal} style={{position: "absolute", inset: "0", zIndex: "41", background: "rgba(20,17,16,.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "18px", padding: "24px", animation: "fadeIn .18s ease both"}}>

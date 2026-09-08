@@ -20,8 +20,7 @@ export default function StaffScan() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   // 同上：打卡本按活动来
-  const mainStations = config?.activities || config?.stations || [];
-  const stations = [...mainStations, ...(config?.functional || [])];
+  const stations = config?.activities || [];
   const myStation = stations.find((s) => s.id === staff.session?.station);
 
   const open = useCallback(
