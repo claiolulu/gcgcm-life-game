@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { api, ApiError, uid } from './api.js';
-import { kvGet, kvSet, outboxAdd, outboxAll, outboxRemove, outboxClear } from './idb.js';
+import { kvGet, kvSet, outboxAdd, outboxAll, outboxRemove } from './idb.js';
 import { getStaffSession, setStaffSession, clearStaffSession } from './session.js';
 import { onTick } from './realtime.js';
 
@@ -25,7 +25,6 @@ const state = {
   epoch: 0,
   syncing: false,
   online: typeof navigator === 'undefined' ? true : navigator.onLine,
-  connected: false,
   lastSyncedAt: 0,
   lastError: null,
   issues: [],        // 冲突/失败的操作，需要工作人员肉眼确认
@@ -204,12 +203,6 @@ export async function dismissIssue(opId) {
   notify();
 }
 
-export async function clearOutbox() {
-  await outboxClear();
-  state.outbox = [];
-  notify();
-}
-
 /* ------------------------------- 同步 ------------------------------- */
 
 function mergeRoster(incoming, isFull) {
@@ -319,8 +312,6 @@ export function startStaffSync() {
 
   // 有变化就拉；socket 挂了 realtime 会降级成 10 秒轮询
   onTick((payload) => {
-    state.connected = !!payload.connected;
-    notify();
     if (payload.reason !== 'disconnect') flush().catch(() => {});
   });
 

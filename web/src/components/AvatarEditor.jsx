@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import Avatar, { AVATAR_FIELDS, BACKGROUNDS, randomAvatar, DEFAULT_AVATAR } from './Avatar.jsx';
+import Avatar, { AVATAR_FIELDS, BACKGROUNDS, randomAvatar, normalizeAvatar } from './Avatar.jsx';
 
 /** 头像编辑器：一个大预览 + 随机按钮 + 分项选择。选项全部铺开不裁切，全程离线。 */
 export default function AvatarEditor({ value, onChange, size = 128 }) {
-  const avatar = { ...DEFAULT_AVATAR, ...(value || {}) };
+  const avatar = normalizeAvatar(value);
   const [tab, setTab] = useState(AVATAR_FIELDS[0].key);
   const field = AVATAR_FIELDS.find((f) => f.key === tab) || AVATAR_FIELDS[0];
 
@@ -51,7 +51,10 @@ export default function AvatarEditor({ value, onChange, size = 128 }) {
         </span>
       </div>
 
-      <div className="opt-wrap">
+      {field.key === 'mouth' && avatar.face === 4 && <div className="tiny dim">口罩会遮住嘴型，可以在「面饰」选择「无」查看表情。</div>}
+      {field.key === 'bg' && avatar.bgp !== 0 && <div className="tiny dim">当前使用风景背景；在「背景」选择「无」后可显示底色。</div>}
+      {(field.key === 'clothing' || field.key === 'outfit') && avatar.clothing >= 10 && <div className="tiny dim">角色风服饰使用经典配色；选择前面的日常款式可自由调整衣服颜色。</div>}
+      <div className="opt-wrap" style={{ gap: 8 }}>
         {field.values.map((v, i) => {
           const on = (avatar[field.key] ?? 0) % field.values.length === i;
           return (
@@ -60,7 +63,9 @@ export default function AvatarEditor({ value, onChange, size = 128 }) {
               type="button"
               className={`opt ${on ? 'opt--on' : ''}`}
               onClick={() => set(field.key, i)}
-              aria-label={`${field.label} ${i + 1}`}
+              aria-label={`${field.label} ${field.kind === 'swatch' ? i + 1 : v}`}
+              aria-pressed={on}
+              style={field.kind === 'text' ? { height: 'auto', padding: '6px', display: 'flex', flexDirection: 'column', gap: 5, minWidth: 74 } : undefined}
             >
               {field.kind === 'swatch' ? (
                 <span
@@ -73,7 +78,7 @@ export default function AvatarEditor({ value, onChange, size = 128 }) {
                   }}
                 />
               ) : (
-                v
+                <><Avatar config={{ ...avatar, [field.key]: i }} size={56} /><span>{v}</span></>
               )}
             </button>
           );

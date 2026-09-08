@@ -221,7 +221,6 @@ export default function Admin() {
     <div className="page page--wide">
       <NetBar
         online={staff.online}
-        connected={staff.connected}
         syncing={staff.syncing}
         pending={staff.outbox.length}
         lastSyncedAt={staff.lastSyncedAt}

@@ -5,7 +5,6 @@ import Scanner from '../components/Scanner.jsx';
 import { NetBar, Sheet, useToast, useConfirm, Empty, ago } from '../components/ui.jsx';
 import { useConfig } from '../lib/config.js';
 import { useStaff, findByCode, allPlayers, flush, retryAll, dismissIssue, logout, setStation } from '../lib/staff.js';
-import { needsCheck } from '../lib/modifiers.js';
 
 export default function StaffScan() {
   const nav = useNavigate();
@@ -61,7 +60,6 @@ export default function StaffScan() {
     <div className="page page--wide">
       <NetBar
         online={staff.online}
-        connected={staff.connected}
         syncing={staff.syncing}
         pending={staff.outbox.length}
         lastSyncedAt={staff.lastSyncedAt}
@@ -194,7 +192,7 @@ export default function StaffScan() {
                 danger: true,
                 confirmText: '退出登录',
                 body: staff.outbox.length > 0
-                  ? `⚠️ 还有 ${staff.outbox.length} 条记分没有上传，现在退出会丢掉这些记录。\n建议等顶部状态条变绿再退。`
+                  ? `⚠️ 还有 ${staff.outbox.length} 条记分没有上传，现在退出会丢掉这些记录。\n建议等顶部那条「正在上传」消失之后再退。`
                   : '下次需要重新输入 PIN。',
               });
               if (!ok) return;
@@ -230,11 +228,8 @@ export default function StaffScan() {
                   <div className="grow" style={{ minWidth: 0 }}>
                     <div className="small bold">{p.name}</div>
                     <div className="tiny dim mono">
-                      {p.code} 号 · 参加 {p.stationsDone}/{mainStations.length} 场
+                      {p.code} 号 · 参加 {p.stationsDone}/{stations.length} 场
                       {p.hasPending && <span style={{ color: 'var(--yellow)' }}> · 待同步</span>}
-                      {p.pendingLifeEvents > 0 && <span style={{ color: 'var(--red)' }}> · 欠盲盒</span>}
-                      {/* 列表上也标一下，免得同工点进去才发现这人有附加条件 */}
-                      {needsCheck(p.modifiers) && <span style={{ color: 'var(--red)' }}> · 有附加条件</span>}
                     </div>
                   </div>
                   <div className="lb-score">{p.total}</div>

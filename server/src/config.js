@@ -157,8 +157,6 @@ export const VISA_ROW_SOURCES = [
   { key: 'code',      group: '持照人', name: '编号',       hint: '找回护照用的那个号' },
   { key: 'passport',  group: '持照人', name: '护照号',     hint: 'GCGCM000001' },
   { key: 'contact',   group: '持照人', name: '联系方式',   hint: '报名时留的微信 / 邮箱，没留就空着' },
-  { key: 'identity',  group: '持照人', name: '身份',       hint: 'SOLO / DUO / TRIO' },
-  { key: 'team',      group: '持照人', name: '队伍',       hint: '颜色 + 符号，没编队就印「——」' },
   { key: 'visited',   group: '持照人', name: '参加过几场', hint: '整本护照上盖了几个章' },
 
   // 这一场活动 —— 全场一样，在活动详情页里改
@@ -193,7 +191,6 @@ export const VISA_TEMPLATE = {
     { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
     { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },
     { key: 'type',    label: 'VISA TYPE 类型',          src: 'tag' },
-    { key: 'class',   label: 'CLASS 身份',              src: 'identity' },
     { key: 'staff',   label: 'STAFF 工作人员',          src: 'host' },
     { key: 'entries', label: 'ENTRIES 入境次数',        src: 'text', text: 'ONE 一次' },
     { key: 'issued',  label: 'ISSUING DATE 签发日期',   src: 'date' },

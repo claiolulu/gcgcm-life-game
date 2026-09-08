@@ -139,15 +139,24 @@ function ago(ts) {
 }
 
 /**
- * 永远诚实地告诉用户数据有多新。
- * 宁可让人知道数据旧了，也不能让人以为是实时的然后当场吵起来。
+ * 只在「有事要说」的时候出现：还没上传的记分、离线。
+ *
+ * 以前这里还会常驻一条「实时同步中」的绿条，和一条「实时通道断开」的
+ * 警告。数据现在改成有变化才推、平时完全不轮询 —— 那条绿条等于在承诺
+ * 一个不存在的刷新频率，那条警告则会在一切正常时吓人。一切正常时最好的
+ * 界面就是没有界面。
  */
-export function NetBar({ online, connected, syncing, pending = 0, lastSyncedAt }) {
+export function NetBar({ online, syncing, pending = 0, lastSyncedAt }) {
+  const show = pending > 0 || !online || syncing;
+
+  // 只有真的在显示「停留在 X 分钟前」时才需要这个计时器；
+  // 平时不留一个每 5 秒重渲染整页的定时器。
   const [, force] = useState(0);
   useEffect(() => {
+    if (!show) return undefined;
     const t = setInterval(() => force((n) => n + 1), 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [show]);
 
   if (pending > 0) {
     return (
@@ -167,10 +176,7 @@ export function NetBar({ online, connected, syncing, pending = 0, lastSyncedAt }
   if (syncing) {
     return <div className="netbar netbar--syncing"><span className="pulse" />同步中…</div>;
   }
-  if (connected) {
-    return <div className="netbar netbar--live"><span className="pulse" />实时同步中</div>;
-  }
-  return <div className="netbar netbar--offline">⚠️ 实时通道断开 · 数据更新于 {ago(lastSyncedAt)}</div>;
+  return null;
 }
 
 export { ago };
@@ -205,34 +211,6 @@ export function Sheet({ open, onClose, children, title }) {
   );
 }
 
-/* ------------------------------- 关卡格 ------------------------------- */
-
-export function StampGrid({ stations, done, onTap }) {
-  return (
-    <div className="stamp-grid">
-      {stations.map((s) => {
-        const hit = done?.[s.id];
-        return (
-          <button
-            key={s.id}
-            className={`stamp ${hit ? 'stamp--done' : ''}`}
-            onClick={() => onTap?.(s, hit)}
-            type="button"
-          >
-            <span className="stamp__icon">{s.icon}</span>
-            <span className="stamp__name">{s.name}</span>
-            {hit && (
-              <span className="stamp__pts" style={hit.pending ? { background: '#8b8f9e' } : undefined}>
-                {hit.points}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ------------------------------- 加载态 ------------------------------- */
 
 export function Loading({ label = '加载中…' }) {
@@ -254,9 +232,6 @@ export function Empty({ icon = '🗒', title, hint, children }) {
     </div>
   );
 }
-
-/* ------------------------------ 身份卡徽标 ------------------------------ */
-
 
 /* --------------------------- 数字滚动（分数） --------------------------- */
 
@@ -289,14 +264,6 @@ export function Score({ value, size = 44 }) {
   );
 }
 
-export function useNow(interval = 1000) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), interval);
-    return () => clearInterval(t);
-  }, [interval]);
-  return now;
-}
 
 export function useLocalState(key, initial) {
   const [v, setV] = useState(() => {

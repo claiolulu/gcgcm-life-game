@@ -3,7 +3,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_SETTINGS, ACTIVITIES, THEME, VISA_TEMPLATE, normalizeActivityDate } from './config.js';
+import {
+  DEFAULT_SETTINGS, ACTIVITIES, THEME, VISA_TEMPLATE, VISA_ROW_SOURCES, normalizeActivityDate,
+} from './config.js';
 import { randomToken, safeJSON } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -139,6 +141,14 @@ function rebuildIfLegacy() {
 }
 rebuildIfLegacy();
 
+// 迎新游戏那套留下的设置项。rebuildIfLegacy 只对还没重建过的库跑，
+// 已经重建过的库里这几行还留着 —— 无害，但会让人以为功能还在。
+{
+  const gone = db.prepare(`DELETE FROM settings WHERE key IN
+    ('identitiesDrawnAt', 'scoreTiers', 'maxStationScore', 'lifeEventThresholds', 'helpTokens')`).run().changes;
+  if (gone) console.log(`[db] 清掉 ${gone} 项迎新游戏留下的设置`);
+}
+
 /* ----------------------------- settings ----------------------------- */
 
 const getSettingStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
@@ -155,6 +165,8 @@ export function setSetting(key, value) {
   setSettingStmt.run(key, JSON.stringify(value));
   return value;
 }
+
+const SRC_KEYS = new Set(VISA_ROW_SOURCES.map((x) => x.key));
 
 /**
  * 当前的活动清单。总控台改过就用库里的，没改过就是 config.js 的默认值。
@@ -176,8 +188,14 @@ export function getActivities() {
     ...(Array.isArray(a?.blocks) ? {
       blocks: a.blocks.map((b) => b?.kind === 'fields' && Array.isArray(b.rows) ? {
         ...b,
-        rows: b.rows.map((r) => r?.src === 'control' && r.label === 'CONTROL NUMBER 控制号'
-          ? { ...r, label: 'NUMBER 编号' } : r),
+        rows: b.rows
+          // 绑着已经不存在的来源的栏目直接扔掉（比如迎新游戏那套的
+          // 「CLASS 身份」和「队伍」）。它们本来就渲染成空白，但留着更糟：
+          // 保存活动时服务端不认这个来源，整份提交会被拒，同工只会看到
+          // 一句「数据来源不认识」，不知道是自己十个月前存下的一栏。
+          .filter((r) => SRC_KEYS.has(String(r?.src || 'text')))
+          .map((r) => (r?.src === 'control' && r.label === 'CONTROL NUMBER 控制号'
+            ? { ...r, label: 'NUMBER 编号' } : r)),
       } : b),
     } : {}),
   }));

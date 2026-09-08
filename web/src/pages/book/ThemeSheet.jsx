@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Sheet, useToast } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { refreshMe } from '../../lib/player.js';
@@ -17,9 +17,18 @@ export default function ThemeSheet({ open, onClose, token, theme, presets }) {
   const toast = useToast();
   const [draft, setDraft] = useState(theme);
   const [busy, setBusy] = useState(false);
+  const wasOpen = useRef(false);
 
-  // 每次打开都从当前值重新起步，免得上次改了没存的残留飘回来
-  useEffect(() => { if (open) setDraft(theme); }, [open, theme]);
+  // 只在「刚打开」的那一刻从已保存值起步。
+  //
+  // 护照页会因排行榜轮询、实时消息和个人资料同步频繁重渲染；buildVals
+  // 每次都会生成一个内容相同但引用不同的 theme 对象。若这里在 theme 每次
+  // 变化时都 setDraft，用户正在挑的颜色/预设就会被突然覆盖回旧值，看起来
+  // 像是页面时不时自己跳回默认。
+  useEffect(() => {
+    if (open && !wasOpen.current) setDraft(theme);
+    wasOpen.current = open;
+  }, [open, theme]);
 
   const edit = (patch) => setDraft((c) => ({ ...c, ...patch }));
 

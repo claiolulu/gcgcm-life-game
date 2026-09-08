@@ -15,6 +15,13 @@
     <link rel="shortcut icon" href="/passport-icon-192.png" />
     <link rel="apple-touch-icon" href="/passport-apple-touch-icon.png" />
     <title>Mini Life Game · 人生护照</title>
+    <script>
+      if (location.hostname === 'staff.claiolulu.com') {
+        document.title = 'GCGCM Staff · 工作人员端';
+        document.querySelector('meta[name="apple-mobile-web-app-title"]')
+          ?.setAttribute('content', 'GCGCM Staff');
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -27,26 +27,20 @@ const PLAYER_TABS = [
   { to: '/badge', icon: '🎖', label: '徽章' },
 ];
 
-const STAFF_TABS = [
-  { to: '/staff/scan', icon: '📷', label: '扫码' },
-  { to: '/staff/admin', icon: '🎛', label: '总控', adminOnly: true },
-];
-
 function BottomNav() {
   const { pathname } = useLocation();
   const player = usePlayer();
-  const staff = useStaff();
 
   const isStaff = pathname.startsWith('/staff');
+  // Staff 与总控页面各自已有完整操作入口，不再叠加选手端样式的底栏。
+  if (isStaff) return null;
   // 护照册是整屏的翻页界面，自带导航，不叠底部 tab
   if (pathname === '/passport') return null;
   // 画布编辑器在所有设备上都只保留自己的工具，不叠「扫码 / 总控」。
   if (pathname.endsWith('/design')) return null;
-  if (pathname === '/' || pathname === '/register' || (isStaff && !staff.session)) return null;
+  if (pathname === '/' || pathname === '/register') return null;
 
-  const tabs = isStaff
-    ? STAFF_TABS.filter((t) => !t.adminOnly || staff.session?.role === 'admin')
-    : PLAYER_TABS;
+  const tabs = PLAYER_TABS;
 
   if (!isStaff && !player.me) return null;
 
@@ -54,21 +48,14 @@ function BottomNav() {
     <nav className="nav">
       {tabs.map((t) => (
         <NavLink key={t.to} to={t.to} className={({ isActive }) => `nav__item ${isActive ? 'nav__item--on' : ''}`}>
-          <span className="nav__icon" style={{ position: 'relative' }}>
-            {t.icon}
-            {/* 未同步的记分要一直可见地提示，别让人以为已经传上去了 */}
-            {isStaff && t.to === '/staff/scan' && staff.outbox.length > 0 && <span className="nav__dot" />}
-            {!isStaff && t.to === '/passport' && player.me?.pendingLifeEvents > 0 && <span className="nav__dot" />}
-          </span>
+          <span className="nav__icon">{t.icon}</span>
           <span>{t.label}</span>
         </NavLink>
       ))}
-      {!isStaff && (
-        <NavLink to="/staff" className="nav__item">
-          <span className="nav__icon">🎯</span>
-          <span>工作人员</span>
-        </NavLink>
-      )}
+      <NavLink to="/staff" className="nav__item">
+        <span className="nav__icon">🎯</span>
+        <span>工作人员</span>
+      </NavLink>
     </nav>
   );
 }

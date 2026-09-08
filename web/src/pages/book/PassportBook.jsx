@@ -10,7 +10,7 @@ import { useConfig } from '../../lib/config.js';
 import { usePlayer, refreshMe } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
 import { kvGet, kvSet } from '../../lib/idb.js';
-import { onTick } from '../../lib/realtime.js';
+import { changesLeaderboard, onTick } from '../../lib/realtime.js';
 import { useLocalState } from '../../components/ui.jsx';
 import ThemeSheet from './ThemeSheet.jsx';
 import Tour from './Tour.jsx';
@@ -24,7 +24,7 @@ import Tour from './Tour.jsx';
 export default function PassportBook() {
   const nav = useNavigate();
   const { config } = useConfig();
-  const { me, rank, of, online, connected, loading, session } = usePlayer();
+  const { me, rank, of, loading, session } = usePlayer();
 
   const [page, setPage] = useState(0);
   const [overlay, setOverlay] = useState(null);   // null | 'board' | 'guide'
@@ -32,7 +32,7 @@ export default function PassportBook() {
   const [shared, setShared] = useState(false);
   const [checking, setChecking] = useState(false);
   const lastCheckRef = useRef(0);
-  const [teamOpen, setTeamOpen] = useState(false);
+  const lastBoardRequestRef = useRef(0);
   const [themeOpen, setThemeOpen] = useState(false);
   // 抽到身份后自动弹一次队友面板 —— 这是选手最需要立刻知道的事
   const [tourOpen, setTourOpen] = useState(false);
@@ -237,6 +237,10 @@ export default function PassportBook() {
   /* --------------------------- 实时排行榜 --------------------------- */
 
   const loadBoard = useCallback(async () => {
+    // connect 和 hello 往往紧挨着到；合并掉重复请求。
+    const now = Date.now();
+    if (now - lastBoardRequestRef.current < 1200) return;
+    lastBoardRequestRef.current = now;
     try {
       const res = await api('/api/leaderboard', { timeout: 7000 });
       setBoard(res.board || []);
@@ -249,9 +253,14 @@ export default function PassportBook() {
 
   useEffect(() => {
     loadBoard();
-    const off = onTick((p) => { if (p.reason !== 'disconnect') loadBoard(); });
-    const timer = setInterval(() => { if (navigator.onLine) loadBoard(); }, 20_000);
-    return () => { off(); clearInterval(timer); };
+    const off = onTick((p) => { if (changesLeaderboard(p.reason)) loadBoard(); });
+    // 平时完全不轮询；从后台回到护照时补一次，避免手机休眠错过推送。
+    const onVisible = () => { if (document.visibilityState === 'visible') loadBoard(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      off();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [loadBoard]);
 
   /* --------------------------- 水印预取 --------------------------- */
@@ -326,8 +335,6 @@ export default function PassportBook() {
       me, rank, of, config, board,
       ui: {
         page, overlay, modal, vpLandscape, shared, flip,
-        // 同步状态：绿 LIVE / 黄 RECONNECTING / 红 OFFLINE，显示在页眉队伍徽章右边
-        sync: !online ? 'offline' : connected ? 'live' : 'reconnecting',
         qrThumb: qr.thumb, qrBigImg: qr.big, checking,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
@@ -340,13 +347,12 @@ export default function PassportBook() {
       },
       actions: {
         move, goto, setOverlay, setModal, share, checkStamp,
-        openTeam: () => setTeamOpen(true),
         // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
         openTheme: () => setThemeOpen(true),
         startTour: () => setTourOpen(true),
       },
     });
-  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, flip, online, connected, qr, checking,
+  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, flip, qr, checking,
       move, goto, share, checkStamp]);
 
   if (loading && !me) {

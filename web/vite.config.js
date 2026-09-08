@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'Mini Life Game 人生护照',
         short_name: '人生护照',
-        description: 'GCGCM 迎新互动游戏 · 电子人生护照',
+        description: 'GCGCM 活动打卡护照',
         lang: 'zh-CN',
         theme_color: '#5c1a22',
         background_color: '#efe6d5',

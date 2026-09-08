@@ -69,11 +69,6 @@ export default function PassportBookView({ v }) {
                             <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                           </svg>
                         </button>
-                        <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>
-                          <span style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", fontWeight: 700, letterSpacing: ".1em"}}>
-                            {v.syncLabel}
-                          </span>
-                        </div>
                         <div style={{flex: "1", minWidth: "0", textAlign: "center"}}>
                           <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".18em", color: "var(--pp-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}>
                             {v.kicker}
@@ -370,11 +365,6 @@ export default function PassportBookView({ v }) {
                       <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                     </svg>
                   </button>
-                  <div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>
-                    <span style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", fontWeight: 700, letterSpacing: ".1em"}}>
-                      {v.syncLabel}
-                    </span>
-                  </div>
                   <div style={{flex: "1", minWidth: "0", display: "flex", alignItems: "baseline", justifyContent: "center", gap: "12px"}}>
                     <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".18em", color: "var(--pp-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>
                       {v.kicker}
@@ -389,7 +379,7 @@ export default function PassportBookView({ v }) {
                       {v.totalPad}
                     </div>
                     <div style={{fontFamily: "'EB Garamond',serif", fontSize: "7px", letterSpacing: ".08em", opacity: .5}}>
-                      PTS
+                      VISAS
                     </div>
                   </div>
                   <button onClick={v.goGuide} style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "14px", color: "var(--pp-ink)"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">

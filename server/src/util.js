@@ -74,27 +74,6 @@ export function verifyToken(token, secret) {
   }
 }
 
-/** Fisher–Yates，加密级随机源 */
-export function shuffle(list) {
-  const arr = [...list];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = crypto.randomInt(i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-export function pickWeighted(items) {
-  const total = items.reduce((sum, it) => sum + (it.weight || 1), 0);
-  if (total <= 0) return items[0];
-  let roll = crypto.randomInt(total);
-  for (const it of items) {
-    roll -= it.weight || 1;
-    if (roll < 0) return it;
-  }
-  return items[items.length - 1];
-}
-
 export function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }

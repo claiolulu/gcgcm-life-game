@@ -18,7 +18,6 @@ const state = {
   of: 0,
   loading: true,
   online: typeof navigator === 'undefined' ? true : navigator.onLine,
-  connected: false,
   lastSyncedAt: 0,
   stale: false,
   error: null,
@@ -155,39 +154,6 @@ export async function changePin({ code, pin, newPin }) {
   return res.player;
 }
 
-/** 改队名。队员自己改，全队生效 */
-export async function renameTeam(name) {
-  const session = getPlayerSession();
-  if (!session?.token) throw new Error('没有登录');
-  const res = await api('/api/team/name', {
-    method: 'POST', body: { name }, token: session.token, timeout: 10000,
-  });
-  state.me = res.player;
-  state.rank = res.rank;
-  state.of = res.of;
-  await cacheMe(res);
-  notify();
-  return res.player;
-}
-
-export async function updateProfile(patch) {
-  const session = getPlayerSession();
-  if (!session?.token) throw new Error('没有登录');
-  const res = await api('/api/me', { method: 'POST', body: patch, token: session.token });
-  state.me = res.player;
-  await cacheMe({ player: res.player, rank: state.rank, of: state.of });
-  notify();
-  return res.player;
-}
-
-export async function signOut() {
-  clearPlayerSession();
-  await kvDel('player.me');
-  state.session = null;
-  state.me = null;
-  notify();
-}
-
 let started = false;
 
 export function startPlayerSync() {
@@ -197,7 +163,6 @@ export function startPlayerSync() {
   hydratePlayer().then(() => refreshMe());
 
   onTick((payload) => {
-    state.connected = !!payload.connected;
     notify();
     if (payload.reason !== 'disconnect') refreshMe();
   });

@@ -2,7 +2,7 @@ import { db, stmts, getSettings, setSetting, getActivities } from './db.js';
 import {
   ACTIVITIES,
 } from './config.js';
-import { safeJSON, shuffle, clamp, uid } from './util.js';
+import { safeJSON, clamp, uid } from './util.js';
 
 /**
  * 按 id 找一个可盖章的条目：8 个游戏关卡，或者任意一场活动。
@@ -20,6 +20,18 @@ function stationById(id) {
   return getActivities().find((x) => x.id === id) || null;
 }
 
+/**
+ * 当前还挂在清单上的活动 id。
+ *
+ * 总控台随时能删活动，而章是不可逆的历史，删活动不动已经盖下去的章 ——
+ * 所以「有一批章指向的活动已经不存在了」是常态。这些章留在库里
+ * （哪天把同 id 的活动加回来，它们自己就回来了），但不再计入分数和场次：
+ * 不这么做的话，分子数了已删活动、分母只数现存活动，会印出「参加 5/1 场」。
+ */
+function liveStationIds() {
+  return new Set(getActivities().map((a) => a.id));
+}
+
 /* ------------------------- 派生状态（不落库，全靠算） ------------------------- */
 
 export function totalFor(playerId) {
@@ -30,14 +42,19 @@ export function totalFor(playerId) {
  * 把一个选手的事件流折叠成完整状态。
  * 所有"当前值"都是算出来的，因此乱序同步、重放、补录都能收敛到同一结果。
  */
-export function playerState(player, settings = getSettings()) {
+export function playerState(player, settings = getSettings(), live = liveStationIds()) {
   const events = stmts.eventsByPlayer.all(player.id);
   let total = 0;
+  let done = 0;
   const stations = {};
 
   for (const e of events) {
-    total += e.points;
+    // 指向已删活动的章不计分、不计场次，但下面照样带出去 ——
+    // 前端按现存活动索引，看不到它们；导出和备份里还留着这段历史。
+    const counts = e.kind !== 'station' || (e.station_id && live.has(e.station_id));
+    if (counts) total += e.points;
     if (e.kind === 'station' && e.station_id) {
+      if (counts) done += 1;
       stations[e.station_id] = {
         stationId: e.station_id,
         points: e.points,
@@ -70,9 +87,9 @@ export function playerState(player, settings = getSettings()) {
     // 报过名的活动 id。护照上据此显示「已报名」，也决定报名按钮是
     // 「我要报名」还是「取消报名」
     signups: stmts.signupsOf.all(player.id).map((r) => r.activity_id),
-    stationsDone: Object.keys(stations).length,
-    // 分母是当前的活动场数。原来数的是游戏那八个关卡，加了活动也不变
-    stationsTotal: getActivities().length,
+    // 只数现存活动上的章，和分母对得上，也和资料页上打勾的数量对得上
+    stationsDone: done,
+    stationsTotal: live.size,
     updatedAt: player.updated_at,
     createdAt: player.created_at,
     history: events.map(shapeEvent),
@@ -96,9 +113,12 @@ function shapeEvent(e) {
 /** 花名册：工作人员端离线缓存的全量数据（50 人量级，压缩后几 KB） */
 export function roster(since = 0) {
   const settings = getSettings();
+  // 整份花名册共用一次活动清单：getActivities() 会解析 JSON、补默认值，
+  // 必要时还会写回库，放进每人一次的循环里不合适
+  const live = liveStationIds();
   const players = since > 0 ? stmts.playersSince.all(since) : stmts.allPlayers.all();
   return players.map((p) => {
-    const s = playerState(p, settings);
+    const s = playerState(p, settings, live);
     delete s.history; // 花名册不带完整历史，扫到人再单独拉
     return s;
   });
@@ -106,9 +126,10 @@ export function roster(since = 0) {
 
 export function leaderboard({ limit = 0 } = {}) {
   const settings = getSettings();
+  const live = liveStationIds();
   const players = stmts.allPlayers.all();
   const rows = players.map((p) => {
-    const s = playerState(p, settings);
+    const s = playerState(p, settings, live);
     return {
       id: s.id,
       code: s.code,
@@ -252,38 +273,5 @@ export function applyOp(op, settings = getSettings()) {
     return { opId: op.opId, playerId: op.playerId, status: 'error', message: '服务端处理失败' };
   }
 }
-
-/* --------------------------- 随机抽取身份 / 组队 --------------------------- */
-
-/**
- * 把全部选手打散成 Solo / Duo / Trio。
- * 同色同符号的人需要在场内互相寻找 —— 这是 PDF 里的破冰机制。
- * 同时给每个组分配一个不同的首站，实现分流、避免开局全挤在一个关卡。
- */
-/**
- * 随机抽取身份并分组。
- *
- * mode='fill'（默认）：只给还没有身份的人分配，已经组好队的人原封不动。
- *   陆续有人报名时按这个模式点一下就行，不会把现场已经找到队友的人打散。
- * mode='all'：全部重新洗牌。
- */
-/* ============================ 关卡路线 ============================ */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 export { stationById };

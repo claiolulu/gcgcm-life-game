@@ -56,4 +56,12 @@ export function onTick(fn) {
   return () => listeners.delete(fn);
 }
 
-export const isRealtimeConnected = () => connected;
+// 只有这些服务端事件会改变排行榜内容或它的公开状态。
+// config / signup / pin 等事件与排名无关，收到后不必再下载整份榜单。
+const LEADERBOARD_REASONS = new Set([
+  'connect', 'hello', 'register', 'profile', 'sync', 'player', 'reset', 'settings',
+]);
+
+export function changesLeaderboard(reason) {
+  return LEADERBOARD_REASONS.has(reason);
+}

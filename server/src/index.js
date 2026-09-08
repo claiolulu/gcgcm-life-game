@@ -385,7 +385,6 @@ app.get('/api/leaderboard', (req, res) => {
     return res.json({ board: [], teams: [], hidden: true, serverTs: Date.now() });
   }
   const limit = Number(req.query.limit) || 0;
-  // 组队榜搭同一个响应，不额外发请求 —— 排行榜每 20 秒就要拉一次
   res.json({
     board: leaderboard({ limit }),
     hidden: false,
@@ -442,24 +441,6 @@ app.post('/api/staff/sync', staffAuth('staff'), (req, res) => {
     settings,
     serverTs: Date.now(),
   });
-});
-
-/** 扫到码之后拉这个人的完整档案（含历史） */
-app.get('/api/staff/player/:code', staffAuth('staff'), (req, res) => {
-  const input = extractCode(req.params.code);
-  let player = stmts.playerByCode.get(input) || stmts.playerById.get(req.params.code);
-  if (!player) {
-    const matches = stmts.playersByCanon.all(canonCode(input));
-    if (matches.length === 1) player = matches[0];
-    else if (matches.length > 1) {
-      return res.status(409).json({
-        error: '有多个相近的护照码，请确认',
-        candidates: matches.map((m) => ({ id: m.id, code: m.code, name: m.name })),
-      });
-    }
-  }
-  if (!player) return res.status(404).json({ error: `没有找到护照码 ${input}` });
-  res.json({ player: playerState(player), ...rankOf(player.id), serverTs: Date.now() });
 });
 
 /* ------------------------------ 管理员接口 ------------------------------ */
@@ -859,24 +840,6 @@ app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {
   res.json({ settings: getSettings() });
 });
 
-app.post('/api/admin/player/:id', staffAuth('admin'), (req, res) => {
-  const p = stmts.playerById.get(req.params.id);
-  if (!p) return res.status(404).json({ error: '找不到该选手' });
-  const b = req.body || {};
-  stmts.updatePlayerFields.run({
-    id: p.id,
-    name: String(b.name ?? p.name).trim().slice(0, 24) || p.name,
-    avatar: JSON.stringify(b.avatar ?? safeJSON(p.avatar, {})),
-    contact: String(b.contact ?? p.contact).slice(0, 64),
-    notes: String(b.notes ?? p.notes).slice(0, 500),
-    updated_at: Date.now(),
-  });
-  broadcast('player');
-  res.json({ player: playerState(stmts.playerById.get(p.id)) });
-});
-
-
-
 app.get('/api/admin/export.csv', staffAuth('admin'), (_req, res) => {
   const board = leaderboard();
   // 一场活动一列，打了勾的写盖章日期 —— 比写个分数有用，
@@ -926,6 +889,19 @@ app.post('/api/admin/reset', staffAuth('admin'), (req, res) => {
 /* --------------------------- 前端静态资源 --------------------------- */
 
 if (fs.existsSync(WEB_DIST)) {
+  // Staff 使用独立域名时，根路径直接进工作人员入口；原来的
+  // game.claiolulu.com/staff 仍由同一套路由照常提供。
+  app.get('/', (req, res, next) => {
+    if (req.hostname.toLowerCase() !== 'staff.claiolulu.com') return next();
+    res.redirect(302, '/staff');
+  });
+  // 两个域名各自安装成 PWA。Staff 清单的 start_url 指向 /staff，
+  // 避免手机从桌面图标打开后落到选手护照首页。
+  app.get('/manifest.webmanifest', (req, res, next) => {
+    if (req.hostname.toLowerCase() !== 'staff.claiolulu.com') return next();
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(WEB_DIST, 'staff.webmanifest'));
+  });
   app.use(express.static(WEB_DIST, {
     setHeaders(res, filePath) {
       // 带 hash 的静态资源可以长缓存；HTML 和 SW 必须每次校验，否则更新推不下去

@@ -308,41 +308,12 @@ def apply_patches(jsx):
         jsx = jsx[:line_start] + hint + jsx[line_start:]
         n += 1
 
-    # 4) 页眉：奖杯图标旁边补一个同步状态。
-    #
-    #    这儿原来还插一枚队伍徽记 —— 那是迎新游戏的东西（Solo/Duo/Trio 分队、
-    #    同色同符号在场内互相找），打卡本不分队，已经去掉了。
+    # 4) 页眉：补一个「参加了几场」。
+    #    翻到任何一页都要能一眼看到自己盖了几个章 —— 原来只有资料页和
+    #    结语页有，翻签证页的时候最想看，反而看不到。
     for size in ('34px', '30px'):
-        marker = (
-            '<button onClick={v.goBoard} style={{flex: "none", width: "' + size + '", height: "' + size + '"'
-        )
-        i4 = jsx.find(marker)
-        if i4 == -1:
-            continue
-        close = jsx.find('</button>\n', i4)
-        if close == -1:
-            continue
-        end = close + len('</button>\n')
-        line_start = jsx.rfind('\n', 0, i4) + 1
-        indent = jsx[line_start:i4]
-        ss = '8px' if size == '34px' else '7px'
-        badge = (
-            # 同步状态：只有英文单词 + 颜色，绿 LIVE / 黄 RECONNECTING / 红 OFFLINE。
-            # 原来是底部一条浮动药丸，占着位置又要人低头去看
-            indent + '<div title="同步状态" style={{flex: "none", display: "flex", alignItems: "center", '
-            'gap: "4px", whiteSpace: "nowrap", marginLeft: "5px", color: v.syncHex}}>\n'
-            + indent + '  <span style={{fontFamily: "\'EB Garamond\',serif", fontSize: "' + ss + '", fontWeight: 700, letterSpacing: ".1em"}}>\n'
-            + indent + '    {v.syncLabel}\n'
-            + indent + '  </span>\n'
-            + indent + '</div>\n'
-        )
-        jsx = jsx[:end] + badge + jsx[end:]
-        n += 1
-
-    # 5) 页眉：恩典代币（G）左边补一个当前总分。
-    #    翻到任何一页都要能一眼看到自己多少分 —— 原来只有资料页和结语页有，
-    #    闯关途中最想看的时候反而看不到。
-    for size in ('34px', '30px'):
+        # 锚点借用恩典代币那个按钮的位置。按钮本身在后面的补丁里被删掉
+        # （恩典站是迎新游戏的东西），但这一步跑在它之前，位置还在。
         # 注意：data-tour 属性是后面的补丁才加上去的，这里不能拿它当锚点
         marker = '<button onClick={v.goGrace} style={{flex: "none", width: "' + size + '"'
         i = jsx.find(marker)

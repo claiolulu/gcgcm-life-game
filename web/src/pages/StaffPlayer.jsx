@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
-import { NetBar, Sheet, Score, useToast, ago } from '../components/ui.jsx';
-import { useConfig, drawCardLocally } from '../lib/config.js';
+import { NetBar, Score, useToast, ago } from '../components/ui.jsx';
+import { useConfig } from '../lib/config.js';
 import { useStaff, getPlayer, queueOp, leaderboardLocal } from '../lib/staff.js';
-import { describeModifier } from '../lib/modifiers.js';
 
 export default function StaffPlayer() {
   const { id } = useParams();
@@ -23,7 +22,6 @@ export default function StaffPlayer() {
   // 打卡本里同工盖的是「活动」，不是游戏关卡。
   // 两边共用同一张 events 表，所以后面的记分/盖章逻辑完全不用改
   const stations = config?.activities || [];
-  const settings = config?.settings || {};
 
   const myStationId = staff.session?.station;
   const [stationId, setStationId] = useState(
@@ -72,7 +70,6 @@ export default function StaffPlayer() {
     <div className="page page--wide">
       <NetBar
         online={staff.online}
-        connected={staff.connected}
         syncing={staff.syncing}
         pending={staff.outbox.length}
         lastSyncedAt={staff.lastSyncedAt}
@@ -100,43 +97,13 @@ export default function StaffPlayer() {
         </div>
       </div>
 
-      {/* ---------------------------- 必读提醒 ---------------------------- */}
-      <div className="stack" style={{ marginBottom: 12 }}>
-        {/* 状态分两类：要你核实的和系统自动处理的。
-            长得一样的话，同工扫一眼分不出哪条需要他动作 ——
-            「下一关要带个新朋友」不核实就等于这张卡白抽了。 */}
-        {player.modifiers?.map(describeModifier).map((m) => (
-          m.kind === 'check' ? (
-            <div key={m.id} className="alert-redline">
-              <div style={{ fontSize: 26 }}>{m.icon}</div>
-              <div className="grow">
-                <div className="bold small">要你核实 · {m.label}</div>
-                <div className="tiny" style={{ opacity: 0.9 }}>{m.text}</div>
-                {m.action && (
-                  <div className="tiny bold" style={{ marginTop: 4 }}>{m.action}</div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div key={m.id} className="card card--tight row" style={{ gap: 9, borderColor: 'rgba(247,201,72,0.45)' }}>
-              <span style={{ fontSize: 20 }}>{m.icon}</span>
-              <div className="grow">
-                <div className="small bold" style={{ color: 'var(--yellow)' }}>{m.label}</div>
-                <div className="tiny muted">{m.text}</div>
-                {m.action && <div className="tiny dim" style={{ marginTop: 2 }}>{m.action}</div>}
-              </div>
-            </div>
-          )
-        ))}
+      {player.hasPending && (
+        <div className="card card--tight small" style={{ color: 'var(--yellow)', marginBottom: 12 }}>
+          ⏳ 这位选手有 {player.pending.length} 条记分还没上传，分数是本地预估值
+        </div>
+      )}
 
-        {player.hasPending && (
-          <div className="card card--tight small" style={{ color: 'var(--yellow)' }}>
-            ⏳ 这位选手有 {player.pending.length} 条记分还没上传，分数是本地预估值
-          </div>
-        )}
-      </div>
-
-      {/* ---------------------------- 主线记分 ---------------------------- */}
+      {/* ---------------------------- 活动盖章 ---------------------------- */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">📍 活动盖章</div>
 
@@ -160,15 +127,15 @@ export default function StaffPlayer() {
 
         {stationId && alreadyDone && (
           <div className="card card--flat card--tight">
-            <div className="small bold">这一关已经记过分了</div>
+            <div className="small bold">这一场已经盖过章了</div>
             <div className="tiny muted" style={{ marginTop: 3 }}>
-              {alreadyDone.points} 分
-              {alreadyDone.operator && ` · ${alreadyDone.operator} 记录`}
+              已参加
+              {alreadyDone.operator && ` · ${alreadyDone.operator} 盖章`}
               {alreadyDone.at && ` · ${ago(alreadyDone.at)}`}
               {alreadyDone.pending && ' · 待同步'}
             </div>
             <div className="tiny dim" style={{ marginTop: 5 }}>
-              每站只有一次挑战机会。确实需要改分请找管理员。
+              一场活动只盖一次。确实需要改请找管理员。
             </div>
           </div>
         )}
@@ -200,7 +167,7 @@ export default function StaffPlayer() {
 
       {/* 已完成关卡一览 */}
       <div className="card" style={{ marginTop: 12 }}>
-        <div className="section-title">已完成 {player.stationsDone}/{player.stationsTotal ?? stations.length}</div>
+        <div className="section-title">已参加 {player.stationsDone}/{player.stationsTotal ?? stations.length}</div>
         <div className="stack-sm">
           {stations.filter((s) => player.stations[s.id]).map((s) => {
             const hit = player.stations[s.id];
@@ -213,12 +180,10 @@ export default function StaffPlayer() {
               </div>
             );
           })}
-          {player.stationsDone === 0 && <div className="small dim center">还没闯过任何一关</div>}
+          {player.stationsDone === 0 && <div className="small dim center">还没参加过任何一场</div>}
         </div>
       </div>
 
     </div>
   );
 }
-
-/* ---------------------------- 人生盲盒抽卡 ---------------------------- */

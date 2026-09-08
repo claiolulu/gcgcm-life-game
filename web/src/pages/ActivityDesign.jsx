@@ -45,10 +45,9 @@ function sampleData(activity, theme) {
     station: activity, theme,
     me: { name: '林小满', code: '01', contact: 'wx: xiaoman' },
     passportNo: 'GCGCM000001',
-    surname: '林', given: '小满', identityLabel: 'SOLO',
+    surname: '林', given: '小满',
     visaScore: null, isCheckin: false, stampTone: '',
-    stampDate: '2026-09-13', doneCount: 3,
-    teamBadge: { en: 'RED', symbol: '★' }, signed: true,
+    stampDate: '2026-09-13', doneCount: 3, signed: true,
   });
 }
 

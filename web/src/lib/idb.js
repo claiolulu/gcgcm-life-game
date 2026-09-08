@@ -165,8 +165,3 @@ export async function outboxRemove(opId) {
   try { await tx('outbox', 'readwrite', (s) => s.delete(opId)); }
   catch { lsDel('outbox', opId); }
 }
-
-export async function outboxClear() {
-  try { await tx('outbox', 'readwrite', (s) => s.clear()); }
-  catch { for (const o of lsAll('outbox')) lsDel('outbox', o.opId); }
-}

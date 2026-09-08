@@ -91,7 +91,6 @@ a { color: inherit; text-decoration: none; }
   animation: fade-up 0.28s ease both;
 }
 
-.page--flush { padding-left: 0; padding-right: 0; }
 .page--nonav {
   /* 报名页内容会超过一屏。不要依赖 body 滚动：iOS、微信 WebView 和
      主屏幕 PWA 在 html/body/#root 都是 100% 高时，常会吞掉触摸滚动。
@@ -118,8 +117,6 @@ a { color: inherit; text-decoration: none; }
 .wrap    { flex-wrap: wrap; }
 .grow    { flex: 1; min-width: 0; }
 .center  { text-align: center; }
-.spacer  { height: 8px; }
-
 /* ------------------------------ 排版 ------------------------------ */
 
 h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.01em; }
@@ -171,7 +168,6 @@ h3 { font-size: 16px; }
 }
 
 .card--flat  { background: var(--ink-2); box-shadow: none; }
-.card--gold  { border-color: var(--gold-dim); box-shadow: 0 0 0 1px var(--gold-glow), var(--shadow); }
 .card--tight { padding: 12px; }
 
 /* 护照封面 */
@@ -228,27 +224,6 @@ h3 { font-size: 16px; }
 .btn--lg     { min-height: 56px; font-size: 17px; border-radius: 16px; }
 
 /* 记分档位大按钮：现场单手操作，必须够大 */
-.tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.tier {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-height: 88px;
-  border-radius: 16px;
-  border: 1.5px solid var(--line);
-  background: var(--ink-3);
-  transition: transform 0.12s ease, border-color 0.15s, background 0.15s;
-}
-.tier:active { transform: scale(0.95); }
-.tier__n { font-size: 30px; font-weight: 800; line-height: 1; }
-.tier__l { font-size: 11.5px; color: var(--text-3); }
-.tier--1 .tier__n { color: var(--text-2); }
-.tier--2 .tier__n { color: var(--blue); }
-.tier--3 .tier__n { color: var(--gold); }
-.tier--on { border-color: var(--gold); background: rgba(232, 197, 106, 0.1); }
-
 /* ------------------------------- 表单 ------------------------------- */
 
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -295,98 +270,6 @@ h3 { font-size: 16px; }
   white-space: nowrap;
 }
 .chip--gold   { background: rgba(232, 197, 106, 0.14); color: var(--gold); border-color: rgba(232, 197, 106, 0.3); }
-.chip--green  { background: rgba(62, 201, 138, 0.14); color: var(--green); border-color: rgba(62, 201, 138, 0.3); }
-.chip--red    { background: rgba(255, 90, 95, 0.14); color: #ff8a8e; border-color: rgba(255, 90, 95, 0.3); }
-.chip--blue   { background: rgba(74, 155, 255, 0.14); color: var(--blue); border-color: rgba(74, 155, 255, 0.3); }
-.chip--yellow { background: rgba(247, 201, 72, 0.14); color: var(--yellow); border-color: rgba(247, 201, 72, 0.3); }
-
-/* 编号牌：全场最常被念、被看、被工作人员手输的东西，必须一眼看清 */
-.code-plate {
-  display: inline-flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 4px;
-  align-self: center;      /* 别被 flex column 拉满宽 */
-  min-width: 128px;
-  font-family: var(--mono);
-  font-size: 40px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  color: var(--gold);
-  padding: 10px 20px;
-  border-radius: 14px;
-  background: rgba(232, 197, 106, 0.09);
-  border: 1px dashed rgba(232, 197, 106, 0.4);
-}
-.code-plate::before {
-  content: '#';
-  font-size: 0.5em;
-  font-weight: 700;
-  opacity: 0.55;
-}
-.code-plate::after {
-  content: '号';
-  font-size: 0.34em;
-  font-weight: 600;
-  opacity: 0.6;
-  letter-spacing: 0;
-}
-
-/* ------------------------------ 关卡格 ------------------------------ */
-
-.stamp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
-
-.stamp {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 14px;
-  border: 1.5px dashed var(--line);
-  background: rgba(255, 255, 255, 0.015);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 4px;
-  transition: transform 0.15s;
-}
-.stamp:active { transform: scale(0.95); }
-.stamp__icon { font-size: 20px; filter: grayscale(1) opacity(0.42); }
-.stamp__name { font-size: 9.5px; color: var(--text-3); text-align: center; line-height: 1.15; }
-.stamp__pts {
-  position: absolute;
-  top: -6px;
-  right: -4px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--gold);
-  color: #221a06;
-  font-size: 12.5px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.stamp--done {
-  border-style: solid;
-  border-color: rgba(232, 197, 106, 0.45);
-  background: rgba(232, 197, 106, 0.08);
-  animation: stamp-in 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
-}
-.stamp--done .stamp__icon { filter: none; }
-.stamp--done .stamp__name { color: var(--gold-dim); }
-
-@keyframes stamp-in {
-  0%   { transform: scale(1.5) rotate(-9deg); opacity: 0; }
-  60%  { transform: scale(0.94) rotate(2deg); opacity: 1; }
-  100% { transform: none; }
-}
-
 /* ------------------------------ 排行榜 ------------------------------ */
 
 .lb-row {
@@ -450,15 +333,6 @@ h3 { font-size: 16px; }
 }
 .nav__item--on { color: var(--gold); }
 .nav__icon { font-size: 20px; line-height: 1; }
-.nav__dot {
-  position: absolute;
-  transform: translate(13px, -10px);
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--red);
-  box-shadow: 0 0 0 2px var(--ink);
-}
-
 /* ---------------------------- 网络状态条 ---------------------------- */
 
 .netbar {
@@ -476,7 +350,6 @@ h3 { font-size: 16px; }
   margin-bottom: 12px;
   border: 1px solid transparent;
 }
-.netbar--live    { background: rgba(62, 201, 138, 0.1);  color: var(--green);  border-color: rgba(62, 201, 138, 0.25); }
 .netbar--syncing { background: rgba(74, 155, 255, 0.1);  color: var(--blue);   border-color: rgba(74, 155, 255, 0.25); }
 .netbar--offline { background: rgba(247, 201, 72, 0.11); color: var(--yellow); border-color: rgba(247, 201, 72, 0.3); }
 .netbar--pending { background: rgba(255, 90, 95, 0.11);  color: #ff8a8e;       border-color: rgba(255, 90, 95, 0.3); }
@@ -493,15 +366,6 @@ h3 { font-size: 16px; }
 }
 
 /* ------------------------------ 二维码 ------------------------------ */
-
-.qr-plate {
-  background: #fff;
-  border-radius: 20px;
-  padding: 14px;
-  display: inline-flex;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
-}
-.qr-plate canvas, .qr-plate img { display: block; width: 100%; height: auto; border-radius: 6px; }
 
 /* ------------------------------ 扫码器 ------------------------------ */
 
@@ -614,7 +478,6 @@ h3 { font-size: 16px; }
 }
 
 /* 抽卡动画 */
-.card-reveal { animation: reveal 0.55s cubic-bezier(0.2, 1.1, 0.35, 1) both; }
 @keyframes reveal {
   0%   { transform: perspective(800px) rotateY(90deg) scale(0.85); opacity: 0; }
   100% { transform: none; opacity: 1; }
@@ -649,16 +512,6 @@ h3 { font-size: 16px; }
 .toast--warn { border-color: rgba(247, 201, 72, 0.5); background: #29220f; color: #ffe09a; }
 
 /* 红线警告 */
-.alert-redline {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 14px;
-  border-radius: 16px;
-  background: linear-gradient(140deg, rgba(255, 90, 95, 0.2), rgba(255, 90, 95, 0.07));
-  border: 1px solid rgba(255, 90, 95, 0.45);
-  animation: breathe 2.2s ease-in-out infinite;
-}
 @keyframes breathe {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 90, 95, 0.28); }
   50%      { box-shadow: 0 0 0 9px rgba(255, 90, 95, 0); }
@@ -707,7 +560,6 @@ html.book-locked body {
   /* 卡片自己带 margin-bottom，网格只管横向间距 */
   .page--wide .cols-2 > * { min-width: 0; }
   .page--wide .col-full { grid-column: 1 / -1; }
-  .page--wide .col-2 { grid-column: span 2; }
 
   /* 总控台就两块内容（活动清单 / 全部选手），要的是左右各一半。
      auto-fill 会按最小宽度尽量塞列，1248px 下塞出三列、空一列 */
@@ -992,87 +844,5 @@ kbd {
    头像用负边距叠起来，三个人只占两个人的宽度。名字跟在头像后面，
    放不下就整体横向滚动，不挤压上层。
    --------------------------------------------------------------- */
-.team-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card);
-}
-.team-row--me { border-color: var(--gold); background: rgba(230, 205, 145, 0.06); }
-
 /* 名次：单人队和多人队都用同一个宽度，行与行才对得齐 */
-.team-rank {
-  flex: none;
-  width: 26px;
-  text-align: center;
-  font-family: var(--mono, ui-monospace, monospace);
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
-.team-rank--1 { color: var(--gold); font-size: 18px; }
-.team-rank--2, .team-rank--3 { color: var(--fg); }
-
-.team-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-
-.team-title { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.team-symbol { flex: none; font-size: 13px; line-height: 1; }
-.team-name {
-  font-size: 15px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.team-size {
-  flex: none;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--dim);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0 4px;
-}
-
 /* 队员：头像叠着排，名字跟在后面 */
-.team-members {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.team-members::-webkit-scrollbar { display: none; }
-
-.team-faces { flex: none; display: flex; }
-.team-faces > * {
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px var(--card);
-}
-.team-faces > * + * { margin-left: -9px; }
-
-.team-names {
-  font-size: 11.5px;
-  color: var(--dim);
-  white-space: nowrap;
-}
-.team-names b { color: var(--fg); font-weight: 600; }
-
-.team-score {
-  flex: none;
-  text-align: right;
-  font-family: var(--mono, ui-monospace, monospace);
-  font-variant-numeric: tabular-nums;
-}
-.team-score > div:first-child {
-  font-size: 19px;
-  font-weight: 700;
-  color: var(--gold);
-  line-height: 1.1;
-}
-.team-score > div:last-child { font-size: 9px; letter-spacing: 0.1em; color: var(--dim); }

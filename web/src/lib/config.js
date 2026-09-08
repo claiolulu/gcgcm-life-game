@@ -3,8 +3,8 @@ import { api } from './api.js';
 import { kvGet, kvSet } from './idb.js';
 
 /**
- * 游戏静态配置（关卡、盲盒卡牌、身份卡、可调参数）。
- * 拉一次就缓存进 IndexedDB，之后断网也能完整渲染界面和离线抽卡。
+ * 静态配置（活动清单、护照版式、可调参数）。
+ * 拉一次就缓存进 IndexedDB，之后断网也能完整渲染界面。
  */
 
 const listeners = new Set();
@@ -43,19 +43,3 @@ export async function loadConfig() {
   }
 }
 
-export function getConfig() {
-  return state.config;
-}
-
-/** 离线也能抽盲盒：按权重在本地抽，只把 cardId 上报，倍率由服务端结算 */
-export function drawCardLocally(cards) {
-  const pool = cards || state.config?.cards || [];
-  if (!pool.length) return null;
-  const total = pool.reduce((s, c) => s + (c.weight || 1), 0);
-  let roll = Math.random() * total;
-  for (const c of pool) {
-    roll -= c.weight || 1;
-    if (roll <= 0) return c;
-  }
-  return pool[pool.length - 1];
-}

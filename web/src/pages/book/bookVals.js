@@ -261,22 +261,6 @@ const GUIDE = [
     body: '你可以继续修改姓名、头像、联系方式和护照配色。这里记录的不是输赢，而是你来过、参与过、和大家一起走过。' },
 ];
 
-/**
- * 按后台排定的顺序重排关卡。
- *
- * 开赛时后台会给每人（每队）算一条路线，把 50 个人摊到 8 个关卡上，
- * 免得全挤在同一个门口。签证页就按这个顺序装订 —— 翻到第几页就是第几站。
- *
- * 赛前 route 是空的，这时保持配置里的原始顺序（页面本身也会留白）。
- */
-export function orderStations(stations, route) {
-  if (!Array.isArray(route) || route.length === 0) return stations;
-  const byId = new Map(stations.map((st) => [st.id, st]));
-  const ordered = route.map((id) => byId.get(id)).filter(Boolean);
-  // 后台的关卡表要是和客户端缓存的对不上（改过配置），把漏掉的补在后面
-  for (const st of stations) if (!route.includes(st.id)) ordered.push(st);
-  return ordered.length === stations.length ? ordered : stations;
-}
 
 /** 页码表：封面 → 欢迎 → 导航 → 资料页 → 八张签证 → 恩典站 → 结语 */
 export function buildPages(stations) {
@@ -454,14 +438,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
         guide: 'wellington', board: 'university',
         closing: null }[kind] || null;
 
-  // 同步状态：只用英文单词 + 颜色，一眼分辨，也不占地方
-  const SYNC = {
-    live:         { label: 'LIVE',         hex: '#2f8f5b' },
-    reconnecting: { label: 'RECONNECTING', hex: '#b8860b' },
-    offline:      { label: 'OFFLINE',      hex: '#b0343c' },
-  };
-  const syncMeta = SYNC[ui.sync] || SYNC.live;
-
   /* ---- 签证页的版式：默认版式打底，活动可以整份换成自己排的 ---- */
   const visaTpl = resolveVisaTemplate(config?.visaTemplate);
 
@@ -496,8 +472,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     isClosing: kind === 'closing',
     pageAnim: backFlip ? `bookPeel ${FLIP_MS}ms ${FLIP_EASE} reverse both` : 'none',
 
-    syncLabel: syncMeta.label,
-    syncHex: syncMeta.hex,
 
     /* ---- 模版 ---- */
     // 变量挂在最外层，护照册整棵树（包括翻页时克隆出去的那份影子页）都继承
@@ -595,11 +569,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     qrThumb: ui.qrThumb || null,
     qrBigImg: ui.qrBigImg || null,
     qrBig: ui.modal === 'qr',
-    // 队伍是迎新游戏那套的，打卡本不分队
-    // 队伍和队友是迎新游戏那套的（Solo/Duo/Trio 分队），打卡本不分队
-    teamBadge: null,
-    teammates: [],
-    goTeam: () => actions.openTeam(),
     // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
     openTheme: () => actions.openTheme(),
     photo: ui.photo || null,
@@ -621,7 +590,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     ],
     doneCount,
     totalPad: String(total).padStart(2, '0'),
-    pendingLifeEvents: me?.pendingLifeEvents ?? 0,
     // 进度条走「参加过几场」，不是分数百分比
     pct: visaTotal ? Math.min(100, Math.round((doneCount / visaTotal) * 100)) : 0,
     visaTotal,

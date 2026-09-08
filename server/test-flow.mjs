@@ -233,7 +233,7 @@ check('错误 PIN 被拒', badPin.status === 401);
 {
   const cfg = await j('/api/config');
   check('配置里带着默认版式和可选的数据来源',
-    Array.isArray(cfg.body.visaTemplate?.rows) && cfg.body.visaTemplate.rows.length === 10
+    Array.isArray(cfg.body.visaTemplate?.rows) && cfg.body.visaTemplate.rows.length === 9
     && (cfg.body.visaSources || []).some((x) => x.key === 'text'));
   check('数据来源里有持照人的名字（栏目条能绑它）',
     (cfg.body.visaSources || []).some((x) => x.key === 'player' && x.group === '持照人'));
@@ -401,7 +401,7 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('栏目块能只留一栏', b[1]?.rows?.length === 1 && b[1].cols === 3);
 
   // 栏目条能绑「持照人」那一组的每一个来源
-  const holder = ['player', 'code', 'passport', 'contact', 'team', 'visited', 'signed', 'stampDate'];
+  const holder = ['player', 'code', 'passport', 'contact', 'visited', 'signed', 'stampDate'];
   const bound = await j('/api/admin/activities', {
     method: 'POST', headers: adminH,
     body: { activities: base.map((a, i) => (i === 0 ? { ...a, blocks: [{
@@ -490,5 +490,110 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('取消之后数字回落', !after.body.counts[a0]);
 }
 
+
+// 23. 活动被删掉之后，指向它的章不能让任何地方出错
+//
+// 总控台可以随时删活动，但章是不可逆的历史 —— 删活动不该动到已经盖下去的章。
+// 于是「有一批章指向的活动已经不存在了」是这套系统的常态，而不是异常。
+// 这一节把这个状态造出来，然后把每一个会碰到章的出口都走一遍。
+{
+  const before = (await j('/api/config')).body.activities;
+  const ghostId = 'act-ghost-test';
+
+  await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: [...before, { id: ghostId, name: '待删活动', icon: '👻', tag: 'test', state: 'live' }] },
+  });
+
+  const beforeStamp = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
+
+  const stamped = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH,
+    body: { ops: [{ opId: 'ghost-1', type: 'score', playerId: player.id, stationId: ghostId, points: 1, checkin: true }] },
+  });
+  check('先在这场活动上盖一个章', stamped.body.results?.[0]?.status === 'ok',
+    JSON.stringify(stamped.body.results));
+
+  // 删掉它。章留在 events 里，指向一个不再存在的 id。
+  const removed = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH, body: { activities: before },
+  });
+  check('活动能删掉', removed.status === 200 && !removed.body.activities.some((a) => a.id === ghostId));
+
+  const playerH2 = { authorization: `Bearer ${playerToken}` };
+
+  const me = await j('/api/me', { headers: playerH2 });
+  check('删完之后本人的护照照常拉得到', me.status === 200);
+  check('那个章还在（删活动不动历史）', !!me.body.player.stations[ghostId],
+    JSON.stringify(Object.keys(me.body.player.stations || {})));
+  check('但它不再计入分数和场次（活动都没了，这一场自然不算）',
+    me.body.player.total === beforeStamp.body.player.total
+    && me.body.player.stationsDone === beforeStamp.body.player.stationsDone,
+    `删前 ${beforeStamp.body.player.total}/${beforeStamp.body.player.stationsDone}，`
+    + `删后 ${me.body.player.total}/${me.body.player.stationsDone}`);
+
+  const board = await j('/api/leaderboard');
+  check('排行榜照常算得出来', board.status === 200 && board.body.board.some((r) => r.id === player.id));
+
+  const csv = await j('/api/admin/export.csv', { headers: adminH });
+  check('成绩单导得出来', csv.status === 200);
+
+  const backup = await j('/api/admin/backup.json', { headers: adminH });
+  check('备份导得出来', backup.status === 200);
+
+  const sync = await j('/api/staff/sync', { method: 'POST', headers: staffH, body: { ops: [] } });
+  check('同工端同步照常', sync.status === 200 && Array.isArray(sync.body.players));
+
+  const signups = await j('/api/admin/signups', { headers: adminH });
+  check('报名统计照常', signups.status === 200);
+
+  const gone = await j(`/api/activity/${ghostId}`);
+  check('打开已删活动的页面是干净的 404，不是 500', gone.status === 404, `状态码 ${gone.status}`);
+
+  const signGone = await j(`/api/activity/${ghostId}/signup`, { method: 'POST', headers: playerH2 });
+  check('给已删活动报名是干净的 404，不是 500', signGone.status === 404, `状态码 ${signGone.status}`);
+
+  const stampGone = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH,
+    body: { ops: [{ opId: 'ghost-2', type: 'score', playerId: player.id, stationId: ghostId, points: 1, checkin: true }] },
+  });
+  check('往已删活动上补章会被挡下，并且说得清是为什么',
+    stampGone.status === 200 && stampGone.body.results?.[0]?.status === 'error'
+    && /未知/.test(stampGone.body.results[0].message || ''),
+    JSON.stringify(stampGone.body.results));
+
+  // 极端情况：把活动删到只剩一场，而这个人身上还挂着好几个章。
+  // 一年结束清空旧活动就是这个形状。
+  await j('/api/admin/activities', {
+    method: 'POST', headers: adminH, body: { activities: [before[0]] },
+  });
+
+  const thin = await j('/api/me', { headers: playerH2 });
+  check('只剩一场活动时护照照样拉得到', thin.status === 200);
+  const thinBoard = await j('/api/leaderboard');
+  check('只剩一场活动时排行榜照样算得出来', thinBoard.status === 200);
+  const thinCsv = await j('/api/admin/export.csv', { headers: adminH });
+  check('只剩一场活动时成绩单照样导得出来', thinCsv.status === 200);
+
+  // 分母是「当前有几场活动」，分子却把指向已删活动的章也数进去了，
+  // 于是会印出「参加 4/1 场」这种大于一的比例。护照上的进度条按这个比例走。
+  check('「参加过几场」不会超过当前的活动场数',
+    thin.body.player.stationsDone <= thin.body.player.stationsTotal,
+    `实际是 ${thin.body.player.stationsDone}/${thin.body.player.stationsTotal}`);
+
+  // 把同 id 的活动加回来，那个章自己就回来了 —— 数据一直都在，
+  // 只是被「这场活动还在不在」这个开关挡着。误删可以这样救回来。
+  await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: [...before, { id: ghostId, name: '待删活动', icon: '👻', tag: 'test', state: 'live' }] },
+  });
+  const restored = await j('/api/me', { headers: playerH2 });
+  check('把同 id 的活动加回来，那个章重新算数（误删救得回来）',
+    restored.body.player.total === beforeStamp.body.player.total + 1
+    && restored.body.player.stationsDone === beforeStamp.body.player.stationsDone + 1,
+    `${restored.body.player.total}/${restored.body.player.stationsDone}`);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: before } });
+}
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

@@ -72,15 +72,31 @@ console.log('\n=== 老库升级迁移 ===\n');
 
   db.prepare('INSERT INTO awards VALUES (?,?,?,?)').run('top_score', 'p1', '', now);
   db.prepare('INSERT INTO settings VALUES (?,?)').run('scoreTiers', '[3,6,9]');
+  db.prepare('INSERT INTO settings VALUES (?,?)').run('identitiesDrawnAt', '1788000000000');
   db.prepare('INSERT INTO settings VALUES (?,?)').run('gameState', '"lobby"');
+
+  // 一场在画布里存过版式的活动。它的栏目里有一栏绑着迎新游戏那套的
+  // 「身份」—— 那个来源已经不存在了，留着的话保存这场活动会被服务端拒掉。
+  db.prepare('INSERT INTO settings VALUES (?,?)').run('_activities', JSON.stringify([{
+    id: 'freshers', name: '迎新之夜', icon: '🎉', state: 'upcoming',
+    blocks: [{
+      kind: 'fields', x: 4, y: 27, w: 92, h: 58, cols: 2,
+      rows: [
+        { key: 'surname', label: 'SURNAME 姓', src: 'surname' },
+        { key: 'class', label: 'CLASS 身份', src: 'identity' },
+        { key: 'control', label: 'CONTROL NUMBER 控制号', src: 'control' },
+      ],
+    }],
+  }]));
   db.close();
 }
 
 /* ---------- 启动一次，让迁移跑起来 ---------- */
 const run = spawnSync(process.execPath, ['-e', `
   process.env.MLG_DATA_DIR = ${JSON.stringify(dir)};
-  const { db } = await import(${JSON.stringify(path.join(here, 'src', 'db.js'))});
-  db.close();
+  const m = await import(${JSON.stringify(path.join(here, 'src', 'db.js'))});
+  console.log('ACTS:' + JSON.stringify(m.getActivities()));
+  m.db.close();
 `], { env: { ...process.env, MLG_DATA_DIR: dir }, encoding: 'utf8' });
 
 check('迁移跑完没有报错', run.status === 0, run.stderr?.slice(0, 300));
@@ -136,7 +152,24 @@ check('重建前留了一份备份',
     !db.prepare("SELECT 1 FROM settings WHERE key = 'scoreTiers'").get());
   check('别的设置留着',
     !!db.prepare("SELECT 1 FROM settings WHERE key = 'gameState'").get());
+  check('抽身份的时间戳也清掉了',
+    !db.prepare("SELECT 1 FROM settings WHERE key = 'identitiesDrawnAt'").get());
   db.close();
+}
+
+/* ---------- 存过版式的活动：绑着死来源的栏目要剔掉 ---------- */
+{
+  const line = (run.stdout || '').split('\n').find((l) => l.startsWith('ACTS:'));
+  const acts = line ? JSON.parse(line.slice(5)) : [];
+  const rows = acts[0]?.blocks?.[0]?.rows || [];
+  const srcs = rows.map((r) => r.src);
+  check('绑着「身份」的那一栏被剔掉了（留着会让这场活动保存失败）',
+    !srcs.includes('identity'), JSON.stringify(srcs));
+  check('同一块里其它栏目原样留着',
+    srcs.join(',') === 'surname,control', JSON.stringify(srcs));
+  check('顺手把「控制号」的标题迁成「编号」',
+    rows.find((r) => r.src === 'control')?.label === 'NUMBER 编号',
+    JSON.stringify(rows.map((r) => r.label)));
 }
 
 /* ---------- 再跑一次，不该重复迁移 ---------- */

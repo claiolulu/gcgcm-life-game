@@ -6,11 +6,11 @@ import React from 'react';
  * 头像就是一小段 JSON，本地渲染、任意尺寸都清晰、结业徽章能直接复用同一份数据。
  */
 
-export const SKINS = ['#f6d5bd', '#eec1a0', '#dda57e', '#c4855c', '#9c6440', '#71482c'];
+export const SKINS = ['#f6d5bd', '#eec1a0', '#dda57e', '#c4855c', '#9c6440', '#71482c', '#ffe4d4', '#f0cbb4', '#d5ac91', '#bb8869', '#89583f', '#50372d'];
 
-export const HAIR_COLORS = ['#1e1a17', '#3c2a1e', '#6b4423', '#a86b32', '#d9a441', '#8b8f9e', '#c94f4f', '#6c5ce7'];
+export const HAIR_COLORS = ['#1e1a17', '#3c2a1e', '#6b4423', '#a86b32', '#d9a441', '#8b8f9e', '#c94f4f', '#6c5ce7', '#101e36', '#643c35', '#b97954', '#eed4a1', '#d9dce4', '#df96b8', '#357b78', '#4464ad'];
 
-export const OUTFITS = ['#4a9bff', '#3ec98a', '#e8c56a', '#ff6fae', '#b06cf0', '#ff8b4a', '#2bc4c4', '#8b8f9e'];
+export const OUTFITS = ['#4a9bff', '#3ec98a', '#e8c56a', '#ff6fae', '#b06cf0', '#ff8b4a', '#2bc4c4', '#8b8f9e', '#233954', '#7e344d', '#55764d', '#ede3d2', '#c27d56', '#6981ac', '#343745', '#d9adb4'];
 
 export const BACKGROUNDS = [
   ['#1e3a5f', '#0f2038'],
@@ -21,11 +21,15 @@ export const BACKGROUNDS = [
   ['#2d4a5c', '#132835'],
   ['#5c2d3d', '#33121d'],
   ['#333a4d', '#1a1e29'],
+  ['#f4b8a4', '#b86573'], ['#abd8c6', '#458477'],
+  ['#bed5f4', '#687cac'], ['#ead9b6', '#b79869'],
+  ['#dcc5ef', '#8b70ab'], ['#f5d595', '#ce9755'],
+  ['#b4dde2', '#497e99'], ['#e4c8cc', '#966d85'],
 ];
 
-export const HAIR_STYLES = ['short', 'buzz', 'bob', 'long', 'ponytail', 'bun', 'curly', 'wavy', 'afro', 'bald'];
-export const EYE_STYLES = ['dot', 'happy', 'big', 'wink', 'sleepy', 'sparkle'];
-export const MOUTH_STYLES = ['smile', 'grin', 'neutral', 'oh', 'smirk', 'laugh'];
+export const HAIR_STYLES = ['short', 'buzz', 'bob', 'long', 'ponytail', 'bun', 'curly', 'wavy', 'afro', 'bald', 'parted', 'side', 'spiky', 'pixie', 'twobuns', 'pigtails', 'braids', 'swept', 'mohawk', 'fringe'];
+export const EYE_STYLES = ['dot', 'happy', 'big', 'wink', 'sleepy', 'sparkle', 'almond', 'lashes', 'curious', 'focused', 'closed', 'hearts'];
+export const MOUTH_STYLES = ['smile', 'grin', 'neutral', 'oh', 'smirk', 'laugh', 'teeth', 'tongue', 'kiss', 'soft', 'frown', 'cat'];
 /**
  * 配饰分成三个互相独立的槽位，可以同时戴 —— 比如学士帽 + 圆框眼镜 + 十字架项链。
  * 旧数据里的单一 accessory 字段仍然认，见 normalizeAvatar()。
@@ -48,9 +52,9 @@ export const CITY_SCENES = [
   'newyork', 'tokyo', 'sydney', 'shanghai', 'rome', 'sanfrancisco',
 ];
 
-export const HATS = ['none', 'beanie', 'cap', 'bucket', 'grad', 'hood', 'headband', 'flower', 'headphones', 'airpods'];
-export const FACES = ['none', 'glasses', 'round', 'sunglasses', 'mask'];
-export const EXTRAS = ['none', 'earrings', 'cross', 'scarf', 'bowtie'];
+export const HATS = ['none', 'beanie', 'cap', 'bucket', 'grad', 'hood', 'headband', 'flower', 'headphones', 'airpods', 'beret', 'straw', 'visor', 'ribbon', 'crown', 'party', 'sailor', 'bow', 'clips', 'leaf'];
+export const FACES = ['none', 'glasses', 'round', 'sunglasses', 'mask', 'goldround', 'catglasses', 'rimless', 'sport', 'monocle'];
+export const EXTRAS = ['none', 'earrings', 'cross', 'scarf', 'bowtie', 'hoops', 'pearls', 'pendant', 'tie', 'star'];
 
 // 兼容早期只有一个 accessory 字段的头像
 const LEGACY_ACCESSORY = [
@@ -60,7 +64,7 @@ const LEGACY_ACCESSORY = [
 /** 把任意版本的头像配置补全成当前的槽位结构 */
 export function normalizeAvatar(config) {
   const a = { ...DEFAULT_AVATAR, ...(config || {}) };
-  if (a.accessory != null && a.hat == null && a.face == null && a.extra == null) {
+  if (a.accessory != null && config?.hat == null && config?.face == null && config?.extra == null) {
     Object.assign(a, LEGACY_ACCESSORY[a.accessory % LEGACY_ACCESSORY.length] || {});
   }
   return { hat: 0, face: 0, extra: 0, bgp: 0, ...a };
@@ -82,6 +86,7 @@ export function randomAvatar() {
     face: Math.random() < 0.6 ? 0 : 1 + r(FACES.length - 1),
     extra: Math.random() < 0.65 ? 0 : 1 + r(EXTRAS.length - 1),
     outfit: r(OUTFITS.length),
+    clothing: r(18), cheeks: Math.random() < 0.5 ? 0 : 1 + r(9),
     // 留两成的概率是纯底色 —— 总得有人素一点，全是风景反而没有对比
     bgp: Math.random() < 0.2 ? 0 : 1 + r(CITY_SCENES.length - 1),
   };
@@ -90,12 +95,31 @@ export function randomAvatar() {
 export const DEFAULT_AVATAR = {
   bg: 0, skin: 0, hair: 0, hairColor: 0, eyes: 0, mouth: 0, outfit: 0,
   hat: 0, face: 0, extra: 0, bgp: 0,
+  clothing: 0, cheeks: 0,
 };
 
 /* ------------------------------- 发型 ------------------------------- */
 
 function Hair({ style, color }) {
   switch (style) {
+    case 'parted':
+      return <path fill={color} d="M27 41 Q23 17 49 18 Q77 14 73 42 L65 32 Q56 31 51 23 Q44 34 34 33Z" />;
+    case 'side':
+      return <path fill={color} d="M27 43 Q23 14 53 17 Q77 17 73 40 L66 32 L63 25 Q49 41 29 38Z" />;
+    case 'spiky':
+      return <path fill={color} d="M27 39 L24 22 L34 25 L35 12 L45 22 L52 8 L57 22 L70 15 L68 28 L78 25 L73 41 L64 31 L36 32Z" />;
+    case 'pixie':
+      return <path fill={color} d="M28 47 Q21 20 42 19 Q60 10 71 25 L73 44 L66 32 L57 27 L51 35 L44 29 L34 35Z" />;
+    case 'twobuns':
+    case 'pigtails':
+    case 'braids':
+      return <g fill={color}><Hair style="parted" color={color} />{[23,77].map(x => style === 'braids' ? <g key={x}>{[45,53,61,69].map(y => <ellipse key={y} cx={x} cy={y} rx="5" ry="6" />)}<path d={`M${x-4} 74 h8`} stroke="#e8c56a" strokeWidth="3" /></g> : <ellipse key={x} cx={x} cy={style === 'twobuns' ? 23 : 51} rx="9" ry={style === 'twobuns' ? 9 : 16} />)}</g>;
+    case 'swept':
+      return <path fill={color} d="M27 41 Q20 26 30 18 Q40 6 66 15 L76 23 Q61 20 60 28 Q69 26 73 39 L66 33 Q43 39 35 31Z" />;
+    case 'mohawk':
+      return <path fill={color} d="M41 33 L42 16 L47 21 L51 8 L55 20 L59 15 L62 33Z" />;
+    case 'fringe':
+      return <g fill={color}><Hair style="bob" color={color} /><path d="M29 30 H71 V37 L62 36 L59 32 L56 37 H30Z" /></g>;
     case 'buzz':
       return <path d="M29 42 Q29 20 50 20 Q71 20 71 42 Q66 30 50 30 Q34 30 29 42Z" fill={color} />;
     case 'bob':
@@ -149,7 +173,7 @@ function Hair({ style, color }) {
     case 'afro':
       return (
         <g fill={color}>
-          <circle cx="50" cy="32" r="28" />
+          <ellipse cx="50" cy="24" rx="27" ry="16" />
           <circle cx="30" cy="42" r="12" />
           <circle cx="70" cy="42" r="12" />
         </g>
@@ -172,6 +196,16 @@ function Hair({ style, color }) {
 function Eyes({ style }) {
   const ink = '#20242e';
   switch (style) {
+    case 'almond':
+    case 'lashes':
+      return <g>{[41,59].map(x => <g key={x}><path d={`M${x-6} 44 Q${x} 36 ${x+6} 44 Q${x} 50 ${x-6} 44`} fill="white" stroke={ink} strokeWidth="1.3" /><circle cx={x} cy="43.5" r="2.6" fill={ink} /><circle cx={x-0.8} cy="42.5" r="0.8" fill="white" />{style === 'lashes' && <path d={`M${x-5} 41 l-2 -3 M${x} 39 v-3 M${x+5} 41 l2 -3`} stroke={ink} strokeWidth="1.4" />}</g>)}</g>;
+    case 'curious':
+    case 'focused':
+      return <g><Eyes style="dot" /><path d={style === 'curious' ? 'M36 35 Q41 31 46 35 M54 37 H64' : 'M35 36 L46 39 M54 39 L65 36'} fill="none" stroke={ink} strokeWidth="2" strokeLinecap="round" /></g>;
+    case 'closed':
+      return <g fill="none" stroke={ink} strokeWidth="2.4" strokeLinecap="round"><path d="M35 42 Q41 49 47 42 M53 42 Q59 49 65 42" /></g>;
+    case 'hearts':
+      return <g fill="#a92e51">{[41,59].map(x => <path key={x} d={`M${x} 49 l-5 -5 C${x-10} 37 ${x-2} 36 ${x} 40 C${x+2} 36 ${x+10} 37 ${x+5} 44Z`} />)}</g>;
     case 'happy':
       return (
         <g stroke={ink} strokeWidth="2.6" strokeLinecap="round" fill="none">
@@ -232,8 +266,8 @@ function Mouth({ style }) {
     case 'grin':
       return (
         <g>
-          <path d="M40 55 Q50 64 60 55 Z" fill="#3a2028" />
-          <path d="M41.5 55.6 L58.5 55.6" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+          <path d="M39 53 Q50 55 61 53 C60 66 40 66 39 53Z" fill="#fffdf5" stroke="#66363d" strokeWidth="1.6" />
+          <path d="M40 58 Q50 60 60 58 M46 55 V61 M54 55 V61" stroke="#d4b9ad" strokeWidth="0.7" fill="none" />
         </g>
       );
     case 'neutral':
@@ -245,10 +279,23 @@ function Mouth({ style }) {
     case 'laugh':
       return (
         <g>
-          <path d="M38 53 Q50 67 62 53 Z" fill="#3a2028" />
-          <path d="M43 62 Q50 66 57 62 Z" fill="#e8737f" />
+          <path d="M39 52 Q50 54 61 52 C61 69 39 69 39 52Z" fill="#49232e" />
+          <path d="M41 53 Q50 55 59 53 L58 57 H42Z" fill="#fffdf5" />
+          <path d="M44 62 Q50 58 56 62 Q50 67 44 62Z" fill="#ed8e9d" />
         </g>
       );
+    case 'teeth':
+      return <g><path d="M39 54 Q50 51 61 54 Q58 65 50 65 Q42 65 39 54Z" fill="#49232e" /><path d="M41 54 Q50 53 59 54 L57 59 H43Z" fill="#fffdf5" /></g>;
+    case 'tongue':
+      return <g><path d="M40 54 Q50 63 60 54" stroke={ink} strokeWidth="2" fill="none" /><path d="M49 58 H57 V62 Q53 68 49 62Z" fill="#e97b90" stroke="#8f3e57" strokeWidth="1" /><path d="M53 59 V62" stroke="#8f3e57" /></g>;
+    case 'kiss':
+      return <path d="M46 53 L54 56 L48 58 L54 60 L46 63" fill="none" stroke="#963f56" strokeWidth="2.4" strokeLinejoin="round" />;
+    case 'soft':
+      return <path d="M44 57 Q50 60 56 57" fill="none" stroke="#9b4e55" strokeWidth="3" strokeLinecap="round" />;
+    case 'frown':
+      return <path d="M43 60 Q50 52 57 60" fill="none" stroke={ink} strokeWidth="2.4" strokeLinecap="round" />;
+    case 'cat':
+      return <path d="M40 56 Q45 63 50 56 Q55 63 60 56" fill="none" stroke={ink} strokeWidth="2" strokeLinecap="round" />;
     case 'smile':
     default:
       return <path d="M43 55 Q50 62 57 55" stroke={ink} strokeWidth="2.6" strokeLinecap="round" fill="none" />;
@@ -276,11 +323,30 @@ function HoodBack({ on, outfit }) {
 /** 头饰 / 帽子：画在头发之上 */
 function Hat({ style, outfit }) {
   switch (style) {
+    case 'beret':
+      return <g fill={outfit}><ellipse cx="48" cy="24" rx="26" ry="12" transform="rotate(-12 48 24)" /><path d="M47 14 l3 -5" stroke={outfit} strokeWidth="4" /><path d="M28 33 H70" stroke={shade(outfit)} strokeWidth="4" /></g>;
+    case 'straw':
+      return <g fill="#e4c78c" stroke="#ad864b" strokeWidth="1"><path d="M33 29 L36 15 H64 L68 29Z" /><ellipse cx="50" cy="31" rx="34" ry="6" /><path d="M33 26 H68" stroke="#865144" strokeWidth="4" /></g>;
+    case 'visor':
+      return <g fill={outfit}><path d="M27 28 Q50 23 73 28 V34 H27Z" /><path d="M32 33 Q60 30 82 38 Q58 42 32 35Z" fill={shade(outfit)} /></g>;
+    case 'ribbon':
+    case 'bow':
+      return <g fill={outfit} stroke={shade(outfit)} strokeWidth="1" transform={style === 'bow' ? 'translate(18 -3)' : ''}><path d="M50 24 L35 15 Q29 25 35 31Z M50 24 L65 15 Q71 25 65 31Z" /><circle cx="50" cy="24" r="4" /></g>;
+    case 'crown':
+      return <g fill="#edc458" stroke="#977036" strokeWidth="1"><path d="M30 33 L27 17 L40 25 L50 12 L60 25 L73 17 L70 33Z" /><circle cx="50" cy="27" r="3" fill="#b94661" /></g>;
+    case 'party':
+      return <g><path d="M36 29 L50 3 L64 29Z" fill={outfit} /><path d="M42 17 L59 22 M38 25 L54 29" stroke="#fff1bc" strokeWidth="3" /><circle cx="50" cy="5" r="3" fill="#edc458" /></g>;
+    case 'sailor':
+      return <g><path d="M27 25 Q50 5 73 25 L69 33 H31Z" fill="#fcf7e9" /><path d="M30 30 H70" stroke="#29466b" strokeWidth="5" /></g>;
+    case 'clips':
+      return <g stroke="#f2cc6d" strokeWidth="3" strokeLinecap="round"><path d="M28 31 L39 26 M30 36 L41 31" /></g>;
+    case 'leaf':
+      return <g fill="#6da77c"><path d="M27 31 Q20 13 35 23 Q35 10 43 18 Q34 31 27 31 M73 31 Q80 13 65 23 Q65 10 57 18 Q66 31 73 31" /></g>;
     case 'beanie':
       return (
         <g>
           <path d="M27 38 Q27 15 50 15 Q73 15 73 38 Z" fill={outfit} />
-          <rect x="25" y="36" width="50" height="8" rx="4" fill="#fff" opacity="0.9" />
+          <rect x="25" y="32" width="50" height="6" rx="3" fill="#fff" opacity="0.9" />
           <circle cx="50" cy="12" r="5" fill="#fff" opacity="0.9" />
         </g>
       );
@@ -335,11 +401,16 @@ function Hat({ style, outfit }) {
       );
     case 'airpods':
       return (
-        <g fill="#f7f9fc" stroke="#aab4c4" strokeWidth="0.7">
-          <circle cx="27" cy="46.5" r="4.1" />
-          <circle cx="73" cy="46.5" r="4.1" />
-          <rect x="25.1" y="48" width="4" height="11" rx="2" />
-          <rect x="70.9" y="48" width="4" height="11" rx="2" />
+        <g>
+          {/* 单体轮廓：耳塞嵌在耳窝，短柄轻微向外倾，不覆盖整只耳朵。 */}
+          {[false, true].map((right) => (
+            <g key={String(right)} transform={right ? 'translate(100 0) scale(-1 1)' : undefined}>
+              <path d="M28.8 46.4 C28 45.4 25.5 45.8 25.2 47.5 C25 48.6 25.8 49.2 26.1 49.7 L25.4 54.4 Q25.2 55.8 26.5 56 Q27.7 56.2 27.9 54.8 L28.5 49.5 C30 48.8 30 47.5 28.8 46.4Z"
+                fill="#f8fafc" stroke="#9aa7b5" strokeWidth="0.55" />
+              <ellipse cx="27.1" cy="47.7" rx="0.65" ry="1" fill="#43505e" transform="rotate(18 27.1 47.7)" />
+              <path d="M26.2 54.7 l0.8 0.1" stroke="#a8b2be" strokeWidth="0.6" strokeLinecap="round" />
+            </g>
+          ))}
         </g>
       );
     case 'none':
@@ -351,6 +422,14 @@ function Hat({ style, outfit }) {
 /** 眼镜 / 口罩：画在五官之上 */
 function FaceGear({ style }) {
   switch (style) {
+    case 'goldround':
+    case 'rimless':
+    case 'catglasses':
+    case 'sport':
+    case 'monocle':
+      return <g stroke={style === 'goldround' || style === 'monocle' ? '#b18836' : '#34465b'} strokeWidth={style === 'rimless' ? 0.8 : 1.8} fill={style === 'sport' ? '#304964' : 'none'}>
+        {style === 'monocle' ? <><circle cx="59" cy="44" r="8" /><path d="M66 48 Q78 66 69 75" fill="none" /></> : <>{[41,59].map(x => style === 'catglasses' ? <path key={x} d={`M${x-9} 37 L${x+8} 40 Q${x+8} 53 ${x-5} 49Z`} /> : style === 'goldround' ? <circle key={x} cx={x} cy="44" r="7.5" /> : <rect key={x} x={x-7} y="39" width="14" height="10" rx="2" />)}<path d="M48 43 H52 M27 42 L33 43 M67 43 L73 42" /></>}
+      </g>;
     case 'glasses':
       return (
         <g stroke="#2a2f3a" strokeWidth="2" fill="rgba(255,255,255,0.16)">
@@ -395,6 +474,7 @@ function FaceGear({ style }) {
 
 /** 耳环画在耳朵位置，其余脖饰画在身体之上 */
 function ExtraEar({ style }) {
+  if (style === 'hoops') return <g fill="none" stroke="#e7c567" strokeWidth="1.8"><ellipse cx="26" cy="56" rx="3.5" ry="5" /><ellipse cx="74" cy="56" rx="3.5" ry="5" /></g>;
   if (style !== 'earrings') return null;
   return (
     <g fill="#e8c56a">
@@ -406,6 +486,13 @@ function ExtraEar({ style }) {
 
 function ExtraNeck({ style, accent }) {
   switch (style) {
+    case 'pearls':
+      return <g fill="#fff8e7" stroke="#bba888" strokeWidth="0.5">{[0,1,2,3,4,5,6].map(i => <circle key={i} cx={36+i*4.6} cy={76+Math.sin(i/6*Math.PI)*7} r="2.3" />)}</g>;
+    case 'pendant':
+    case 'star':
+      return <g stroke="#f2cf73" fill={accent}><path d="M37 72 L50 87 L63 72" fill="none" strokeWidth="1.5" />{style === 'star' ? <path d="M50 80 L52 85 L58 85 L54 89 L55 95 L50 92 L45 95 L46 89 L42 85 L48 85Z" fill="#f2cf73" /> : <circle cx="50" cy="87" r="4" strokeWidth="2" />}</g>;
+    case 'tie':
+      return <g fill={accent} stroke={shade(accent)} strokeWidth="1"><path d="M46 73 H54 L53 78 H47Z M47 79 H53 L56 94 L50 99 L44 94Z" /></g>;
     case 'cross':
       return (
         <g>
@@ -438,7 +525,7 @@ function ExtraNeck({ style, accent }) {
 /* ------------------------------ 城市风景 ------------------------------ */
 
 /** 排窗户：给摩天楼铺一层小方格灯光 */
-function Windows({ x, y, w, h, cols, rows, fill, op = 0.5 }) {
+function Windows({ x, y, width: w, height: h, cols, rows, fill, op = 0.5 }) {
   const cells = [];
   const cw = w / (cols * 2 - 1);
   const ch = h / (rows * 2 - 1);
@@ -727,6 +814,39 @@ function CityScene({ scene, gid }) {
 
 /* ------------------------------- 主组件 ------------------------------- */
 
+function Clothing({ value, color }) {
+  const k = value % 18;
+  // 经典角色服饰用固定配色，保留头像自己的脸、发型与配饰。
+  const body = 'M16 100 Q16 72 50 72 Q84 72 84 100Z';
+  if (k === 10) return <g><path d={body} fill="#ed782d" /><path d="M35 75 L50 87 L65 75 L59 73 L50 80 L41 73Z" fill="#233e86" /><path d="M31 96 H69 V100 H31Z" fill="#233e86" /><circle cx="65" cy="88" r="5.5" fill="#fff3d7" stroke="#293349" strokeWidth="1" /><path d="M63 85 h4 M65 84 v7 M62 88 h6" stroke="#293349" strokeWidth="1.2" /></g>;
+  if (k === 11) return <g><path d={body} fill="#ee842e" /><path d="M25 79 Q50 66 75 79 L73 86 H27Z" fill="#283546" /><path d="M50 75 V100" stroke="#d9dce2" strokeWidth="2" /><path d="M43 74 H57 V80 H43Z" fill="#283546" /><circle cx="64" cy="88" r="4" fill="none" stroke="#b63736" strokeWidth="1.5" /></g>;
+  if (k === 12) return <g><path d={body} fill="#ca4141" /><path d="M42 73 L50 78 L58 73 L55 100 H45Z" fill="#f4c2a0" /><path d="M42 74 L44 100 M58 74 L56 100" stroke="#f5d081" strokeWidth="1.5" />{[83,91].map(y=><circle key={y} cx="40" cy={y} r="1.5" fill="#f6d775" />)}</g>;
+  if (k === 13) return <g><path d={body} fill="#223c37" />{[0,1,2,3,4,5].map(i=>[0,1,2].map(j=>(i+j)%2===0?<rect key={`${i}-${j}`} x={26+i*8} y={79+j*8} width="8" height="8" fill="#55a378" />:null))}<path d="M43 73 H57 L55 100 H45Z" fill="#263035" /><path d="M45 75 L50 80 L55 75" fill="none" stroke="#eee8d8" strokeWidth="2" /></g>;
+  if (k === 14) return <g><path d={body} fill="#faf5e8" /><path d="M32 76 L50 91 L68 76 L60 73 L50 82 L40 73Z" fill="#294b89" /><path d="M35 77 L50 88 L65 77" fill="none" stroke="#fff" strokeWidth="1" /><path d="M50 89 L39 83 V95Z M50 89 L61 83 V95Z" fill="#d8435c" /><circle cx="50" cy="89" r="2.5" fill="#eac86b" /></g>;
+  if (k === 15) return <g><path d={body} fill="#ce3c3e" /><path d="M31 77 H38 V88 H62 V77 H69 V100 H31Z" fill="#326fc1" /><path d="M37 87 H63 V100 H37Z" fill="#326fc1" /><circle cx="35" cy="87" r="2.4" fill="#ffda68" /><circle cx="65" cy="87" r="2.4" fill="#ffda68" /><path d="M44 94 H56 V100 H44Z" fill="none" stroke="#214f93" /></g>;
+  if (k === 16) return <g><path d={body} fill="#3aa0c3" /><path d="M38 74 L50 84 L62 74" fill="none" stroke="#f9eed0" strokeWidth="3" /><path d="M64 75 L36 100" stroke="#795640" strokeWidth="5" /><path d="M58 80 L42 95" stroke="#c7a47a" strokeWidth="1" /><path d="M48 87 L52 92 H44Z M44 93 L48 98 H40Z M52 93 L56 98 H48Z" fill="#e5e7d6" /></g>;
+  if (k === 17) return <g><path d={body} fill="#ffd458" /><path d="M34 78 L43 86 H57 L66 78" fill="none" stroke="#815035" strokeWidth="3" /><path d="M50 78 V100" stroke="#c39732" strokeWidth="1.5" /><path d="M26 91 L37 96 M74 91 L63 96" stroke="#815035" strokeWidth="4" /><path d="M43 84 L45 76 M57 84 L55 76" stroke="#fff4be" strokeWidth="1.5" /></g>;
+  if (!k) return null;
+  if (k === 1 || k === 2) return <g fill="none" stroke={k === 1 ? '#fff7e5' : shade(color)} strokeWidth={k === 1 ? 2 : 4}>{[83,91,99].map(y => <path key={y} d={`M25 ${y} H75`} />)}</g>;
+  if (k === 3) return <g fill="#fff7e5">{[32,44,56,68].map(x => [85,95].map(y => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.8" />))}</g>;
+  if (k === 4 || k === 5) return <g><path d="M37 74 L50 84 L63 74 L57 72 L50 77 L43 72Z" fill={k === 4 ? '#fff7e5' : shade(color)} /><path d="M50 84 V100" stroke={shade(color)} strokeWidth="1.4" />{[88,94].map(y => <circle key={y} cx="50" cy={y} r="1" fill="#fff7e5" />)}</g>;
+  if (k === 6) return <g fill="none" stroke="#fdf3dd" strokeWidth="2.5"><path d="M40 75 L50 84 L60 75 M40 77 V89 M60 77 V89" /></g>;
+  if (k === 7) return <g fill={shade(color)}><path d="M34 76 L44 100 H23Z M66 76 L56 100 H77Z" /><path d="M42 74 L50 84 L58 74 L55 100 H45Z" fill="#fff7e5" /></g>;
+  if (k === 8) return <g fill="#d4e3ef"><path d="M31 77 H38 V100 H31Z M62 77 H69 V100 H62Z M36 86 H64 V100 H36Z" /><circle cx="35" cy="89" r="2" fill="#d3aa59" /><circle cx="65" cy="89" r="2" fill="#d3aa59" /></g>;
+  return <path d="M50 83 L53 88 L59 89 L55 93 L56 99 L50 96 L44 99 L45 93 L41 89 L47 88Z" fill="#ffe0a0" />;
+}
+
+function Cheeks({ value }) {
+  const k = value % 10;
+  if (!k) return null;
+  if (k <= 3) return <g fill={['', '#e87985', '#c96a63', '#c85c7e'][k]} opacity="0.48"><ellipse cx="34" cy="53" rx={k === 3 ? 5 : 4} ry="2.7" /><ellipse cx="66" cy="53" rx={k === 3 ? 5 : 4} ry="2.7" /></g>;
+  if (k === 4 || k === 5) return <g fill={k === 4 ? '#935e43' : '#e4ba75'}>{[33,38,62,67].map((x,i) => <circle key={x} cx={x} cy={52+i%2*2} r="0.9" />)}</g>;
+  if (k === 6) return <circle cx="62" cy="56" r="1" fill="#654437" />;
+  if (k === 7) return <g fill="none" stroke="#b76f6d" strokeWidth="1.2"><path d="M34 54 l2 2 M66 54 l-2 2" /></g>;
+  if (k === 8) return <path d="M65 50 L66 53 L69 54 L66 55 L65 58 L64 55 L61 54 L64 53Z" fill="#fff1bc" />;
+  return <path d="M65 57 C55 50 62 48 65 52 C68 48 75 50 65 57Z" fill="#be526e" />;
+}
+
 /**
  * 只画内容、不带外层 <svg> 的版本。
  * 结业徽章需要把头像嵌进一张大 SVG 里再导出 PNG，
@@ -774,6 +894,7 @@ export function AvatarContent({ config, idSuffix = '', shape = 'circle' }) {
 
         {/* 身体 */}
         <path d="M16 100 Q16 72 50 72 Q84 72 84 100 Z" fill={outfit} />
+        <Clothing value={a.clothing} color={outfit} />
         <path d="M43 60 h14 v14 h-14 Z" fill={skin} opacity="0.85" />
         <ExtraNeck style={extra} accent={accent} />
 
@@ -785,6 +906,7 @@ export function AvatarContent({ config, idSuffix = '', shape = 'circle' }) {
 
         <Hair style={hairStyle} color={hairColor} />
         <Eyes style={pick(EYE_STYLES, a.eyes)} />
+        <Cheeks value={a.cheeks} />
         <Mouth style={pick(MOUTH_STYLES, a.mouth)} />
         <FaceGear style={face} />
         <Hat style={hat} outfit={outfit} />
@@ -828,14 +950,16 @@ export default function Avatar({
 /** 供头像编辑器使用的可选项清单 */
 export const AVATAR_FIELDS = [
   { key: 'skin', label: '肤色', kind: 'swatch', values: SKINS },
-  { key: 'hair', label: '发型', kind: 'text', values: ['短发', '寸头', '波波', '长发', '马尾', '丸子', '卷发', '波浪', '爆炸', '光头'] },
+  { key: 'hair', label: '发型', kind: 'text', values: ['短发', '寸头', '波波', '长发', '马尾', '丸子', '卷发', '波浪', '爆炸', '光头', '中分', '侧分', '刺猬头', '精灵短发', '双丸子', '双马尾', '双辫子', '蓬松背头', '莫霍克', '齐刘海'] },
   { key: 'hairColor', label: '发色', kind: 'swatch', values: HAIR_COLORS },
-  { key: 'eyes', label: '眼睛', kind: 'text', values: ['圆点', '微笑', '大眼', '眨眼', '困倦', '闪亮'] },
-  { key: 'mouth', label: '嘴巴', kind: 'text', values: ['微笑', '露齿', '平静', '惊讶', '坏笑', '大笑'] },
-  { key: 'hat', label: '帽子', kind: 'text', values: ['无', '毛线帽', '棒球帽', '渔夫帽', '学士帽', '连帽衫', '发带', '花朵', '头戴耳机', '无线耳机'] },
-  { key: 'face', label: '眼镜', kind: 'text', values: ['无', '方框镜', '圆框镜', '墨镜', '口罩'] },
-  { key: 'extra', label: '饰品', kind: 'text', values: ['无', '耳环', '十字架', '围巾', '领结'] },
-  { key: 'outfit', label: '衣服', kind: 'swatch', values: OUTFITS },
+  { key: 'eyes', label: '眼睛', kind: 'text', values: ['圆点', '微笑', '大眼', '眨眼', '困倦', '闪亮', '杏眼', '睫毛', '好奇', '专注', '闭眼', '爱心眼'] },
+  { key: 'mouth', label: '嘴巴', kind: 'text', values: ['微笑', '露齿笑', '平静', '惊讶', '坏笑', '开怀大笑', '咧嘴笑', '吐舌', '飞吻', '浅笑', '委屈', '猫咪嘴'] },
+  { key: 'hat', label: '头饰', kind: 'text', values: ['无', '毛线帽', '棒球帽', '渔夫帽', '学士帽', '连帽衫', '发带', '花朵', '头戴耳机', '无线耳机', '贝雷帽', '草帽', '空顶帽', '蝴蝶发带', '小皇冠', '派对帽', '水手帽', '侧边蝴蝶结', '发夹', '叶冠'] },
+  { key: 'face', label: '面饰', kind: 'text', values: ['无', '方框镜', '圆框镜', '墨镜', '口罩', '金丝圆框', '猫眼镜', '无框镜', '运动墨镜', '单片眼镜'] },
+  { key: 'extra', label: '饰品', kind: 'text', values: ['无', '耳环', '十字架', '围巾', '领结', '圆环耳饰', '珍珠项链', '圆吊坠', '领带', '星星项链'] },
+  { key: 'outfit', label: '衣服颜色', kind: 'swatch', values: OUTFITS },
+  { key: 'clothing', label: '衣服款式', kind: 'text', values: ['纯色', '细条纹', '宽条纹', '波点', '衬衫', 'Polo 衫', '抽绳卫衣', '西装', '背带装', '星星上衣', '悟空风道服', '鸣人风外套', '路飞风背心', '炭治郎风羽织', '水手月亮风制服', '马里奥风背带裤', '林克风英杰服', '皮卡丘风卫衣'] },
+  { key: 'cheeks', label: '脸颊', kind: 'text', values: ['无', '粉色腮红', '暖色腮红', '浓腮红', '雀斑', '金色雀斑', '美人痣', '酒窝', '星光贴纸', '爱心贴纸'] },
   { key: 'bg', label: '底色', kind: 'swatch', values: BACKGROUNDS.map((b) => b[0]) },
   { key: 'bgp', label: '背景', kind: 'text', values: ['无', '格拉斯哥', '爱丁堡', '伦敦', '巴黎', '纽约', '东京', '悉尼', '上海', '罗马', '旧金山'] },
 ];
