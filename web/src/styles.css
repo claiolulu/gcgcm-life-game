@@ -92,7 +92,17 @@ a { color: inherit; text-decoration: none; }
 }
 
 .page--flush { padding-left: 0; padding-right: 0; }
-.page--nonav { padding-bottom: calc(var(--safe-bottom) + 24px); }
+.page--nonav {
+  /* 报名页内容会超过一屏。不要依赖 body 滚动：iOS、微信 WebView 和
+     主屏幕 PWA 在 html/body/#root 都是 100% 高时，常会吞掉触摸滚动。
+     无底栏页面自己成为明确的滚动容器，软键盘弹出后也能滚到提交按钮。 */
+  height: 100dvh;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}
 
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(8px); }

@@ -230,7 +230,7 @@ export default function Register() {
               <Avatar config={avatar} size={46} />
               <div className="grow">
                 <div className="bold">{name || '未命名'}</div>
-                <div className="tiny dim">确认之后，头像和名字在游戏开始前都还能改</div>
+                <div className="tiny dim">确认之后，头像和姓名仍可在护照资料页修改</div>
               </div>
             </div>
 
