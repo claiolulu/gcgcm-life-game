@@ -178,7 +178,6 @@ app.post('/api/register', (req, res) => {
       given,
       avatar,
       contact,
-      tokens_total: 0,   // Help Token 跟着恩典站一起去掉了，列还在（老数据用）
       created_at: now,
       updated_at: now,
     };
@@ -391,9 +390,7 @@ app.post('/api/me', playerAuth, (req, res) => {
 
   stmts.updatePlayerFields.run({
     id: p.id, name, avatar, contact, notes: p.notes,
-    identity: p.identity, team_id: p.team_id, team_color: p.team_color,
-    team_symbol: p.team_symbol, start_station: p.start_station,
-    tokens_total: p.tokens_total, updated_at: Date.now(),
+    updated_at: Date.now(),
   });
   broadcast('profile');
   res.json({ player: playerState(stmts.playerById.get(p.id)) });
@@ -852,12 +849,6 @@ app.post('/api/admin/player/:id', staffAuth('admin'), (req, res) => {
     avatar: JSON.stringify(b.avatar ?? safeJSON(p.avatar, {})),
     contact: String(b.contact ?? p.contact).slice(0, 64),
     notes: String(b.notes ?? p.notes).slice(0, 500),
-    identity: b.identity ?? p.identity,
-    team_id: b.teamId ?? p.team_id,
-    team_color: b.teamColor ?? p.team_color,
-    team_symbol: b.teamSymbol ?? p.team_symbol,
-    start_station: b.startStation ?? p.start_station,
-    tokens_total: Number.isFinite(b.tokensTotal) ? b.tokensTotal : p.tokens_total,
     updated_at: Date.now(),
   });
   broadcast('player');

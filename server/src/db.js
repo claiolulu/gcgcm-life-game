@@ -25,104 +25,119 @@ db.pragma('journal_mode = WAL');   // 并发读不阻塞写，断电也不会烂
 db.pragma('synchronous = NORMAL');
 db.pragma('foreign_keys = ON');
 
-db.exec(`
-CREATE TABLE IF NOT EXISTS players (
-  id            TEXT PRIMARY KEY,
-  code          TEXT UNIQUE NOT NULL,
-  canon         TEXT NOT NULL,
-  token         TEXT NOT NULL,
-  name          TEXT NOT NULL,
-  -- 护照资料页印的姓 / 名。报名时选填，留空就按 name 猜（中文取首字为姓）。
-  surname       TEXT NOT NULL DEFAULT '',
-  given         TEXT NOT NULL DEFAULT '',
-  avatar        TEXT NOT NULL DEFAULT '{}',
-  contact       TEXT NOT NULL DEFAULT '',
-  identity      TEXT,
-  team_id       TEXT,
-  team_color    TEXT,
-  team_symbol   TEXT,
-  -- 队名。同队所有人共用一份，队员自己可以改（见 POST /api/team/name）。
-  -- 空表示还没改过，前端显示按颜色生成的默认名（比如「赤队」）
-  team_name     TEXT NOT NULL DEFAULT '',
-  start_station TEXT,
-  -- 关卡访问顺序：8 个 station id 的 JSON 数组。开赛时由后台按负载排出来，
-  -- 空表示还没排（赛前签证页留白）。见 game.js 的 assignRoutes()
-  route         TEXT NOT NULL DEFAULT '',
-  tokens_total  INTEGER NOT NULL DEFAULT 1,
-  modifiers     TEXT NOT NULL DEFAULT '[]',
-  notes         TEXT NOT NULL DEFAULT '',
-  created_at    INTEGER NOT NULL,
-  updated_at    INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS players_canon ON players(canon);
-CREATE INDEX IF NOT EXISTS players_team ON players(team_id);
-CREATE INDEX IF NOT EXISTS players_updated ON players(updated_at);
-
--- 仅追加的事件日志。总分永远是 SUM(points) 算出来的，没有"当前分数"这个可被覆盖的字段。
-CREATE TABLE IF NOT EXISTS events (
-  id         TEXT PRIMARY KEY,                       -- 客户端生成的 opId，重复提交自动忽略
-  player_id  TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  kind       TEXT NOT NULL,                          -- station | life_event | grace | adjust
-  station_id TEXT,
-  card_id    TEXT,
-  points     INTEGER NOT NULL DEFAULT 0,
-  label      TEXT NOT NULL DEFAULT '',
-  note       TEXT NOT NULL DEFAULT '',
-  operator   TEXT NOT NULL DEFAULT '',
-  meta       TEXT NOT NULL DEFAULT '{}',
-  client_ts  INTEGER,
-  created_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS events_player ON events(player_id);
-CREATE INDEX IF NOT EXISTS events_created ON events(created_at);
--- 每站只有一次挑战机会：同一人同一主线关卡只能有一条 station 记录
-CREATE UNIQUE INDEX IF NOT EXISTS events_station_once
-  ON events(player_id, station_id) WHERE kind = 'station';
-
-CREATE TABLE IF NOT EXISTS settings (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
-
--- 活动报名。
---
--- 和 events 里的盖章是两回事：报名是「我打算来」，盖章是「我真的来了」。
--- 两个数字都要，因为差额本身就是信息 —— 报了 30 个来了 12 个，
--- 说明提醒没做到位，不是活动没人要。
---
--- 主键就是 (活动, 人)，所以重复提交天然幂等，取消报名就是删掉那一行。
-CREATE TABLE IF NOT EXISTS signups (
-  activity_id TEXT NOT NULL,
-  player_id   TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  created_at  INTEGER NOT NULL,
-  PRIMARY KEY (activity_id, player_id)
-);
-
-CREATE TABLE IF NOT EXISTS awards (
-  award_id   TEXT PRIMARY KEY,
-  player_id  TEXT REFERENCES players(id) ON DELETE CASCADE,
-  note       TEXT NOT NULL DEFAULT '',
-  created_at INTEGER NOT NULL
-);
-`);
+/* ------------------------------ 建表 ------------------------------ */
+//
+// 表结构在 schema.sql 里，不在这儿重写一遍 —— 两份 CREATE TABLE 迟早对不上。
+db.exec(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
 
 /* ------------------------------ 迁移 ------------------------------ */
-// 老库没有 pin 列，补上。空字符串表示还没设置密码（只会出现在升级前建的档）。
+
+/**
+ * 把迎新游戏那一版的表重建成现在这套。
+ *
+ * 那一版的 players 上挂着身份、队伍、关卡顺序、Help Token、状态效果，
+ * events 上挂着盲盒卡号 —— 那套玩法整个拆掉之后，这些列再没有代码读写。
+ * SQLite 3.35 之后能 DROP COLUMN，但一列一列删要发七八条语句，还得挨个
+ * 判断存不存在；直接照 schema 重建一张再把活着的列搬过去，更短也更好读。
+ *
+ * 整件事在一个事务里：中途出错就整个回滚，不会留下一张搬到一半的表。
+ * 外键先关掉 —— events / signups 指着 players，不关的话删旧表那一步会被拦。
+ */
+function rebuildIfLegacy() {
+  const cols = db.prepare('PRAGMA table_info(players)').all().map((c) => c.name);
+  const legacy = ['identity', 'team_id', 'tokens_total', 'modifiers', 'route', 'start_station'];
+  const found = legacy.filter((c) => cols.includes(c));
+  const hasAwards = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='awards'"
+  ).get();
+  if (found.length === 0 && !hasAwards) return;
+
+  // 重建之前先留一份完整拷贝。这一步动的是所有人的档案，
+  // 出了事得有东西可以退回去
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backup = path.join(DATA_DIR, `pre-rebuild-${stamp}.db`);
+  db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  fs.copyFileSync(DB_PATH, backup);
+  console.log(`[db] 重建前已备份到 ${path.basename(backup)}`);
+
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    // players：留下的列照抄，游戏那几列直接不带过去
+    db.exec(`
+      CREATE TABLE players_new (
+        id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, canon TEXT NOT NULL,
+        pin TEXT NOT NULL DEFAULT '', token TEXT NOT NULL, name TEXT NOT NULL,
+        surname TEXT NOT NULL DEFAULT '', given TEXT NOT NULL DEFAULT '',
+        avatar TEXT NOT NULL DEFAULT '{}', contact TEXT NOT NULL DEFAULT '',
+        theme TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+      );
+      INSERT INTO players_new
+        SELECT id, code, canon, pin, token, name, surname, given, avatar, contact,
+               theme, notes, created_at, updated_at
+          FROM players;
+      DROP TABLE players;
+      ALTER TABLE players_new RENAME TO players;
+      CREATE INDEX IF NOT EXISTS players_canon   ON players(canon);
+      CREATE INDEX IF NOT EXISTS players_updated ON players(updated_at);
+    `);
+
+    // events：去掉盲盒卡号那一列。
+    // 老的 life_event / grace 记录一并丢掉 —— 它们既不再显示，也不该继续
+    // 算进总分（总分是 SUM(points)，留着会让「参加过几场」对不上）
+    if (db.prepare('PRAGMA table_info(events)').all().some((c) => c.name === 'card_id')) {
+      db.exec(`
+        CREATE TABLE events_new (
+          id TEXT PRIMARY KEY,
+          player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL, station_id TEXT, points INTEGER NOT NULL DEFAULT 0,
+          label TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+          operator TEXT NOT NULL DEFAULT '', meta TEXT NOT NULL DEFAULT '{}',
+          client_ts INTEGER, created_at INTEGER NOT NULL
+        );
+        INSERT INTO events_new
+          SELECT id, player_id, kind, station_id, points, label, note, operator,
+                 meta, client_ts, created_at
+            FROM events WHERE kind IN ('station', 'adjust');
+        DROP TABLE events;
+        ALTER TABLE events_new RENAME TO events;
+        CREATE INDEX IF NOT EXISTS events_player  ON events(player_id);
+        CREATE INDEX IF NOT EXISTS events_created ON events(created_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS events_station_once
+          ON events(player_id, station_id) WHERE kind = 'station';
+      `);
+    }
+
+    // 老的盖章记录带着游戏时代的分值（3 / 6 / 9 —— 勉强 / 正常 / 出色）。
+    // 打卡本里一次盖章就是 1 分，总分等于「参加过几场」；不抹平的话，
+    // 页眉会显示 19 分而资料页写着参加过 5 场，对不上。
+    const fixed = db.prepare(
+      "UPDATE events SET points = 1 WHERE kind = 'station' AND points <> 1"
+    ).run().changes;
+    if (fixed) console.log(`[db] ${fixed} 条老盖章的分值归一成 1（打卡本里一次就是一分）`);
+
+    db.exec('DROP TABLE IF EXISTS awards');
+    // 记分档位、盲盒红线那几项设置也跟着走
+    db.exec(`DELETE FROM settings WHERE key IN
+      ('scoreTiers', 'maxStationScore', 'lifeEventThresholds', 'helpTokens')`);
+  })();
+  db.pragma('foreign_keys = ON');
+
+  console.log(`[db] 已重建：去掉 ${found.join(' / ') || '（无）'}${hasAwards ? ' 和 awards 表' : ''}`);
+}
+
+// 老库没有 pin / surname / given / theme 几列的话先补上，
+// 重建那一步才有东西可抄
 {
   const cols = db.prepare('PRAGMA table_info(players)').all().map((c) => c.name);
-  if (!cols.includes('pin')) {
-    db.exec("ALTER TABLE players ADD COLUMN pin TEXT NOT NULL DEFAULT ''");
-    console.log('[db] 已为 players 表添加 pin 列');
-  }
-  // 老库没有姓/名两列。空字符串表示报名时没填，护照上按 name 猜。
-  // theme 是这个人自己调的护照配色（JSON）。空串 = 没调过，用默认那套
-  for (const col of ['surname', 'given', 'route', 'team_name', 'theme']) {
+  for (const col of ['pin', 'surname', 'given', 'theme']) {
     if (!cols.includes(col)) {
       db.exec(`ALTER TABLE players ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
       console.log(`[db] 已为 players 表添加 ${col} 列`);
     }
   }
 }
+rebuildIfLegacy();
 
 /* ----------------------------- settings ----------------------------- */
 
@@ -263,8 +278,8 @@ export const stmts = {
   signupCounts: db.prepare('SELECT activity_id, COUNT(*) AS n FROM signups GROUP BY activity_id'),
   signupsOf: db.prepare('SELECT activity_id FROM signups WHERE player_id = ?'),
   insertPlayer: db.prepare(`
-    INSERT INTO players (id, code, canon, pin, token, name, surname, given, avatar, contact, tokens_total, created_at, updated_at)
-    VALUES (@id, @code, @canon, @pin, @token, @name, @surname, @given, @avatar, @contact, @tokens_total, @created_at, @updated_at)
+    INSERT INTO players (id, code, canon, pin, token, name, surname, given, avatar, contact, created_at, updated_at)
+    VALUES (@id, @code, @canon, @pin, @token, @name, @surname, @given, @avatar, @contact, @created_at, @updated_at)
   `),
   // 顺序编号：取当前最大号 +1。放在事务里分配，配合 code 的 UNIQUE 约束防并发撞号。
   maxCodeNum: db.prepare("SELECT COALESCE(MAX(CAST(code AS INTEGER)), 0) AS n FROM players"),
@@ -273,19 +288,14 @@ export const stmts = {
   playerByToken: db.prepare('SELECT * FROM players WHERE token = ?'),
   playerByCode: db.prepare('SELECT * FROM players WHERE code = ?'),
   playersByCanon: db.prepare('SELECT * FROM players WHERE canon = ?'),
-  playersByTeam: db.prepare('SELECT * FROM players WHERE team_id = ? ORDER BY created_at ASC'),
   playersByName: db.prepare('SELECT * FROM players WHERE name = ? ORDER BY created_at ASC'),
   allPlayers: db.prepare('SELECT * FROM players ORDER BY created_at ASC'),
   playersSince: db.prepare('SELECT * FROM players WHERE updated_at > ? ORDER BY updated_at ASC'),
   countPlayers: db.prepare('SELECT COUNT(*) AS n FROM players'),
   touchPlayer: db.prepare('UPDATE players SET updated_at = ? WHERE id = ?'),
-  setModifiers: db.prepare('UPDATE players SET modifiers = ?, updated_at = ? WHERE id = ?'),
   // 姓/名单独更新：updatePlayerFields 被记分、编队等多处复用，
   // 往那条里塞字段会逼所有调用点都传，不值得
   // 路线单独更新，理由同 setNameParts：不往被多处复用的
-  // updatePlayerFields 里塞字段，免得所有调用点都得传
-  setTeamName: db.prepare('UPDATE players SET team_name = ?, updated_at = ? WHERE team_id = ?'),
-  setRoute: db.prepare('UPDATE players SET route = ?, start_station = ?, updated_at = ? WHERE id = ?'),
   // 护照配色单独更新，理由同 setNameParts：不往被多处复用的
   // updatePlayerFields 里塞字段
   setTheme_: db.prepare('UPDATE players SET theme = ?, updated_at = ? WHERE id = ?'),
@@ -294,17 +304,15 @@ export const stmts = {
   ),
   updatePlayerFields: db.prepare(`
     UPDATE players SET name = @name, avatar = @avatar, contact = @contact,
-      notes = @notes, identity = @identity, team_id = @team_id, team_color = @team_color,
-      team_symbol = @team_symbol, start_station = @start_station, tokens_total = @tokens_total,
-      updated_at = @updated_at
+      notes = @notes, updated_at = @updated_at
     WHERE id = @id
   `),
 
   insertEvent: db.prepare(`
     INSERT OR IGNORE INTO events
-      (id, player_id, kind, station_id, card_id, points, label, note, operator, meta, client_ts, created_at)
+      (id, player_id, kind, station_id, points, label, note, operator, meta, client_ts, created_at)
     VALUES
-      (@id, @player_id, @kind, @station_id, @card_id, @points, @label, @note, @operator, @meta, @client_ts, @created_at)
+      (@id, @player_id, @kind, @station_id, @points, @label, @note, @operator, @meta, @client_ts, @created_at)
   `),
   eventById: db.prepare('SELECT * FROM events WHERE id = ?'),
   // 一次取回所有已盖章的（选手, 关卡）对：算各关排队人数时用，
@@ -322,13 +330,6 @@ export const stmts = {
   eventCounts: db.prepare(
     'SELECT player_id, kind, COUNT(*) AS n FROM events GROUP BY player_id, kind'
   ),
-
-  setAward: db.prepare(`
-    INSERT INTO awards(award_id, player_id, note, created_at) VALUES (?, ?, ?, ?)
-    ON CONFLICT(award_id) DO UPDATE SET player_id = excluded.player_id, note = excluded.note
-  `),
-  allAwards: db.prepare('SELECT * FROM awards'),
-  clearAward: db.prepare('DELETE FROM awards WHERE award_id = ?'),
 };
 
 /** 备份：把整个库导出成一份 JSON 快照 */
@@ -338,7 +339,6 @@ export function snapshot() {
     settings: getSettings(),
     players: stmts.allPlayers.all(),
     events: stmts.allEvents.all(),
-    awards: stmts.allAwards.all(),
   };
 }
 
@@ -358,9 +358,7 @@ export function resetAll({ keepPlayers = false } = {}) {
     // 纪元一变，客户端就知道自己手里的花名册作废了，必须整份重拉。
     setSetting('_epoch', (getSetting('_epoch', 0) || 0) + 1);
     db.prepare('DELETE FROM events').run();
-    db.prepare('DELETE FROM awards').run();
     if (!keepPlayers) db.prepare('DELETE FROM players').run();
-    else db.prepare("UPDATE players SET modifiers = '[]', updated_at = ?").run(Date.now());
     setSetting('gameState', 'lobby');
   });
   tx();

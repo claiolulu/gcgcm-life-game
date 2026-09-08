@@ -414,7 +414,18 @@ PIN 的取值是**环境变量优先、其次才是数据库里存的值**。这
 
 服务端一并删了 `/api/admin/draw`、`/api/admin/team`、`/api/admin/unassign`、`/api/admin/award`、`/api/awards`，以及 `applyOp` 里的 `life_event` / `grace` / `clear_modifiers` 三个分支。`config.js` 从 412 行降到 215 行（STATIONS、IDENTITIES、LIFE_EVENT_CARDS、GRACE_OPTIONS、AWARDS、GROUP_COLORS…… 全没了），`game.js` 从 967 行降到 298 行。`/api/config` 下发的东西从 17 项减到 9 项。
 
-**留下的**：`events` 表还认 `station` 和 `adjust` 两种；老数据里那些 `life_event` / `grace` 记录还在库里（删表是另一回事），只是不再有代码读它们。`players` 表的 `identity` / `team_id` / `tokens_total` 几列也留着 —— 删列要重建表，收益不抵风险。
+**表已经重建过了。** 建表脚本在 `server/src/schema.sql` —— 那份是权威，`db.js` 启动时直接执行它，代码里不再写第二遍 CREATE TABLE（两份迟早对不上）。
+
+升级迁移在 `db.js` 的 `rebuildIfLegacy()`：照 schema 建新表 → 把活着的列搬过去 → 删旧表 → 改名。整件事在一个事务里，中途出错整个回滚；外键先关掉，否则 `events` / `signups` 指着 `players`，删旧表那一步会被拦。**动手之前先把整个库拷一份**到 `data/pre-rebuild-<时间>.db` —— 这一步动的是所有人的档案，得有东西可以退回去。
+
+迁移做四件事：
+
+1. `players` 去掉 `identity` / `team_id` / `team_color` / `team_symbol` / `team_name` / `start_station` / `route` / `tokens_total` / `modifiers`
+2. `events` 去掉 `card_id`，并删掉 `life_event` / `grace` 两种记录 —— 它们既不再显示，也不该继续算进总分
+3. 老盖章的分值归一成 1。游戏时代按表现给 3 / 6 / 9，打卡本里一次盖章就是一分，总分等于「参加过几场」；不抹平的话页眉显示 19 分而资料页写着参加过 5 场
+4. 删掉 `awards` 表和 `scoreTiers` / `lifeEventThresholds` / `helpTokens` 几项设置
+
+`server/test-migrate.mjs` 专门测它：造一个老版结构的库、跑一遍启动、逐项检查（列对不对、人有没有少、盖章有没有丢、`checkin` 标记还在不在、唯一索引重建了没有、外键连不连得上、`integrity_check`、再跑一次会不会重复迁移）。**这条测试值得单独存在**：迁移是跑一次就回不去的代码，平时又不跑，出错就是所有人的档案。
 
 ### 栏目条能绑什么
 

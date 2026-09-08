@@ -20,6 +20,8 @@ const DATA = path.join(HERE, 'data-test');
 const BASE = `http://localhost:${PORT}`;
 
 const SUITES = ['test-flow.mjs', 'test-concurrency.mjs', 'test-readonly.mjs'];
+// 迁移那条不打服务器，自己造库自己跑，所以单列一份
+const OFFLINE = ['test-migrate.mjs'];
 
 // 每次从空库开始，测试之间不会互相污染
 await rm(DATA, { recursive: true, force: true });
@@ -52,6 +54,14 @@ if (!up) {
 console.log(`\n  测试服务 ${BASE}，数据库 server/data-test/（和现场那份完全隔离）\n`);
 
 let failed = 0;
+for (const suite of OFFLINE) {
+  const code = await new Promise((resolve) => {
+    const p = spawn(process.execPath, [path.join(HERE, suite)], { stdio: 'inherit' });
+    p.on('close', resolve);
+  });
+  if (code !== 0) failed++;
+}
+
 for (const suite of SUITES) {
   const code = await new Promise((resolve) => {
     const p = spawn(process.execPath, [path.join(HERE, suite)], {
