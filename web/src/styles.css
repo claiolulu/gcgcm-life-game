@@ -760,9 +760,110 @@ html.book-locked body {
 }
 
 .design__body { display: block; }
+.design__canvas { width: 100%; }
 
 /* 快捷键提示只在宽屏出现 —— 手机上没有键盘，那一行纯占地方 */
 .design__keys { display: none; }
+.design__inspector { display: none; }
+.design__inspector--open { display: flex; }
+.design__inspector-close { display: inline-flex; }
+.design__selection-tools {
+  position: absolute;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 9px;
+  background: rgba(13, 18, 32, .96);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .45);
+  white-space: nowrap;
+}
+.design__selection-tools button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 7px;
+  background: var(--ink-4);
+  color: var(--text);
+  font-size: 17px;
+  touch-action: none;
+}
+.design__selection-tools button:active { background: var(--gold-dim); color: #211a08; }
+.design__rotate-handle {
+  position: absolute;
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid var(--gold-dim);
+  border-radius: 50%;
+  background: rgba(13, 18, 32, .97);
+  color: var(--gold);
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .5);
+  cursor: grab;
+  touch-action: none;
+}
+.design__rotate-handle:active { cursor: grabbing; }
+
+/* 操作控件所有设备一致；这里只改变横屏短手机的空间布局。
+   竖屏详情自然排在画布下面，横屏详情停靠右侧并保留画布。 */
+@media (max-height: 600px) and (orientation: landscape) and (pointer: coarse) {
+  .page--design {
+    max-width: none;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-bottom: calc(var(--safe-bottom) + 14px);
+  }
+
+  .design__bar { top: var(--safe-top); }
+  .design__tools { padding: 10px; }
+  .design__tools-help,
+  .design__empty { display: none; }
+
+  /* 横屏详情停在右侧，始终留下画布，不再用蒙层盖住整屏。 */
+  .design__inspector {
+    position: fixed;
+    left: auto;
+    right: 8px;
+    top: calc(var(--safe-top) + 8px);
+    bottom: calc(var(--safe-bottom) + 8px);
+    width: min(46vw, 420px);
+    z-index: 81;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 18px;
+    box-shadow: 0 -16px 48px rgba(0, 0, 0, .5);
+  }
+  .page--design {
+    padding-top: calc(var(--safe-top) + 4px);
+    padding-bottom: calc(var(--safe-bottom) + 8px);
+  }
+  .design__bar {
+    position: relative;
+    top: auto;
+    padding: 2px 0 5px;
+    margin-bottom: 4px;
+  }
+  /* 先从视口高度扣掉标题栏，再换算成 1.9:1 的纸张宽度。
+     这样横屏手机首屏能看到完整画布，而不是只能看到放大的上半张。 */
+  .design__canvas {
+    width: min(100%, calc(190dvh - 190px)) !important;
+    min-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .design__tools { margin-left: auto; margin-right: auto; max-width: 680px; }
+}
 
 @media (min-width: 1000px) {
   .design__body {
@@ -802,6 +903,38 @@ kbd {
   font-size: 10px;
   line-height: 1.5;
   color: var(--text-2);
+}
+
+/* 资料页与签证页共用同一套机读区（MRZ）字形、间距和底色。 */
+.passport-mrz {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: .5cqh 10cqh .4cqh 2.4cqh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #eae3d2;
+  border-top: 1px solid rgba(var(--pp-ink-rgb), .4);
+  overflow: hidden;
+}
+.passport-mrz--data {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  height: 12cqh;
+}
+.passport-mrz__line {
+  max-width: 100%;
+  overflow: hidden;
+  font-family: 'Courier Prime', monospace;
+  font-weight: 700;
+  font-size: 2.15cqh;
+  line-height: 1.35;
+  letter-spacing: .06em;
+  font-variant-ligatures: none;
+  color: var(--pp-text);
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

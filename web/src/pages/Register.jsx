@@ -97,7 +97,13 @@ export default function Register() {
     <div className="page page--nonav">
       <div className="stack">
         <div className="center" style={{ padding: '18px 0 4px' }}>
-          <div style={{ fontSize: 44, marginBottom: 6 }}>🎲</div>
+          <img
+            src="/passport-icon.svg"
+            alt="人生护照"
+            width="64"
+            height="64"
+            style={{ display: 'block', margin: '0 auto 10px', borderRadius: 14 }}
+          />
           <div className="eyebrow">{game?.church || 'GCGCM 迎新'}</div>
           <h1 className="title-xl" style={{ marginTop: 6 }}>{game?.title || 'Mini Life Game'}</h1>
           <div className="muted small" style={{ marginTop: 4 }}>

@@ -65,7 +65,7 @@ const label = (t) => (
 );
 
 /** 一个块的内容，不含定位 —— 定位在外层，编辑器要在同一个盒子上挂拖拽 */
-export function BlockBody({ b, data, editing }) {
+export function BlockBody({ b, data, editing, inlineEditing = false, onTextChange }) {
   switch (b.kind) {
     case 'banner':
       return (
@@ -181,15 +181,9 @@ export function BlockBody({ b, data, editing }) {
 
     case 'mrz':
       return (
-        <div style={{
-          width: '100%', height: '100%', padding: '1.4cqh 3cqh', boxSizing: 'border-box',
-          background: '#eae3d2', borderTop: '1px solid rgba(var(--pp-ink-rgb),.4)', overflow: 'hidden',
-        }}>
+        <div className="passport-mrz">
           {[data.mrz1, data.mrz2].map((t, i) => (
-            <div key={i} style={{
-              fontFamily: "'Courier Prime',monospace", fontWeight: 700, fontSize: '2.5cqh',
-              lineHeight: 1.65, letterSpacing: '.1em', color: 'var(--pp-text)', whiteSpace: 'nowrap',
-            }}>{t}</div>
+            <div className="passport-mrz__line" key={i}>{t}</div>
           ))}
         </div>
       );
@@ -210,7 +204,14 @@ export function BlockBody({ b, data, editing }) {
     case 'text':
     default:
       return (
-        <div style={{
+        <div
+          contentEditable={editing && inlineEditing}
+          suppressContentEditableWarning
+          data-inline-editor={inlineEditing ? b.id : undefined}
+          onInput={inlineEditing && onTextChange
+            ? (e) => onTextChange(e.currentTarget.textContent || '') : undefined}
+          onPointerDown={inlineEditing ? (e) => e.stopPropagation() : undefined}
+          style={{
           width: '100%', height: '100%',
           fontFamily: FONTS[b.font] || FONTS.sans,
           fontSize: `${b.size || 4}cqh`,
@@ -218,6 +219,8 @@ export function BlockBody({ b, data, editing }) {
           fontWeight: b.bold ? 700 : 400,
           textAlign: b.align || 'left',
           color: b.color || 'var(--pp-text)',
+          outline: inlineEditing ? '1px dashed currentColor' : 'none',
+          cursor: inlineEditing ? 'text' : undefined,
           whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
         }}>{b.text}</div>
       );

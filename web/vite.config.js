@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['passport-icon.svg', 'passport-apple-touch-icon.png'],
       manifest: {
         name: 'Mini Life Game 人生护照',
         short_name: '人生护照',
@@ -20,9 +20,9 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/passport-icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/passport-icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/passport-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

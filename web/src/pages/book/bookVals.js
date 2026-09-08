@@ -103,7 +103,7 @@ const VISA_TPL_FALLBACK = {
   showPhoto: true, showAnnotation: true, showLinks: true,
   rows: [
     { key: 'post',    label: 'ISSUING AUTHORITY 签发机构', src: 'post' },
-    { key: 'control', label: 'CONTROL NUMBER 控制号',   src: 'control' },
+    { key: 'control', label: 'NUMBER 编号',             src: 'control' },
     { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
     { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },
     { key: 'type',    label: 'VISA TYPE 类型',          src: 'tag' },
@@ -150,7 +150,7 @@ function defaultBlocks(tpl, station) {
     push({ id: 'links', kind: 'links', x: 4.5, y: 80, w: 52, h: 8 });
   }
 
-  push({ id: 'mrz', kind: 'mrz', x: 0, y: 88.5, w: 100, h: 11.5 });
+  push({ id: 'mrz', kind: 'mrz', x: 0, y: 88, w: 100, h: 12 });
   return out;
 }
 
@@ -183,11 +183,11 @@ export function resolveBlocks(template, station, theme) {
  */
 export function blockData({
   station, me, theme, passportNo, surname, given,
-  visaScore, isCheckin, stampTone, stampDate, doneCount, signed, mrz1, mrz2,
+  visaScore, isCheckin, stampTone, stampDate, doneCount, signed,
 }) {
   // 签发机构：这一场自己填的优先，没填就用护照模版上的那个（整本护照的签发方）
   const issuer = String(station?.issuer || '').trim() || theme?.coverIssuer || 'GCGCM';
-  const issued = station?.date || 'TBC 待定';
+  const visaNo = visaNoOf(station, issuer);
   return {
     // 持照人
     player: me?.name || '',
@@ -199,9 +199,8 @@ export function blockData({
     stampDate: stampDate || '',
     signed: signed ? '已报名' : '——',
     post: issuer,
-    // 控制号 = 签发机构 + 日期。原来是「护照号/页码」，那是护照自己的编号，
-    // 每一页都一样，印在签证页上没说出任何关于这一场的事
-    control: `${issuer}/${issued}`,
+    // 编号和机读码共用一套：签发机构 + YYYYMMDD。
+    control: visaNo,
     surname, given,
     tag: station?.tag || '',
     host: station?.host || station?.staff || '',
@@ -214,7 +213,8 @@ export function blockData({
     desc: station?.desc || station?.rule || '',
     photo: station?.photo || '',
     links: station?.links || [],
-    mrz1, mrz2,
+    mrz1: visaMrzLine(1, { surname, given, visaNo, passportNo, code: me?.code }),
+    mrz2: visaMrzLine(2, { surname, given, visaNo, passportNo, code: me?.code }),
   };
 }
 
@@ -320,10 +320,34 @@ export function passportNoOf(code) {
   return 'GCGCM' + String(code || '0').replace(/\D/g, '').padStart(6, '0');
 }
 
+/** 活动日期 → YYYYMMDD；兼容数据库里迁移前的「19 SEP 2026」。 */
+export function dateCodeOf(value) {
+  const raw = String(value || '').trim();
+  let m = /^(\d{4})[-/]?(\d{2})[-/]?(\d{2})$/.exec(raw);
+  if (m) return `${m[1]}${m[2]}${m[3]}`;
+  m = /^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/.exec(raw);
+  if (!m) return '';
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const month = months.indexOf(m[2].slice(0, 3).toUpperCase()) + 1;
+  return month ? `${m[3]}${String(month).padStart(2, '0')}${String(m[1]).padStart(2, '0')}` : '';
+}
+
+/** 一场活动的签证编号：签发机构 + 数字年月日。 */
+export function visaNoOf(station, issuer = 'GCGCM') {
+  const authority = clean(issuer, 'GCGCM').slice(0, 8);
+  return authority + (dateCodeOf(station?.date) || 'TBC');
+}
+
 function mrzLine(n, { surname, given, passportNo, code, total }) {
   const pad = (s, len) => (s + '<'.repeat(Math.max(0, len - s.length))).slice(0, len);
   if (n === 1) return pad('P<GCGCM' + clean(surname, 'PLAYER') + '<<' + clean(given, 'ONE'), 38);
   return pad(passportNo + '<GCGCM<' + clean(code, '00') + '<' + String(total).padStart(2, '0') + 'PTS', 38);
+}
+
+function visaMrzLine(n, { surname, given, visaNo, passportNo, code }) {
+  const pad = (s, len) => (s + '<'.repeat(Math.max(0, len - s.length))).slice(0, len);
+  if (n === 1) return pad('V<GCGCM' + clean(surname, 'PLAYER') + '<<' + clean(given, 'ONE'), 38);
+  return pad(clean(visaNo, 'GCGCMTBC') + '<' + passportNo + '<' + clean(code, '00'), 38);
 }
 
 /* ---------------------------- 主构建函数 ---------------------------- */
@@ -364,8 +388,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   // 打卡本的汇总看的是「什么时候来的」，不是分数结算
   const stampDates = Object.values(done)
     .map((d) => d?.at).filter(Boolean).sort((a, b) => a - b);
-  const fmtDay = (ts) => new Date(ts).toLocaleDateString('en-GB',
-    { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const fmtDay = (ts) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
   const firstStamp = stampDates.length ? fmtDay(stampDates[0]) : '';
   const lastStamp = stampDates.length ? fmtDay(stampDates[stampDates.length - 1]) : '';
   const joinedOn = me?.createdAt ? fmtDay(me.createdAt) : '——';
@@ -452,8 +478,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   return {
     /* ---- 版式 ---- */
     stageMax: landscape && ui.vpLandscape ? '100%' : '430px',
-    lsW: ui.vpLandscape ? '100%' : '100cqh',
-    lsH: ui.vpLandscape ? '100%' : '100cqw',
+    // 横竖屏都按同一张 1.9:1 的横版纸来放大到可用空间；不再直接拿
+    // 视口宽高当页面宽高，否则旋转手机后整张签证的比例和字号都会变。
+    lsW: ui.vpLandscape ? 'min(100cqw, 190cqh)' : 'min(100cqh, 190cqw)',
+    lsH: ui.vpLandscape ? 'min(100cqh, 52.6316cqw)' : 'min(100cqw, 52.6316cqh)',
     lsTransform: ui.vpLandscape ? 'translate(-50%,-50%)' : 'translate(-50%,-50%) rotate(90deg)',
     isPortrait: !landscape,
     isLandscape: landscape,
@@ -550,7 +578,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       { label: 'PASSPORT NO 护照号', value: passportNo },
       { label: 'PLAYER NO 编号', value: String(me?.code || '——') },
       { label: 'PLACE OF ISSUE 签发地', value: 'GLASGOW, UK' },
-      { label: 'DATE OF ISSUE 签发日期', value: '28 AUG 2026' },
+      { label: 'DATE OF ISSUE 签发日期', value: joinedOn },
       { label: 'DATE OF EXPIRY 有效期至', value: 'ETERNAL 无尽无穷', fg: 'var(--pp-ink)' },
       { label: 'AUTHORITY 签发机关', value: 'GCGCM' },
       // 累计积分这一栏去掉了：页眉左上角一直显示着，同一个数印两遍
@@ -628,13 +656,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       station, me, theme, passportNo, surname, given,
       visaScore, isCheckin, doneCount,
       signed: (me?.signups || []).includes(station.id),
-      stampDate: done[station.id]?.at
-        ? new Date(done[station.id].at).toLocaleDateString('en-GB',
-            { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
-        : '',
+      stampDate: done[station.id]?.at ? fmtDay(done[station.id].at) : '',
       stampTone: isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || 'var(--pp-text)'),
-      mrz1: mrzLine(1, { surname, given, passportNo, code: me?.code, total }),
-      mrz2: mrzLine(2, { surname, given, passportNo, code: me?.code, total }),
     }) : {},
 
     visaStamped: station != null && visaScore != null,
@@ -650,7 +673,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     stampDate: station && done[station.id]?.at
       ? new Date(done[station.id].at).toLocaleDateString('en-GB',
           { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
-      : '28 AUG 2026',
+      : '2026-08-28',
     stampNo: station ? String(cur.i + 1).padStart(2, '0') : '',
     stampTop: station ? STAMP_SPOT[cur.i % STAMP_SPOT.length].t : '20%',
     stampLeft: station ? STAMP_SPOT[cur.i % STAMP_SPOT.length].l : '40%',

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_SETTINGS, ACTIVITIES, THEME, VISA_TEMPLATE } from './config.js';
+import { DEFAULT_SETTINGS, ACTIVITIES, THEME, VISA_TEMPLATE, normalizeActivityDate } from './config.js';
 import { randomToken, safeJSON } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -168,7 +168,22 @@ export function getActivities() {
   const out = Array.isArray(list) && list.length ? list : ACTIVITIES;
   // state 是后加的字段，库里存着的老记录没有它。补上默认值，
   // 免得前端拿到 undefined 之后各处都得写一遍兜底
-  return out.map((a) => (a && a.state ? a : { ...a, state: 'upcoming' }));
+  const normalized = out.map((a) => ({
+    ...a,
+    state: a?.state || 'upcoming',
+    date: normalizeActivityDate(a?.date),
+    // 已经保存过版式的活动，栏目标题也要从旧「控制号」迁移成「编号」。
+    ...(Array.isArray(a?.blocks) ? {
+      blocks: a.blocks.map((b) => b?.kind === 'fields' && Array.isArray(b.rows) ? {
+        ...b,
+        rows: b.rows.map((r) => r?.src === 'control' && r.label === 'CONTROL NUMBER 控制号'
+          ? { ...r, label: 'NUMBER 编号' } : r),
+      } : b),
+    } : {}),
+  }));
+  // 启动后第一次读取就把旧日期/标题真正写回库，之后存储始终是新格式。
+  if (row && JSON.stringify(normalized) !== JSON.stringify(out)) setSetting('_activities', normalized);
+  return normalized;
 }
 
 export function setActivities(list) {

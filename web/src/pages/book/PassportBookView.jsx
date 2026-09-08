@@ -356,7 +356,7 @@ export default function PassportBookView({ v }) {
           ) : null}
           {v.isLandscape ? (
             <>
-              <div onClick={v.pageTap} style={{position: "absolute", left: "50%", top: "50%", width: v.lsW, height: v.lsH, transform: v.lsTransform, display: "flex", flexDirection: "column", background: v.paper, overflow: "hidden", animation: "pageIn .25s ease both"}}>
+              <div onClick={v.pageTap} style={{position: "absolute", left: "50%", top: "50%", width: v.lsW, height: v.lsH, transform: v.lsTransform, display: "flex", flexDirection: "column", background: v.paper, overflow: "hidden", containerType: "size", animation: "pageIn .25s ease both"}}>
                 <button onClick={v.openQr} title="放大二维码" style={{position: "absolute", right: "10px", bottom: "10px", zIndex: 6, width: "30px", height: "30px", padding: "3px", background: "#fff", border: "1px solid rgba(var(--pp-ink-rgb),.4)", lineHeight: 0, boxShadow: "0 2px 8px rgba(60,40,30,.25)"}}>
                   <div style={{width: "100%", height: "100%"}}>{v.qrThumb}</div>
                 </button>
@@ -455,11 +455,11 @@ export default function PassportBookView({ v }) {
                     </div>
                     {v.mrzOn ? (
                       <>
-                        <div style={{position: "relative", zIndex: "4", flex: "none", marginTop: "10px", padding: "9px 20px 11px", background: "#eae3d2", borderTop: "1px solid rgba(var(--pp-ink-rgb),.4)", overflow: "hidden"}}>
-                          <div style={{fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "11px", lineHeight: "1.7", letterSpacing: ".1em", color: "var(--pp-text)", whiteSpace: "nowrap"}}>
+                        <div className="passport-mrz passport-mrz--data">
+                          <div className="passport-mrz__line">
                             {v.mrz1}
                           </div>
-                          <div style={{fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "11px", lineHeight: "1.7", letterSpacing: ".1em", color: "var(--pp-text)", whiteSpace: "nowrap"}}>
+                          <div className="passport-mrz__line">
                             {v.mrz2}
                           </div>
                         </div>

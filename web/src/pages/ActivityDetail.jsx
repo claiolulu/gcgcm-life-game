@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
 import IconPicker from '../components/IconPicker.jsx';
@@ -41,6 +41,10 @@ export default function ActivityDetail() {
   const [busy, setBusy] = useState(null);
   const [draft, setDraft] = useState(null);      // 这一场的本地改动，null = 还没载入
   const [dirty, setDirty] = useState(false);
+  // 每次本地编辑都递增。保存返回时只清理它真正保存过的那一版，
+  // 不能拿网络响应覆盖请求发出后用户继续输入的新内容。
+  const editVersion = useRef(0);
+  const failedAutoVersion = useRef(null);
 
   const activities = config?.activities || [];
   const players = useMemo(() => allPlayers(), [staff.players, staff.outbox]); // eslint-disable-line
@@ -49,7 +53,9 @@ export default function ActivityDetail() {
     if (dirty) return;
     const hit = activities.find((a) => a.id === id);
     if (hit) setDraft(JSON.parse(JSON.stringify(hit)));
-  }, [activities, id, dirty]);
+    // dirty 从 true 变 false 时不要立刻用旧 config 回填；等 loadConfig
+    // 真正带回刚保存的数据后，activities 改变再同步。
+  }, [activities, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
@@ -79,7 +85,7 @@ export default function ActivityDetail() {
   /**
    * 自动保存。
    *
-   * 停手一秒多就存一次 —— 这一页全是零碎的输入框（名字、日期、链接、
+   * 停手两秒多就存一次 —— 这一页全是零碎的输入框（名字、日期、链接、
    * 配图），每改一处都要人记得去按保存，迟早有人改完直接关掉。
    *
    * 只在 dirty 时排，存完 dirty 清掉、定时器自然不再排，不会来回打转。
@@ -91,8 +97,8 @@ export default function ActivityDetail() {
    * save 是函数声明，会提升，在这儿引用没问题。
    */
   useEffect(() => {
-    if (!dirty || busy) return;
-    const t = setTimeout(() => { save({}, { quiet: true }); }, 1200);
+    if (!dirty || busy || failedAutoVersion.current === editVersion.current) return;
+    const t = setTimeout(() => { save({}, { quiet: true }); }, 2400);
     return () => clearTimeout(t);
   }, [draft, dirty, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -110,7 +116,12 @@ export default function ActivityDetail() {
     );
   }
 
-  const edit = (patch) => { setDraft((c) => ({ ...c, ...patch })); setDirty(true); };
+  const edit = (patch) => {
+    editVersion.current += 1;
+    failedAutoVersion.current = null;
+    setDraft((c) => ({ ...c, ...patch }));
+    setDirty(true);
+  };
   // 栏目和版式都在画布编辑器里改了（/staff/admin/a/<id>/design），
   // 这一页只管这一场本身的信息、配图、链接和报名。
 
@@ -124,7 +135,8 @@ export default function ActivityDetail() {
   /** 把这一场的改动写回整份清单 */
   async function save(patch = {}, { quiet = false } = {}) {
     const next = { ...draft, ...patch };
-    setBusy('save');
+    const savingVersion = editVersion.current;
+    setBusy(quiet ? 'autosave' : 'save');
     try {
       // 设成「进行中」的时候顺手把别人降下来 —— 服务端只允许一场，
       // 与其让同工先去别的页面关掉再回来，不如在这里替他做了
@@ -133,15 +145,18 @@ export default function ActivityDetail() {
         if (next.state === 'live' && a.state === 'live') return { ...a, state: 'done' };
         return a;
       });
-      const res = await api('/api/admin/activities', { method: 'POST', body: { activities: list }, token });
-      setDirty(false);
-      setDraft(res.activities.find((a) => a.id === id) || next);
+      await api('/api/admin/activities', { method: 'POST', body: { activities: list }, token });
+      // 请求期间没有新输入，才算全部保存完。若用户还在打字，保留当前 draft
+      // 和 dirty；本次结束后定时器会为最新一版再静默保存一次。
+      if (editVersion.current === savingVersion) setDirty(false);
       await loadConfig();
       // 自动保存不吐提示：每停手一次弹一个「已保存」，一页填下来能弹十几次。
       // 存没存成看右上角那个按钮就够了（灰掉 = 没有未保存的改动）
       if (!quiet) toast('已保存', 'ok');
     } catch (err) {
       // 失败一定要说，自动保存也一样 —— 不吭声的话人以为存上了
+      // 同一版失败后不无限自动重试、反复弹错；继续编辑或手动保存会再试。
+      failedAutoVersion.current = savingVersion;
       toast(err.message || '保存失败', 'err');
     } finally {
       setBusy(null);
@@ -262,7 +277,7 @@ export default function ActivityDetail() {
             368px 宽的一栏里日期只剩「13 SEP 20」 */}
         <DateField
           value={draft.date}
-          placeholder="日期（可留空，也可以写「每周三」）"
+          placeholder="日期 YYYY-MM-DD（可留空）"
           onChange={(date) => edit({ date })}
         />
         <div className="row" style={{ gap: 6 }}>

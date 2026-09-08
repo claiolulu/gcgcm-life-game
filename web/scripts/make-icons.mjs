@@ -225,18 +225,18 @@ function drawIcon(size) {
 }
 
 for (const size of [192, 512]) {
-  const file = path.join(OUT, `icon-${size}.png`);
+  const file = path.join(OUT, `passport-icon-${size}.png`);
   fs.writeFileSync(file, drawIcon(size));
   console.log('✓', path.relative(process.cwd(), file));
 }
 
 // apple-touch-icon 用 192 那张
-fs.copyFileSync(path.join(OUT, 'icon-192.png'), path.join(OUT, 'apple-touch-icon.png'));
-console.log('✓ public/apple-touch-icon.png');
+fs.copyFileSync(path.join(OUT, 'passport-icon-192.png'), path.join(OUT, 'passport-apple-touch-icon.png'));
+console.log('✓ public/passport-apple-touch-icon.png');
 
 // favicon 用 SVG，浏览器标签页更清晰
 fs.writeFileSync(
-  path.join(OUT, 'favicon.svg'),
+  path.join(OUT, 'passport-icon.svg'),
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="110" fill="#efe6d5"/>
   <rect x="91" y="55" width="340" height="410" rx="34" fill="#391016" opacity=".22"/>
@@ -251,4 +251,4 @@ fs.writeFileSync(
   <path d="M181 391h146" stroke="#b3924d" stroke-width="4"/>
 </svg>`
 );
-console.log('✓ public/favicon.svg');
+console.log('✓ public/passport-icon.svg');

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { Server as SocketServer } from 'socket.io';
 
 import {
-  GAME, RESET_PIN, ACTIVITIES, THEME_PRESETS, VISA_ROW_SOURCES,
+  GAME, RESET_PIN, ACTIVITIES, THEME_PRESETS, VISA_ROW_SOURCES, normalizeActivityDate,
 } from './config.js';
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
@@ -524,12 +524,17 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
+    const rawDate = String(a?.date || '').trim();
+    const date = normalizeActivityDate(rawDate);
+    if (rawDate && !date) {
+      return res.status(400).json({ error: `「${name}」的日期请填写为 YYYY-MM-DD` });
+    }
     clean.push({
       id, name,
       order: clean.length + 1,
       icon: String(a?.icon || '📍').trim().slice(0, 4),
       en: String(a?.en || '').trim().slice(0, 40),
-      date: String(a?.date || '').trim().slice(0, 20),
+      date,
       tag: String(a?.tag || '').trim().slice(0, 12),
       host: String(a?.host || '').trim().slice(0, 20),
       // 签发机构。留空就用护照模版上的那个（整本护照的签发方）

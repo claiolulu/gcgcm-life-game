@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import RowEditor from '../components/RowEditor.jsx';
-import { NetBar, useToast, useConfirm } from '../components/ui.jsx';
+import { useToast, useConfirm } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { useStaff } from '../lib/staff.js';
@@ -47,10 +47,8 @@ function sampleData(activity, theme) {
     passportNo: 'GCGCM000001',
     surname: '林', given: '小满', identityLabel: 'SOLO',
     visaScore: null, isCheckin: false, stampTone: '',
-    stampDate: '13 SEP 2026', doneCount: 3,
+    stampDate: '2026-09-13', doneCount: 3,
     teamBadge: { en: 'RED', symbol: '★' }, signed: true,
-    mrz1: 'P<GCGCMPLAYER<<ONE<<<<<<<<<<<<<<<<<<',
-    mrz2: 'GCGCM000001<GCGCM——<00PTS<<<<<<<<<<',
   });
 }
 
@@ -70,6 +68,14 @@ export default function ActivityDesign() {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inlineText, setInlineText] = useState(null);
+  const blocksRef = useRef(null);
+  const nameRef = useRef('');
+  const historyRef = useRef({ past: [], future: [] });
+  const [, refreshHistory] = useState(0);
+  blocksRef.current = blocks;
+  nameRef.current = name;
 
   const activities = config?.activities || [];
   const activity = activities.find((a) => a.id === id);
@@ -87,13 +93,78 @@ export default function ActivityDesign() {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
   }, [staff.session, nav]);
 
+  useEffect(() => {
+    historyRef.current = { past: [], future: [] };
+    refreshHistory((n) => n + 1);
+  }, [id]);
+
+  useEffect(() => {
+    if (!inlineText) return;
+    const el = document.querySelector(`[data-inline-editor="${inlineText}"]`);
+    if (!el) return;
+    el.focus();
+    // 首次点文字时把光标放到末尾，马上就能接着输入。
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [inlineText]);
+
   const data = useMemo(() => sampleData(activity, config?.theme), [activity, config]);
   const selected = useMemo(() => (blocks || []).find((b) => b.id === sel) || null, [blocks, sel]);
 
   /* --------------------------- 增删改 --------------------------- */
 
-  const patch = (bid, p) => {
-    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...p } : b)));
+  const snapshot = () => ({
+    blocks: JSON.parse(JSON.stringify(blocksRef.current || [])),
+    name: nameRef.current,
+  });
+
+  const checkpoint = () => {
+    const h = historyRef.current;
+    h.past.push(snapshot());
+    if (h.past.length > 80) h.past.shift();
+    h.future = [];
+    refreshHistory((n) => n + 1);
+  };
+
+  const restoreSnapshot = (s) => {
+    const nextBlocks = JSON.parse(JSON.stringify(s.blocks));
+    blocksRef.current = nextBlocks;
+    nameRef.current = s.name;
+    setBlocks(nextBlocks);
+    setName(s.name);
+    setSel(null);
+    setInlineText(null);
+    setInspectorOpen(false);
+    setDirty(true);
+  };
+
+  function undo() {
+    const h = historyRef.current;
+    if (!h.past.length) return;
+    h.future.push(snapshot());
+    restoreSnapshot(h.past.pop());
+    refreshHistory((n) => n + 1);
+  }
+
+  function redo() {
+    const h = historyRef.current;
+    if (!h.future.length) return;
+    h.past.push(snapshot());
+    restoreSnapshot(h.future.pop());
+    refreshHistory((n) => n + 1);
+  }
+
+  const patch = (bid, p, { record = true } = {}) => {
+    if (record) checkpoint();
+    setBlocks((cur) => {
+      const next = cur.map((b) => (b.id === bid ? { ...b, ...p } : b));
+      blocksRef.current = next;
+      return next;
+    });
     setDirty(true);
   };
 
@@ -105,11 +176,17 @@ export default function ActivityDesign() {
    * 按住方向键不放正是最常见的用法。
    */
   const bump = (bid, fn) => {
-    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...fn(b) } : b)));
+    checkpoint();
+    setBlocks((cur) => {
+      const next = cur.map((b) => (b.id === bid ? { ...b, ...fn(b) } : b));
+      blocksRef.current = next;
+      return next;
+    });
     setDirty(true);
   };
 
   function add(kind) {
+    checkpoint();
     const def = PALETTE.find((p) => p.kind === kind);
     const made = {
       id: `b${Date.now().toString(36)}`, kind, rot: 0, opacity: 1, href: '',
@@ -137,12 +214,14 @@ export default function ActivityDesign() {
   }
 
   const remove = (bid) => {
+    checkpoint();
     setBlocks((cur) => cur.filter((b) => b.id !== bid));
     setSel(null);
     setDirty(true);
   };
 
   function duplicate(b) {
+    checkpoint();
     const made = { ...JSON.parse(JSON.stringify(b)), id: `b${Date.now().toString(36)}`,
                    x: round(b.x + 3), y: round(b.y + 3) };
     setBlocks((cur) => [...cur, made]);
@@ -152,6 +231,7 @@ export default function ActivityDesign() {
 
   /** 图层顺序就是数组顺序：后面的画在上面 */
   const layer = (bid, dir) => {
+    checkpoint();
     setBlocks((cur) => {
       const i = cur.findIndex((b) => b.id === bid);
       const j = i + dir;
@@ -168,6 +248,7 @@ export default function ActivityDesign() {
       title: '把这一页清空？', danger: true, confirmText: '清空',
       body: '所有块都删掉，剩一张白纸 —— 想做成整页海报就该这样。之后还能一样样加回来。',
     }))) return;
+    checkpoint();
     setBlocks([]);
     setSel(null);
     setDirty(true);
@@ -178,6 +259,7 @@ export default function ActivityDesign() {
       title: '恢复默认版式？', danger: true, confirmText: '恢复',
       body: '这一页会变回签证页模版的样子，你摆的东西全丢掉。',
     }))) return;
+    checkpoint();
     setBlocks(resolveBlocks(config?.visaTemplate, { ...activity, blocks: undefined }, config?.theme)
       .map((b) => JSON.parse(JSON.stringify(b))));
     setSel(null);
@@ -196,15 +278,19 @@ export default function ActivityDesign() {
     e.preventDefault();
     e.stopPropagation();
     setSel(b.id);
+    setInspectorOpen(false);
+    if (mode !== 'text') setInlineText(null);
     const box = boxRef.current?.getBoundingClientRect();
     if (!box) return;
     const s = { px: e.clientX, py: e.clientY, x: b.x, y: b.y, w: b.w, h: b.h };
+    let changed = false;
 
     const move = (ev) => {
+      if (!changed) { checkpoint(); changed = true; }
       const dx = ((ev.clientX - s.px) / box.width) * 100;
       const dy = ((ev.clientY - s.py) / box.height) * 100;
-      if (mode === 'move') patch(b.id, { x: round(s.x + dx), y: round(s.y + dy) });
-      else patch(b.id, { w: Math.max(2, round(s.w + dx)), h: Math.max(2, round(s.h + dy)) });
+      if (mode === 'move') patch(b.id, { x: round(s.x + dx), y: round(s.y + dy) }, { record: false });
+      else patch(b.id, { w: Math.max(2, round(s.w + dx)), h: Math.max(2, round(s.h + dy)) }, { record: false });
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -214,6 +300,83 @@ export default function ActivityDesign() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+  }
+
+  /**
+   * 横屏手机上的文字同时要支持两件事：轻点进入输入，拖动则移动。
+   * 等手指真的走过几像素才判定为拖动，避免想打字时区块先跳一下。
+   */
+  function textTouch(e, b) {
+    e.preventDefault();
+    e.stopPropagation();
+    setSel(b.id);
+    setInspectorOpen(false);
+    const box = boxRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const s = { px: e.clientX, py: e.clientY, x: b.x, y: b.y };
+    let moved = false;
+
+    const move = (ev) => {
+      const px = ev.clientX - s.px;
+      const py = ev.clientY - s.py;
+      if (!moved && Math.hypot(px, py) < 6) return;
+      if (!moved) checkpoint();
+      moved = true;
+      setInlineText(null);
+      patch(b.id, {
+        x: round(s.x + (px / box.width) * 100),
+        y: round(s.y + (py / box.height) * 100),
+      }, { record: false });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      if (!moved) setInlineText(b.id);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  /** 右上角旋转手柄：以区块中心为圆心，手指转多少，区块就转多少。 */
+  function rotateDrag(e, b) {
+    e.preventDefault();
+    e.stopPropagation();
+    setSel(b.id);
+    setInlineText(null);
+    setInspectorOpen(false);
+    const box = boxRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const cx = box.left + ((b.x + b.w / 2) / 100) * box.width;
+    const cy = box.top + ((b.y + b.h / 2) / 100) * box.height;
+    const startAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+    const startRot = b.rot || 0;
+    let changed = false;
+
+    const move = (ev) => {
+      if (!changed) { checkpoint(); changed = true; }
+      const angle = Math.atan2(ev.clientY - cy, ev.clientX - cx);
+      let delta = ((angle - startAngle) * 180) / Math.PI;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      patch(b.id, { rot: round(startRot + delta) }, { record: false });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  function openInspector() {
+    setInlineText(null);
+    setInspectorOpen(true);
+    setTimeout(() => document.querySelector('.design__inspector--open')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0);
   }
 
   /* --------------------------- 键盘 --------------------------- */
@@ -235,6 +398,16 @@ export default function ActivityDesign() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       if (dirty && busy !== 'save') save();
+      return;
+    }
+    if (!typing && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+      return;
+    }
+    if (!typing && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      redo();
       return;
     }
     if (typing) {
@@ -314,7 +487,6 @@ export default function ActivityDesign() {
   if (!config || !blocks) {
     return (
       <div className="page">
-        <NetBar />
         {config && !activity ? (
           <div className="card stack">
             <div className="section-title">找不到这一场活动</div>
@@ -327,16 +499,24 @@ export default function ActivityDesign() {
 
   return (
     <div className="page page--design">
-      <NetBar />
-
       <div className="design__bar row" style={{ gap: 8, alignItems: 'center' }}>
         {/* 光一个「←」看不出是回哪儿，写清楚：回的是这一场的详情页 */}
         <button className="btn btn--ghost" onClick={leave} style={{ flex: '0 0 auto' }}>
-          ← 这一场
+          返回
         </button>
         <input className="input grow" value={name} maxLength={20} placeholder="活动名"
-          onChange={(e) => { setName(e.target.value); setDirty(true); }} />
-        <span className="tiny dim" style={{ flex: '0 0 auto' }}>{blocks.length} 个块</span>
+          onChange={(e) => {
+            checkpoint();
+            nameRef.current = e.target.value;
+            setName(e.target.value);
+            setDirty(true);
+          }} />
+        <div className="design__history row" style={{ gap: 4, flex: '0 0 auto' }}>
+          <button className="btn btn--sm btn--ghost" onClick={undo}
+            disabled={!historyRef.current.past.length} title="撤销（⌘Z）" aria-label="撤销">↶</button>
+          <button className="btn btn--sm btn--ghost" onClick={redo}
+            disabled={!historyRef.current.future.length} title="重做（⇧⌘Z）" aria-label="重做">↷</button>
+        </div>
         <button className="btn btn--sm btn--primary" disabled={busy === 'save' || !dirty} onClick={save}>
           {busy === 'save' ? '保存中…' : dirty ? '保存' : '已保存'}
         </button>
@@ -347,10 +527,11 @@ export default function ActivityDesign() {
       {/* 纸 */}
       <div className="design__stage">
       <div
+        className="design__canvas"
         ref={boxRef}
-        onPointerDown={() => setSel(null)}
+        onPointerDown={() => { setSel(null); setInspectorOpen(false); setInlineText(null); }}
         style={{
-          position: 'relative', width: '100%', aspectRatio: String(PAGE_ASPECT),
+          position: 'relative', aspectRatio: String(PAGE_ASPECT),
           border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden',
           marginBottom: 10, touchAction: 'none', background: '#000',
         }}
@@ -362,17 +543,42 @@ export default function ActivityDesign() {
               return (
                 <div
                   key={b.id}
-                  onPointerDown={(e) => drag(e, b, 'move')}
+                  onPointerDown={(e) => {
+                    if (b.kind === 'text') {
+                      return textTouch(e, b);
+                    }
+                    drag(e, b, 'move');
+                  }}
                   style={{
                     position: 'absolute',
                     left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%`,
                     transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
                     opacity: b.opacity ?? 1,
+                    zIndex: on ? 20 : undefined,
                     outline: on ? '2px solid var(--gold)' : '1px dashed rgba(120,120,120,.45)',
                     outlineOffset: 1, cursor: 'move', touchAction: 'none',
                   }}
                 >
-                  <BlockBody b={b} data={data} editing />
+                  <BlockBody b={b} data={data} editing
+                    inlineEditing={inlineText === b.id}
+                    onTextChange={(text) => patch(b.id, { text })} />
+                  {on && (
+                    <div className="design__selection-tools"
+                      style={{ top: b.y < 8 ? 3 : -40 }}
+                      onPointerDown={(e) => e.stopPropagation()}>
+                      <button title="字体、透明度等详细设置" aria-label="打开详细设置"
+                        onClick={openInspector}>⚙</button>
+                      <button title="删除" aria-label="删除区块" onClick={() => remove(b.id)}>✕</button>
+                    </div>
+                  )}
+                  {on && (
+                    <button className="design__rotate-handle" title="拖动旋转" aria-label="拖动旋转区块"
+                      style={{
+                        top: b.y < 5 ? 3 : -17,
+                        right: b.x + b.w > 97 ? 3 : -17,
+                      }}
+                      onPointerDown={(e) => rotateDrag(e, b)}>↻</button>
+                  )}
                   {on && (
                     <div
                       onPointerDown={(e) => drag(e, b, 'size')}
@@ -402,10 +608,10 @@ export default function ActivityDesign() {
       <div className="design__side">
 
       {/* 加东西 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
+      <div className="card stack design__tools" style={{ marginBottom: 12 }}>
         <div className="row" style={{ gap: 8 }}>
           <button className="btn btn--sm btn--ghost grow" onClick={() => setAdding((v) => !v)}>
-            {adding ? '收起' : '＋ 加一个块'}
+            {adding ? '收起' : '＋ 新增'}
           </button>
           <button className="btn btn--sm btn--ghost" onClick={clearAll} title="删光，剩一张白纸">清空</button>
           <button className="btn btn--sm btn--ghost" onClick={resetDefault} title="变回模版的样子">恢复默认</button>
@@ -419,16 +625,18 @@ export default function ActivityDesign() {
             ))}
           </div>
         )}
-        <div className="tiny dim">
+        <div className="tiny dim design__tools-help">
           这一页上除了页眉、水印、二维码和那个章，每一样都是一个块，都能挪能删 ——
           删光就是一张白页，想做成整页海报就该这样。
-          栏目里填的是示例值（真页面上每个人不一样）；页面比例按常见竖屏手机取 1.9:1。
+          栏目里填的是示例值（真页面上每个人不一样）；页面固定为 1.9:1。
         </div>
       </div>
 
       {/* 选中块的属性 */}
       {selected ? (
-        <div className="card stack" style={{ marginBottom: 12 }}>
+        <>
+        <div className={`card stack design__inspector ${inspectorOpen ? 'design__inspector--open' : ''}`}
+          style={{ marginBottom: 12 }}>
           <div className="row-between">
             <div className="section-title" style={{ margin: 0 }}>
               {KIND_NAME[selected.kind] || '块'}
@@ -438,6 +646,8 @@ export default function ActivityDesign() {
               <button className="btn btn--sm btn--ghost" onClick={() => layer(selected.id, 1)} title="往上一层">⤒</button>
               <button className="btn btn--sm btn--ghost" onClick={() => duplicate(selected)} title="复制一个">⧉</button>
               <button className="btn btn--sm btn--ghost" onClick={() => remove(selected.id)} title="删掉">✕</button>
+              <button className="btn btn--sm btn--primary design__inspector-close"
+                onClick={() => setInspectorOpen(false)}>完成</button>
             </div>
           </div>
 
@@ -470,8 +680,9 @@ export default function ActivityDesign() {
             ))}
           </div>
         </div>
+        </>
       ) : (
-        <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="card stack design__empty" style={{ marginBottom: 12 }}>
           <div className="tiny dim">
             {blocks.length === 0
               ? '这一页现在是空的。点「＋ 加一个块」往上摆东西。'

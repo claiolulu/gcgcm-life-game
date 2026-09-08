@@ -40,6 +40,8 @@ function BottomNav() {
   const isStaff = pathname.startsWith('/staff');
   // 护照册是整屏的翻页界面，自带导航，不叠底部 tab
   if (pathname === '/passport') return null;
+  // 画布编辑器在所有设备上都只保留自己的工具，不叠「扫码 / 总控」。
+  if (pathname.endsWith('/design')) return null;
   if (pathname === '/' || pathname === '/register' || (isStaff && !staff.session)) return null;
 
   const tabs = isStaff

@@ -8,6 +8,26 @@ export const GAME = {
   verseEn: "You don't have to do life alone",
 };
 
+const DATE_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** 把旧英文日期和纯数字日期统一成 YYYY-MM-DD；空串表示未定或不合法。 */
+export function normalizeActivityDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  let m = /^(\d{4})[-/]?(\d{2})[-/]?(\d{2})$/.exec(raw);
+  if (!m) {
+    const old = /^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/.exec(raw);
+    if (!old) return '';
+    const month = DATE_MONTHS.indexOf(old[2].slice(0, 3).toUpperCase()) + 1;
+    if (!month) return '';
+    m = [old[0], old[3], String(month).padStart(2, '0'), String(old[1]).padStart(2, '0')];
+  }
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return '';
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 /**
  * ========================= 活动打卡 =========================
  *
@@ -37,7 +57,7 @@ export const ACTIVITIES = [
   {
     id: 'freshers', order: 1, icon: '🎓',
     name: '迎新之夜', en: 'Freshers Night',
-    date: '13 SEP 2026', tag: '迎新', host: 'GCGCM 迎新组',
+    date: '2026-09-13', tag: '迎新', host: 'GCGCM 迎新组',
     desc: '新学年的第一场。六十分钟的浓缩人生，认识一屋子还不认识的人 —— 分数会归零，名次会被忘记，但今晚认识的人还在。',
     landmarkKey: 'city-chambers', state: 'upcoming',
   },
@@ -153,7 +173,7 @@ export const VISA_ROW_SOURCES = [
   { key: 'stampDate', group: '这一页', name: '盖章日期',   hint: '还没盖就空着' },
   { key: 'signed',    group: '这一页', name: '报名状态',   hint: '报了印「已报名」，没报印「——」' },
   { key: 'post',      group: '这一场', name: '签发机构',   hint: '活动详情页里填，留空就用护照模版上的签发机构' },
-  { key: 'control',   group: '这一场', name: '控制号',     hint: '签发机构 + 日期，例如 GCGCM 迎新组/13 SEP 2026' },
+  { key: 'control',   group: '这一场', name: '编号',       hint: '签发机构 + 数字年月日，例如 GCGCM20260913' },
 ];
 
 /**
@@ -169,7 +189,7 @@ export const VISA_TEMPLATE = {
   showLinks: true,
   rows: [
     { key: 'post',    label: 'ISSUING AUTHORITY 签发机构', src: 'post' },
-    { key: 'control', label: 'CONTROL NUMBER 控制号',   src: 'control' },
+    { key: 'control', label: 'NUMBER 编号',             src: 'control' },
     { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
     { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },
     { key: 'type',    label: 'VISA TYPE 类型',          src: 'tag' },
@@ -210,4 +230,3 @@ export const DEFAULT_SETTINGS = {
  * 不用念一串随机数字，也不会念错。
  */
 export const RESET_PIN = '3927';
-
