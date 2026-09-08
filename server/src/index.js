@@ -580,6 +580,8 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       date: String(a?.date || '').trim().slice(0, 20),
       tag: String(a?.tag || '').trim().slice(0, 12),
       host: String(a?.host || '').trim().slice(0, 20),
+      // 签发机构。留空就用护照模版上的那个（整本护照的签发方）
+      issuer: String(a?.issuer || '').trim().slice(0, 24),
       desc: String(a?.desc || '').trim().slice(0, 200),
       landmarkKey: String(a?.landmarkKey || '').trim().slice(0, 40),
       photo: safePhoto(a?.photo),

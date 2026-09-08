@@ -40,11 +40,11 @@ const PALETTE = [
 const KIND_NAME = Object.fromEntries(PALETTE.map((p) => [p.kind, p.name]));
 
 /** 编辑器里用的示例数据。真页面上这些每个人都不一样。 */
-function sampleData(activity) {
+function sampleData(activity, theme) {
   return blockData({
-    station: activity,
+    station: activity, theme,
     me: { name: '林小满', code: '01', contact: 'wx: xiaoman' },
-    passportNo: 'GCGCM000001', pageNo: '01',
+    passportNo: 'GCGCM000001',
     surname: '林', given: '小满', identityLabel: 'SOLO',
     visaScore: null, isCheckin: false, stampTone: '',
     stampDate: '13 SEP 2026', doneCount: 3,
@@ -87,7 +87,7 @@ export default function ActivityDesign() {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
   }, [staff.session, nav]);
 
-  const data = useMemo(() => sampleData(activity), [activity]);
+  const data = useMemo(() => sampleData(activity, config?.theme), [activity, config]);
   const selected = useMemo(() => (blocks || []).find((b) => b.id === sel) || null, [blocks, sel]);
 
   /* --------------------------- 增删改 --------------------------- */
@@ -330,7 +330,10 @@ export default function ActivityDesign() {
       <NetBar />
 
       <div className="design__bar row" style={{ gap: 8, alignItems: 'center' }}>
-        <button className="btn btn--sm btn--ghost" onClick={leave}>←</button>
+        {/* 光一个「←」看不出是回哪儿，写清楚：回的是这一场的详情页 */}
+        <button className="btn btn--ghost" onClick={leave} style={{ flex: '0 0 auto' }}>
+          ← 这一场
+        </button>
         <input className="input grow" value={name} maxLength={20} placeholder="活动名"
           onChange={(e) => { setName(e.target.value); setDirty(true); }} />
         <span className="tiny dim" style={{ flex: '0 0 auto' }}>{blocks.length} 个块</span>

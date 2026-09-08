@@ -24,6 +24,7 @@ export const GAME = {
  *   date  这一场的日期，签发日期栏显示它；还没定就留空
  *   tag   签证类型栏，写活动的性质
  *   host  盖章负责人，签证页的 STAFF 栏
+ *   issuer 签发机构，签证页的 ISSUING AUTHORITY 栏。留空就用护照模版上的那个
  *   desc  备注栏那段话，写这场活动是什么
  *   state 这一场的状态：upcoming 还没到 / live 正在进行 / done 已经办完
  *
@@ -151,8 +152,8 @@ export const VISA_ROW_SOURCES = [
   { key: 'status',    group: '这一页', name: '出席状态',   hint: '盖过章印 ✓，没盖印 — —' },
   { key: 'stampDate', group: '这一页', name: '盖章日期',   hint: '还没盖就空着' },
   { key: 'signed',    group: '这一页', name: '报名状态',   hint: '报了印「已报名」，没报印「——」' },
-  { key: 'post',      group: '这一页', name: '签发站',     hint: 'GCGCM + 页码' },
-  { key: 'control',   group: '这一页', name: '控制号',     hint: '护照号/页码' },
+  { key: 'post',      group: '这一场', name: '签发机构',   hint: '活动详情页里填，留空就用护照模版上的签发机构' },
+  { key: 'control',   group: '这一场', name: '控制号',     hint: '签发机构 + 日期，例如 GCGCM 迎新组/13 SEP 2026' },
 ];
 
 export const VISA_TEMPLATE = {
@@ -163,7 +164,7 @@ export const VISA_TEMPLATE = {
   showAnnotation: true,
   showLinks: true,
   rows: [
-    { key: 'post',    label: 'ISSUING POST 签发站',     src: 'post' },
+    { key: 'post',    label: 'ISSUING AUTHORITY 签发机构', src: 'post' },
     { key: 'control', label: 'CONTROL NUMBER 控制号',   src: 'control' },
     { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
     { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },

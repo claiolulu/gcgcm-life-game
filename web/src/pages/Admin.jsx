@@ -81,8 +81,9 @@ export default function Admin() {
       });
       await loadConfig();
       const made = res.activities.find((a) => a.id === id);
-      // 新建完直接进画布 —— 「新增活动」这一下真正想做的事是把这一页做出来
-      nav(`/staff/admin/a/${made ? made.id : id}/design`);
+      // 新建完先进基本信息页：名字、日期、负责人这些是这一场的底子，
+      // 版式是在这些填完之后才谈得上的事。详情页上有「设计这一页」的入口
+      nav(`/staff/admin/a/${made ? made.id : id}`);
     } catch (err) {
       toast(err.message || '加不上', 'err');
     } finally {
@@ -291,8 +292,8 @@ export default function Admin() {
           </button>
         </div>
         <div className="tiny dim">
-          护照里一场活动一页签证，参加了就盖章。新增活动会直接打开画布 ——
-          默认就是现在这份签证页模版，往上摆字和图就行。改完立刻生效，
+          护照里一场活动一页签证，参加了就盖章。点进去填这一场的信息、
+          配图、链接、报名码，再从那儿进画布排版式。改完立刻生效，
           同工端和所有人的护照都会跟着变，不用重启。
         </div>
 

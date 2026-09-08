@@ -102,7 +102,7 @@ const VISA_TPL_FALLBACK = {
   annotationLabel: 'ANNOTATION 备注',
   showPhoto: true, showAnnotation: true, showLinks: true,
   rows: [
-    { key: 'post',    label: 'ISSUING POST 签发站',     src: 'post' },
+    { key: 'post',    label: 'ISSUING AUTHORITY 签发机构', src: 'post' },
     { key: 'control', label: 'CONTROL NUMBER 控制号',   src: 'control' },
     { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
     { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },
@@ -183,9 +183,12 @@ export function resolveBlocks(template, station, theme) {
  * 那边加一行、这里加一个键、VisaBlocks 的 bindRow 加一个 case，三处齐了才生效。
  */
 export function blockData({
-  station, me, passportNo, pageNo, surname, given, identityLabel,
+  station, me, theme, passportNo, surname, given, identityLabel,
   visaScore, isCheckin, stampTone, stampDate, doneCount, teamBadge, signed, mrz1, mrz2,
 }) {
+  // 签发机构：这一场自己填的优先，没填就用护照模版上的那个（整本护照的签发方）
+  const issuer = String(station?.issuer || '').trim() || theme?.coverIssuer || 'GCGCM';
+  const issued = station?.date || 'TBC 待定';
   return {
     // 持照人
     player: me?.name || '',
@@ -197,8 +200,10 @@ export function blockData({
     // 这一页
     stampDate: stampDate || '',
     signed: signed ? '已报名' : '——',
-    post: `GCGCM ${pageNo}`,
-    control: `${passportNo}/${pageNo}`,
+    post: issuer,
+    // 控制号 = 签发机构 + 日期。原来是「护照号/页码」，那是护照自己的编号，
+    // 每一页都一样，印在签证页上没说出任何关于这一场的事
+    control: `${issuer}/${issued}`,
     surname, given,
     identity: identityLabel,
     tag: station?.tag || '',
@@ -452,9 +457,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   };
   const syncMeta = SYNC[ui.sync] || SYNC.live;
 
-  /* ---- 签证页的版式：模版打底，这场活动可以整份覆盖 ---- */
+  /* ---- 签证页的版式：默认版式打底，活动可以整份换成自己排的 ---- */
   const visaTpl = resolveVisaTemplate(config?.visaTemplate);
-  const pageNo2 = String(cur.i + 1).padStart(2, '0');
 
   // 「一栏的数据来源怎么翻成值」搬到 VisaBlocks 里了（那儿要用同一份逻辑
   // 渲染栏目块），这里只负责把算好的值打包给它 —— 见 blockData()。
@@ -658,7 +662,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
      */
     visaBlocks: station ? resolveBlocks(config?.visaTemplate, station, theme) : [],
     visaBlockData: station ? blockData({
-      station, me, passportNo, pageNo: pageNo2, surname, given, identityLabel,
+      station, me, theme, passportNo, surname, given, identityLabel,
       visaScore, isCheckin, doneCount, teamBadge,
       signed: (me?.signups || []).includes(station.id),
       stampDate: done[station.id]?.at

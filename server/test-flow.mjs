@@ -258,6 +258,21 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('数据来源里有持照人的名字（栏目条能绑它）',
     (cfg.body.visaSources || []).some((x) => x.key === 'player' && x.group === '持照人'));
   check('来源都分了组，下拉才好找', (cfg.body.visaSources || []).every((x) => x.key === 'text' || x.group));
+  check('签发站改叫签发机构',
+    (cfg.body.visaSources || []).find((x) => x.key === 'post')?.name === '签发机构');
+  check('默认栏目标题也跟着改了',
+    cfg.body.visaTemplate.rows.some((r) => r.src === 'post' && r.label.includes('签发机构')));
+
+  // 签发机构存在活动身上，控制号跟着它走
+  const base0 = cfg.body.activities;
+  const withIssuer = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base0.map((a, i) => (i === 0 ? { ...a, issuer: 'GCGCM 迎新组' } : a)) },
+  });
+  check('活动能填签发机构', withIssuer.body.activities?.[0]?.issuer === 'GCGCM 迎新组');
+  check('没填的活动是空串（渲染时回落到护照模版上那个）',
+    withIssuer.body.activities?.[1]?.issuer === '');
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base0 } });
 
   const gone = await j('/api/admin/visa-template', { method: 'POST', headers: adminH, body: { banner: 'X' } });
   check('改模版的接口已经没有了', gone.status === 404, `状态码 ${gone.status}`);

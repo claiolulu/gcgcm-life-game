@@ -195,10 +195,14 @@ export default function ActivityDetail() {
     <div className="page page--wide">
       <NetBar />
 
-      <div className="row-between" style={{ marginBottom: 14 }}>
-        <div>
-          <Link className="tiny dim" to="/staff/admin">← 总控台</Link>
-          <h1 style={{ margin: '2px 0 0' }}>
+      <div className="row-between" style={{ marginBottom: 14, gap: 10 }}>
+        <div className="row" style={{ gap: 12, minWidth: 0 }}>
+          {/* 返回是这一页最常按的东西之一（看完一场回去看下一场），
+              原来是标题上面一行 tiny dim 的小字，又小又难点 */}
+          <Link className="btn btn--ghost" to="/staff/admin" style={{ flex: '0 0 auto' }}>
+            ← 总控台
+          </Link>
+          <h1 style={{ margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             <span style={{ marginRight: 8 }}>{draft.icon}</span>
             {draft.name || '（还没起名字）'}
           </h1>
@@ -312,6 +316,13 @@ export default function ActivityDetail() {
             onChange={(e) => edit({ en: e.target.value })} />
           <input className="input grow" value={draft.host} maxLength={20} placeholder="负责人"
             onChange={(e) => edit({ host: e.target.value })} />
+        </div>
+        <input className="input" value={draft.issuer || ''} maxLength={24}
+          placeholder="签发机构（留空就用护照模版上的那个）"
+          onChange={(e) => edit({ issuer: e.target.value })} />
+        <div className="tiny dim">
+          签发机构印在签证页的「ISSUING AUTHORITY」栏；控制号那一栏印的是
+          <b>签发机构 + 日期</b>，所以改了这里两栏一起变。
         </div>
         <input className="input" value={draft.desc} maxLength={200} placeholder="这场活动是什么（显示在签证页上）"
           onChange={(e) => edit({ desc: e.target.value })} />
