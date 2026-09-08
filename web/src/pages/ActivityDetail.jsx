@@ -196,8 +196,10 @@ export default function ActivityDetail() {
     <div className="page page--wide">
       <NetBar />
 
-      <div className="row-between" style={{ marginBottom: 14, gap: 10 }}>
-        <div className="row" style={{ gap: 12, minWidth: 0 }}>
+      {/* 窄屏上按钮换行到第二排：不换的话「返回 + 标题」会被三个按钮
+          挤到零宽，活动名整个看不见 */}
+      <div className="row-between" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <div className="row" style={{ gap: 12, flex: '1 1 200px', minWidth: 0 }}>
           {/* 返回是这一页最常按的东西之一（看完一场回去看下一场），
               原来是标题上面一行 tiny dim 的小字，又小又难点 */}
           <Link className="btn btn--ghost" to="/staff/admin" style={{ flex: '0 0 auto' }}>
@@ -209,7 +211,7 @@ export default function ActivityDetail() {
           </h1>
         </div>
         {/* 设计和删掉各自只有一个动作，不值得各占一张卡 */}
-        <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
+        <div className="row" style={{ gap: 6, flex: '0 0 auto', marginLeft: 'auto' }}>
         <Link className="btn btn--sm btn--ghost" to={`/staff/admin/a/${id}/design`}>🎨 设计这一页</Link>
         <button className="btn btn--sm btn--ghost" onClick={remove} disabled={busy === 'save'}
           title={`删掉「${draft.name}」`} style={{ color: 'var(--red)' }}>🗑 删掉</button>
@@ -231,6 +233,104 @@ export default function ActivityDetail() {
       {/* 宽屏下分三摞。报名单独占最右边一摞 —— 它最高（二维码 + 名单），
           和别的卡挤在一行的话，那一行按它的高度算，旁边就白掉一大片。
           版式和删掉不在这里：各自只有一个动作，做成了右上角的按钮 */}
+      {/* 宽屏下分三摞：
+            左   这一场是什么（基本信息、链接、配图）
+            中   现在怎么样、怎么让人来（状态、报名码）
+            右   谁来了 —— 单独一摞，人多了也有地方看（列表自己滚）
+          版式和删掉不在这里：各自只有一个动作，做成了右上角的按钮 */}
+      <div className="cell-stack">
+      {/* 基本信息 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">📝 基本信息</div>
+        <div className="row" style={{ gap: 6 }}>
+          <input className="input" style={{ flex: '0 0 52px', textAlign: 'center' }}
+            value={draft.icon} maxLength={4} aria-label="图标"
+            onChange={(e) => edit({ icon: e.target.value })} />
+          <input className="input grow" value={draft.name} maxLength={20} placeholder="活动名"
+            onChange={(e) => edit({ name: e.target.value })} />
+        </div>
+        <div className="row" style={{ gap: 6 }}>
+          <input className="input grow" value={draft.date} maxLength={20} placeholder="日期（留空显示「待定」）"
+            onChange={(e) => edit({ date: e.target.value })} />
+          <input className="input grow" value={draft.tag} maxLength={12} placeholder="类型"
+            onChange={(e) => edit({ tag: e.target.value })} />
+        </div>
+        <div className="row" style={{ gap: 6 }}>
+          <input className="input grow" value={draft.en} maxLength={40} placeholder="英文名（选填）"
+            onChange={(e) => edit({ en: e.target.value })} />
+          <input className="input grow" value={draft.host} maxLength={20} placeholder="负责人"
+            onChange={(e) => edit({ host: e.target.value })} />
+        </div>
+        <input className="input" value={draft.issuer || ''} maxLength={24}
+          placeholder="签发机构（留空就用护照模版上的那个）"
+          onChange={(e) => edit({ issuer: e.target.value })} />
+        <div className="tiny dim">
+          签发机构印在签证页的「ISSUING AUTHORITY」栏；控制号那一栏印的是
+          <b>签发机构 + 日期</b>，所以改了这里两栏一起变。
+        </div>
+        <input className="input" value={draft.desc} maxLength={200} placeholder="这场活动是什么（显示在签证页上）"
+          onChange={(e) => edit({ desc: e.target.value })} />
+        <div className="tiny dim">
+          id <code>{draft.id}</code> —— 盖过的章认这个 id，所以建了就不能改。
+        </div>
+      </div>
+      {/* 页面链接和配图合成一张卡：两块都不高，各占一张卡的话
+          左边这一摞会被切得很碎。各自的小标题就是分隔 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">🔗 页面链接（{links.length}）</div>
+        <div className="tiny dim">
+          印成签证页底下一排可点的小图标 —— 相册、报名表、场地地图、群。
+          地址要以 http:// 或 https:// 开头。
+        </div>
+        <div className="stack-sm">
+          {links.map((l, k) => (
+            <div key={k} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <IconPicker
+                value={l.icon} label={l.label}
+                onChange={(patch) => linkOps.edit(k, patch)}
+              />
+              <input className="input" style={{ flex: '1 1 90px' }}
+                value={l.label} maxLength={12} placeholder="名字"
+                onChange={(e) => linkOps.edit(k, { label: e.target.value })} />
+              <input className="input" style={{ flex: '3 1 160px' }} value={l.url} maxLength={300}
+                placeholder="https://…" inputMode="url"
+                onChange={(e) => linkOps.edit(k, { url: e.target.value })} />
+              <button className="btn btn--sm btn--ghost" onClick={() => linkOps.remove(k)} title="删掉">✕</button>
+            </div>
+          ))}
+          {links.length < 6 && (
+            <button className="btn btn--sm btn--ghost" onClick={linkOps.add}>+ 加一个链接</button>
+          )}
+        </div>
+        <div style={{ height: 1, background: 'var(--line-soft)' }} />
+        <div className="section-title">🖼 配图</div>
+        <div className="tiny dim">贴在签证页右上角，横构图最好看。上传完还要点保存才算数。</div>
+        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+          <div style={{
+            flex: '0 0 120px', height: 76, border: '1px solid var(--line)', borderRadius: 3,
+            overflow: 'hidden', background: 'var(--ink-3)',
+            backgroundImage: draft.photo ? `url("${draft.photo}")` : 'none',
+            // contain 而不是 cover：这一块是给人确认「我传上去的是什么」的，
+            // 裁着显示会让人以为图就是那样
+            backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {!draft.photo && <span className="tiny dim">无图</span>}
+          </div>
+          <div className="stack-sm grow">
+            <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+              {busy === 'photo' ? '上传中…' : draft.photo ? '换一张' : '＋ 选一张图'}
+              <input type="file" accept="image/*" hidden disabled={busy === 'photo'}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; pickPhoto(f); }} />
+            </label>
+            {draft.photo && (
+              <button className="btn btn--sm btn--ghost" onClick={() => edit({ photo: '' })}>去掉</button>
+            )}
+          </div>
+        </div>
+      </div>
+      </div>
+
       <div className="cell-stack">
       {/* 这一场的状态 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
@@ -274,129 +374,6 @@ export default function ActivityDetail() {
           </div>
         )}
       </div>
-      {/* 谁来了 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">
-          👥 已参加（{attended.length}）
-        </div>
-        {attended.length === 0 ? (
-          <div className="tiny dim">还没有人在这一场盖章。同工扫码盖了章，这里就会出现。</div>
-        ) : (
-          <div className="stack-sm">
-            {attended.map((p) => (
-              <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
-                <Avatar avatar={p.avatar} size={28} />
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.name}
-                  </div>
-                  <div className="tiny dim">
-                    {p.code} · {ago(p.stamp.at)}
-                    {p.stamp.operator ? ` · ${p.stamp.operator} 盖的` : ''}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {/* 页面链接 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">🔗 页面链接（{links.length}）</div>
-        <div className="tiny dim">
-          印成签证页底下一排可点的小图标 —— 相册、报名表、场地地图、群。
-          地址要以 http:// 或 https:// 开头。
-        </div>
-        <div className="stack-sm">
-          {links.map((l, k) => (
-            <div key={k} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-              <IconPicker
-                value={l.icon} label={l.label}
-                onChange={(patch) => linkOps.edit(k, patch)}
-              />
-              <input className="input" style={{ flex: '1 1 90px' }}
-                value={l.label} maxLength={12} placeholder="名字"
-                onChange={(e) => linkOps.edit(k, { label: e.target.value })} />
-              <input className="input" style={{ flex: '3 1 160px' }} value={l.url} maxLength={300}
-                placeholder="https://…" inputMode="url"
-                onChange={(e) => linkOps.edit(k, { url: e.target.value })} />
-              <button className="btn btn--sm btn--ghost" onClick={() => linkOps.remove(k)} title="删掉">✕</button>
-            </div>
-          ))}
-          {links.length < 6 && (
-            <button className="btn btn--sm btn--ghost" onClick={linkOps.add}>+ 加一个链接</button>
-          )}
-        </div>
-      </div>
-      </div>
-
-      <div className="cell-stack">
-      {/* 基本信息 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">📝 基本信息</div>
-        <div className="row" style={{ gap: 6 }}>
-          <input className="input" style={{ flex: '0 0 52px', textAlign: 'center' }}
-            value={draft.icon} maxLength={4} aria-label="图标"
-            onChange={(e) => edit({ icon: e.target.value })} />
-          <input className="input grow" value={draft.name} maxLength={20} placeholder="活动名"
-            onChange={(e) => edit({ name: e.target.value })} />
-        </div>
-        <div className="row" style={{ gap: 6 }}>
-          <input className="input grow" value={draft.date} maxLength={20} placeholder="日期（留空显示「待定」）"
-            onChange={(e) => edit({ date: e.target.value })} />
-          <input className="input grow" value={draft.tag} maxLength={12} placeholder="类型"
-            onChange={(e) => edit({ tag: e.target.value })} />
-        </div>
-        <div className="row" style={{ gap: 6 }}>
-          <input className="input grow" value={draft.en} maxLength={40} placeholder="英文名（选填）"
-            onChange={(e) => edit({ en: e.target.value })} />
-          <input className="input grow" value={draft.host} maxLength={20} placeholder="负责人"
-            onChange={(e) => edit({ host: e.target.value })} />
-        </div>
-        <input className="input" value={draft.issuer || ''} maxLength={24}
-          placeholder="签发机构（留空就用护照模版上的那个）"
-          onChange={(e) => edit({ issuer: e.target.value })} />
-        <div className="tiny dim">
-          签发机构印在签证页的「ISSUING AUTHORITY」栏；控制号那一栏印的是
-          <b>签发机构 + 日期</b>，所以改了这里两栏一起变。
-        </div>
-        <input className="input" value={draft.desc} maxLength={200} placeholder="这场活动是什么（显示在签证页上）"
-          onChange={(e) => edit({ desc: e.target.value })} />
-        <div className="tiny dim">
-          id <code>{draft.id}</code> —— 盖过的章认这个 id，所以建了就不能改。
-        </div>
-      </div>
-      {/* 配图 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">🖼 配图</div>
-        <div className="tiny dim">贴在签证页右上角，横构图最好看。上传完还要点保存才算数。</div>
-        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-          <div style={{
-            flex: '0 0 120px', height: 76, border: '1px solid var(--line)', borderRadius: 3,
-            overflow: 'hidden', background: 'var(--ink-3)',
-            backgroundImage: draft.photo ? `url("${draft.photo}")` : 'none',
-            // contain 而不是 cover：这一块是给人确认「我传上去的是什么」的，
-            // 裁着显示会让人以为图就是那样
-            backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {!draft.photo && <span className="tiny dim">无图</span>}
-          </div>
-          <div className="stack-sm grow">
-            <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
-              {busy === 'photo' ? '上传中…' : draft.photo ? '换一张' : '＋ 选一张图'}
-              <input type="file" accept="image/*" hidden disabled={busy === 'photo'}
-                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; pickPhoto(f); }} />
-            </label>
-            {draft.photo && (
-              <button className="btn btn--sm btn--ghost" onClick={() => edit({ photo: '' })}>去掉</button>
-            )}
-          </div>
-        </div>
-      </div>
-      </div>
-
-      <div className="cell-stack">
       {/* 报名 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">📣 报名（{signups.length}）</div>
@@ -455,6 +432,37 @@ export default function ActivityDetail() {
         )}
       </div>
       </div>
+
+      <div className="cell-stack">
+      {/* 谁来了 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">
+          👥 已参加（{attended.length}）
+        </div>
+        {attended.length === 0 ? (
+          <div className="tiny dim">还没有人在这一场盖章。同工扫码盖了章，这里就会出现。</div>
+        ) : (
+          /* 单独占一摞，所以给得起高度；再多就自己滚，不会把整页拉长 */
+          <div className="stack-sm attend-list">
+            {attended.map((p) => (
+              <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
+                <Avatar avatar={p.avatar} size={28} />
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.name}
+                  </div>
+                  <div className="tiny dim">
+                    {p.code} · {ago(p.stamp.at)}
+                    {p.stamp.operator ? ` · ${p.stamp.operator} 盖的` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      </div>
+
 
 
       </div>

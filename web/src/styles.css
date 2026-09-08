@@ -700,6 +700,9 @@ html.book-locked body {
      那张撑出一大片空白。窄屏下它就是个普通的 div，卡片照常一张张往下排。 */
   .page--wide .cell-stack { display: block; }
 
+  /* 已参加名单：宽屏下它自己占一摞，高度给足，再多就自己滚 */
+  .page--wide .attend-list { max-height: 68vh; overflow-y: auto; }
+
   /* 一行一个人 / 一行一场的长列表：给个高度让它自己滚。
      不封顶的话花名册一张卡就一千二百多像素高，整页要滚三屏，
      而真正要看的东西（活动、参数）全被推到看不见的地方 */
