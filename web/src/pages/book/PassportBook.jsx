@@ -39,8 +39,8 @@ export default function PassportBook() {
   // 自动引导要等人先把封面翻开。否则新用户一进来就被拽到导航页，
   // 连封面都没看见，还以为程序坏了。
   const [opened, setOpened] = useState(false);
-  // 第一次打开护照自动走一遍引导，之后只在点 ? 时再看
-  const [tourDone, setTourDone] = useLocalState('mlg.tourDone', false);
+  // v2 是打卡护照的新说明。换一个键，让看过旧游戏引导的人也会自动看到一次。
+  const [tourDone, setTourDone] = useLocalState('mlg.tourDone.v2', false);
   const [board, setBoard] = useState([]);
   const [qr, setQr] = useState({ thumb: null, big: null });
   const [vpLandscape, setVpLandscape] = useState(
@@ -364,26 +364,23 @@ export default function PassportBook() {
   const firstVisa = pages.findIndex((p) => p.kind === 'visa');
   const tourSteps = [
     { eyebrow: 'YOUR PASSPORT 你的护照', page: notesPage,
-      title: '这本护照就是你今晚的身份',
-      body: '一共十四页：资料页、八张签证页、恩典站和结语。点页面的左右边缘可以前后翻页，也可以用方向键。' },
+      title: '这是一本会一直陪着你的活动护照',
+      body: `它不属于某一晚或某一场游戏。资料页、${config?.activities?.length || 0} 张活动签证页和结语装订在一起；以后增加活动，也会自动多一页。点左右边缘即可翻页。` },
     { eyebrow: 'VISA PAGES 签证页', page: firstVisa,
-      title: '每过一关，这里会盖一个章',
-      body: '八张签证页对应八个关卡。同工当场评分：3 分勉强、6 分正常、9 分出色，颜色不一样。每关只有一次机会。' },
+      title: '每场活动都有自己的一页',
+      body: '活动名称、日期、负责人和你的报名状态都在签证页上。参加活动后，同工会在对应页面盖一枚「已参加」的章；每场只盖一次。' },
     { eyebrow: 'IDENTIFICATION 资料页', page: pages.findIndex((p) => p.kind === 'data'),
-      title: '这一页有你的二维码',
-      body: '到了关卡，把这个二维码给同工扫。扫不出来就报你的编号，页脚和右下角都有。' },
-    { eyebrow: 'LEADERBOARD 排行', page: notesPage, selector: '[data-tour="board"]',
-      title: '随时看实时排名',
-      body: '全场积分实时更新。分数高的人在部分关卡可以优先排队 —— 人生本来就不太公平。' },
-    { eyebrow: 'MY TEAM 队伍', page: notesPage, selector: '[data-tour="team"]',
-      title: '这里是你的队伍和队友',
-      body: '抽完签之后，这里会显示你的队伍颜色符号，以及队友的头像和名字。举着它在场内互相对暗号。' },
-    { eyebrow: 'GRACE 恩典站', page: notesPage, selector: '[data-tour="grace"]',
-      title: '卡住了就用这枚代币',
-      body: '全场只有一枚 Help Token。卡关、失败、或者抽到大凶被扣分时，随时可以去恩典站递出它换一次帮助。' },
-    { eyebrow: 'HOW TO PLAY 玩法', page: notesPage, selector: '[data-tour="guide"]',
+      title: '现场出示的是“护照二维码”',
+      body: '活动海报上的二维码用来报名；这本护照里的二维码用来让同工认出你并盖章。扫不出来时，直接报资料页上的个人编号即可。' },
+    { eyebrow: 'PERSONALISE 个性化', page: pages.findIndex((p) => p.kind === 'data'), selector: '[data-tour="theme"]',
+      title: '这本护照可以有自己的颜色',
+      body: '点“自定义”可以更换护照配色，只影响你自己的这一本。姓名、头像或联系方式也可以随时回到个人资料里修改。' },
+    { eyebrow: 'ATTENDANCE 参与记录', page: notesPage, selector: '[data-tour="board"]',
+      title: '看看大家一起走了多远',
+      body: '这里按参加活动的记录汇总。它不是一次游戏的输赢，只是一本共同生活的足迹册。' },
+    { eyebrow: 'HOW TO USE 使用说明', page: notesPage, selector: '[data-tour="guide"]',
       title: '想再看一遍就点这里',
-      body: '以上这些随时可以重看。现在，翻开你的护照，去认识几个新朋友吧。' },
+      body: '问号里随时可以重看完整说明。记住个人编号和四位密码；换手机或清除浏览器数据后，可以用它们找回同一本护照。' },
   ];
 
 

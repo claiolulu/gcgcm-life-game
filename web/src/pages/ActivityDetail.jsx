@@ -24,9 +24,9 @@ import QRCode from 'qrcode';
  */
 
 const STATE_META = {
-  upcoming: { icon: '🗓', label: '还没到', hint: '护照上看得到这一页，但还没到日子。同工也可以提前盖章，没有拦。' },
-  live:     { icon: '🎯', label: '进行中', hint: '同工扫码时默认盖这一场。同时只能有一场进行中。活动期间护照信息锁定，改不了名字。' },
-  done:     { icon: '✅', label: '已办完', hint: '章还在，页还在。下一场开始之前，大家可以回来改自己的名字和头像。' },
+  upcoming: { icon: '🗓', label: '报名中', hint: '活动还没开始，活动二维码接受报名；任何人也都可以随时领取护照。' },
+  live:     { icon: '🎯', label: '进行中', hint: '线上报名自动截止，同工扫码时默认盖这一场。迟到的人请直接找现场同工。' },
+  done:     { icon: '✅', label: '已结束', hint: '不再接受报名，已有报名与护照印章会继续保留。' },
 };
 
 export default function ActivityDetail() {
@@ -43,7 +43,6 @@ export default function ActivityDetail() {
   const [dirty, setDirty] = useState(false);
 
   const activities = config?.activities || [];
-  const settings = config?.settings || {};
   const players = useMemo(() => allPlayers(), [staff.players, staff.outbox]); // eslint-disable-line
 
   useEffect(() => {
@@ -177,18 +176,6 @@ export default function ActivityDetail() {
     }
   }
 
-  async function patchSettings(patch, key) {
-    setBusy(key);
-    try {
-      await api('/api/admin/settings', { method: 'POST', body: patch, token });
-      await loadConfig();
-    } catch (err) {
-      toast(err.message || '改不动', 'err');
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function remove() {
     const n = attended.length;
     const ok = await ask({
@@ -214,7 +201,6 @@ export default function ActivityDetail() {
   }
 
   const meta = STATE_META[draft.state] || STATE_META.upcoming;
-  const isLive = draft.state === 'live';
 
   return (
     <div className="page page--wide">
@@ -369,30 +355,13 @@ export default function ActivityDetail() {
         </div>
         <div className="tiny dim">{meta.hint}</div>
 
-        {/* 报名开关只在进行中这一场露出来 —— 它是全场唯一的一个开关，
-            放在「现在正在办的这一场」旁边，才知道自己开的是什么 */}
-        {isLive ? (
-          <div className="card card--tight row-between" style={{ gap: 10 }}>
-            <div>
-              <div className="small bold">开放报名</div>
-              <div className="tiny dim">
-                开着的时候，今晚新来的人可以自己扫码领一本护照。
-                这是全场唯一的报名开关。
-              </div>
-            </div>
-            <button
-              className={`btn btn--sm ${settings.registrationOpen ? 'btn--primary' : 'btn--ghost'}`}
-              disabled={busy === 'reg'}
-              onClick={() => patchSettings({ registrationOpen: !settings.registrationOpen }, 'reg')}
-            >
-              {settings.registrationOpen ? '开' : '关'}
-            </button>
-          </div>
-        ) : (
+        <div className="card card--tight">
+          <div className="small bold">报名规则跟随这一场的状态</div>
           <div className="tiny dim">
-            报名开关在「进行中」那一场里 —— 现在这一场不是。
+            报名中可以扫码报名；切到进行中会自动截止报名；已结束只保留记录。
+            领取人生护照始终开放，不受这里影响。
           </div>
-        )}
+        </div>
       </div>
       {/* 报名 */}
       <div className="card stack" style={{ marginBottom: 12 }}>

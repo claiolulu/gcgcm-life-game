@@ -249,14 +249,16 @@ const STAMP_SPOT = [
 
 /** 玩法页（点页眉的 ? 打开）。原来讲的是迎新那一晚的闯关规则，改成讲打卡本 */
 const GUIDE = [
-  { n: 1, cn: '领一本护照', en: 'GET YOURS',
-    body: '报名之后这本护照就是你的。编号和密码记好，换手机了用它找回。' },
-  { n: 2, cn: '来一场活动', en: 'COME ALONG',
-    body: '迎新、查经、退修会、圣诞……每一场在护照里都是一页签证。' },
-  { n: 3, cn: '找同工盖章', en: 'GET STAMPED',
-    body: '到了现场把护照上的二维码给同工扫一下，当场盖章。每场只盖一次。' },
-  { n: 4, cn: '翻回来看看', en: 'LOOK BACK',
-    body: '一年下来翻开它，就是你在这里走过的路 —— 去过哪儿、和谁一起。' },
+  { n: 1, cn: '领取并保管', en: 'GET YOUR PASSPORT',
+    body: '人生护照随时都可以领取，不受任何活动是否开始影响。记住个人编号和四位密码，换手机后可以找回同一本。' },
+  { n: 2, cn: '扫描活动海报', en: 'SIGN UP',
+    body: '海报二维码打开的是那一场活动：显示“报名中”时可以报名；活动开始后会显示报名截止；办完后会显示活动已结束。' },
+  { n: 3, cn: '翻到活动签证', en: 'YOUR VISA PAGES',
+    body: '每场活动对应一张签证页，上面有日期、负责人、活动介绍和你的报名状态。新活动会自动装订进来。' },
+  { n: 4, cn: '到场出示护照码', en: 'GET STAMPED',
+    body: '现场打开护照二维码给同工扫描，同工会在对应活动页盖“已参加”章。每场只盖一次，盖完手机上立即更新。' },
+  { n: 5, cn: '随时回来翻阅', en: 'KEEP THE JOURNEY',
+    body: '你可以继续修改姓名、头像、联系方式和护照配色。这里记录的不是输赢，而是你来过、参与过、和大家一起走过。' },
 ];
 
 /**
@@ -399,8 +401,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 签证页的页眉写活动名 —— 每页都写「VISA 签证」等于什么都没说，
     // 而翻到哪一场才是这一页唯一会变的信息
     visa: station ? `${station.icon || ''} ${station.name}`.trim() : 'VISA 签证',
-    guide: 'HOW TO PLAY 玩法',
-    board: 'LEADERBOARD 实时排行', closing: 'CLOSING 结语',
+    guide: 'HOW TO USE 使用说明',
+    board: 'ATTENDANCE 参与记录', closing: 'CLOSING 结语',
   };
   const corners = {
     inside: 'ROM 15:7', notes: passportNo, data: 'TYPE P / GCGCM',
@@ -408,7 +410,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     visa: station
       ? (visaScore != null ? '已参加 ✓' : `NO.${String(cur.i + 1).padStart(2, '0')} 待参加`)
       : '',
-    guide: 'RULES · 点问号返回', board: 'LIVE · 点奖杯返回',
+    guide: 'GUIDE · 点问号返回', board: 'RECORDS · 点奖杯返回',
     closing: 'JOHN 15:12',
   };
 
@@ -498,7 +500,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     visaBlank,
     pageNo: ui.overlay ? '——' : String(ui.page).padStart(2, '0'),
     label: ui.overlay === 'board' ? '排行 LEADERBOARD'
-         : ui.overlay === 'guide' ? '玩法 HOW TO PLAY' : cur.label,
+         : ui.overlay === 'guide' ? '使用说明 HOW TO USE' : cur.label,
 
     /* ---- 翻页（唯一保留的交互） ---- */
     next: () => actions.move(1),
@@ -578,10 +580,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
     /* ---- 导航页 ---- */
     navCards: [
-      { cn: '实时排行', en: 'LEADERBOARD', glyph: 'T', chip: 'rgba(var(--pp-ink-rgb),.06)',
-        desc: '查看当前积分与全场排名。', go: () => actions.setOverlay('board') },
-      { cn: '玩法说明', en: 'HOW TO PLAY', glyph: '?', chip: 'rgba(44,74,90,.08)',
-        desc: '身份、关卡、评分与颁奖的完整规则。', go: () => actions.setOverlay('guide') },
+      { cn: '参与记录', en: 'ATTENDANCE', glyph: 'T', chip: 'rgba(var(--pp-ink-rgb),.06)',
+        desc: '看看自己和大家参加过多少场活动。', go: () => actions.setOverlay('board') },
+      { cn: '使用说明', en: 'HOW TO USE', glyph: '?', chip: 'rgba(44,74,90,.08)',
+        desc: '报名活动、现场盖章和找回护照的完整说明。', go: () => actions.setOverlay('guide') },
     ],
     summaryRows: [
       { label: 'VISAS 参加过', value: `${doneCount} / ${stations.length}` },

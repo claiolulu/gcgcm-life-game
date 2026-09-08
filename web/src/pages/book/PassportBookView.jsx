@@ -87,7 +87,7 @@ export default function PassportBookView({ v }) {
                             {v.totalPad}
                           </div>
                           <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".08em", opacity: .5}}>
-                            PTS
+                            VISAS
                           </div>
                         </div>
                         <button onClick={v.goGuide} data-tour="guide" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "15px", color: "var(--pp-ink)"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
@@ -127,7 +127,7 @@ export default function PassportBookView({ v }) {
                               </div>
                             </div>
                             <div style={{fontSize: "13.5px", lineHeight: "2.05", color: "rgba(var(--pp-text-rgb),.75)", textWrap: "pretty"}}>
-                              本护照由 GCGCM 签发，有效期无尽无穷。持照人将以此身份通行各关卡；无论积分多少，你在这里的位置都不因表现改变。
+                              本护照由 GCGCM 签发，有效期无尽无穷。每一场活动都是一页签证；你来过、参与过，同工就为你留下一枚章。
                             </div>
                             <div style={{marginTop: "auto", display: "flex", alignItems: "center", gap: "12px"}}>
                               <div style={{flex: "1", height: "1px", background: "rgba(var(--pp-ink-rgb),.35)"}} />
@@ -152,7 +152,7 @@ export default function PassportBookView({ v }) {
                                   </div>
                                 ))}
                                 <button onClick={v.startTour} style={{marginTop: "4px", padding: "14px", background: "var(--pp-ink)", border: "1px solid rgba(var(--pp-gold-2-rgb),.6)", color: "var(--pp-gold)", fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".22em", textIndent: ".22em"}}>
-                                  HOW TO PLAY 看怎么玩
+                                  HOW TO USE 使用说明
                                 </button>
                               </div>
 
@@ -174,7 +174,7 @@ export default function PassportBookView({ v }) {
                               </button>
                               <div style={{flex: "1", minWidth: "0"}}>
                                 <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                                  MACHINE READABLE 扫码记分
+                                  MEMBER CODE 同工扫码盖章
                                 </div>
                                 <div style={{marginTop: "8px", fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "12px", letterSpacing: ".16em", color: "var(--pp-ink)"}}>
                                   {v.passportNo}
@@ -270,10 +270,10 @@ export default function PassportBookView({ v }) {
                             ))}
                             <div style={{marginTop: "16px", padding: "15px 16px", background: "rgba(44,74,90,.08)", borderLeft: "2px solid #2c4a5a"}}>
                               <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".2em", color: "#2c4a5a"}}>
-                                LIFE EVENT 人生盲盒
+                                TWO QR CODES 两种二维码
                               </div>
                               <div style={{marginTop: "8px", fontSize: "13px", fontWeight: "600", lineHeight: "1.95", color: "var(--pp-text)"}}>
-                                总分首次跨过 15 / 30 / 50 分时，必须暂停挑战，前往场地中央抽一张盲盒卡：Good Fortune、Bad Luck、Unexpected、Extreme。
+                                活动海报上的二维码用来查看活动和报名；护照里的二维码属于你本人，到了现场出示给同工扫码盖章。不要把两者弄反。
                               </div>
                             </div>
                           </div>
@@ -312,10 +312,10 @@ export default function PassportBookView({ v }) {
                             ))}
                             <div style={{marginTop: "18px", padding: "15px 16px", border: "1px solid rgba(var(--pp-ink-rgb),.28)"}}>
                               <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".2em", color: "var(--pp-ink)"}}>
-                                AWARDS 颁奖
+                                SHARED JOURNEY 同行记录
                               </div>
                               <div style={{marginTop: "8px", fontSize: "13px", fontWeight: "600", lineHeight: "1.95", color: "var(--pp-text)"}}>
-                                除最高积分奖外，另颁 The Connector、The Creative 等迎新向奖项，最后进入福音反思环节。
+                                数字表示已经参加并盖章的活动数量。它不是输赢排名，而是大家在 GCGCM 一起出现、一起经历的记录。
                               </div>
                             </div>
                           </div>
@@ -399,7 +399,7 @@ export default function PassportBookView({ v }) {
                 {v.isData ? (
                   <>
                     <div style={{position: "relative", zIndex: "4", flex: "1", minHeight: "0", display: "flex", gap: "18px", padding: "13px 20px 0"}}>
-                      <button onClick={v.openTheme} title="换个配色" style={{position: "absolute", right: "10px", top: "8px", zIndex: 7, height: "22px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".14em", whiteSpace: "nowrap"}}>
+                      <button onClick={v.openTheme} data-tour="theme" title="换个配色" style={{position: "absolute", right: "10px", top: "8px", zIndex: 7, height: "22px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".14em", whiteSpace: "nowrap"}}>
                         ✎ 自定义
                       </button>
                       <div style={{flex: "none", width: "126px", display: "flex", flexDirection: "column", gap: "10px"}}>

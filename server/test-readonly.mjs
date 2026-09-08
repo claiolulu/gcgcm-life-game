@@ -1,7 +1,7 @@
 /**
- * 选手端只读不变式测试。
- * 选手端是纯展示端：入场阶段可以自助报名，游戏一开始就必须一行也写不进去。
- * 所有写入（记分、盲盒、Token、调分）只能来自管理员／工作人员端。
+ * 选手权限不变式测试。
+ * 护照属于本人，任何时候都能领取和维护；活动状态只控制那一场的报名。
+ * 记分等工作人员操作仍然不能由选手端写入。
  */
 const BASE = process.env.BASE || 'http://localhost:3000';
 const j = async (url, opts = {}) => {
@@ -41,22 +41,22 @@ const playerId = reg.body.player.id;
 const edit = await j('/api/me', { method: 'POST', headers: P, body: { name: '改了名字' } });
 check('入场阶段可以改名字/头像', edit.status === 200 && edit.body.player.name === '改了名字');
 
-/* ---------- 开赛：选手端立刻全面只读 ---------- */
+/* ---------- 活动进行中：护照仍然独立可用 ---------- */
 
 await setState('running');
 
 const cfg = await j('/api/config');
-check('切到「游戏进行中」会自动关闭报名通道', cfg.body.settings.registrationOpen === false,
+check('配置不再下发旧的全局报名开关', cfg.body.settings.registrationOpen === undefined,
   `registrationOpen=${cfg.body.settings.registrationOpen}`);
 
 const regAfter = await j('/api/register', { method: 'POST', body: { name: '迟到的人' } });
-check('开赛后拒绝自助报名', regAfter.status === 403, `状态码 ${regAfter.status}`);
+check('活动进行中仍能领取护照', regAfter.status === 200, `状态码 ${regAfter.status}`);
 
 const editAfter = await j('/api/me', { method: 'POST', headers: P, body: { name: '偷偷改名' } });
-check('开赛后拒绝改护照信息', editAfter.status === 403, `状态码 ${editAfter.status}`);
+check('活动进行中仍能维护护照信息', editAfter.status === 200, `状态码 ${editAfter.status}`);
 
 const stillOld = await j('/api/me', { headers: P });
-check('护照信息确实没被改动', stillOld.body.player.name === '改了名字', stillOld.body.player.name);
+check('护照信息改动已经保存', stillOld.body.player.name === '偷偷改名', stillOld.body.player.name);
 
 /* ---------- 拉取始终可用 ---------- */
 
@@ -86,13 +86,13 @@ check('选手令牌不能导出成绩单', exportCsv.status === 401 || exportCsv
 const anon = await j('/api/staff/sync', { method: 'POST', body: { ops: [], since: 0 } });
 check('匿名请求不能调记分接口', anon.status === 401, `状态码 ${anon.status}`);
 
-/* ---------- 结束阶段依旧只读 ---------- */
+/* ---------- 活动结束后护照仍然可用 ---------- */
 
 await setState('ended');
 const regEnded = await j('/api/register', { method: 'POST', body: { name: '结束后报名' } });
-check('结束后依旧拒绝自助报名', regEnded.status === 403, `状态码 ${regEnded.status}`);
+check('活动结束后仍能领取护照', regEnded.status === 200, `状态码 ${regEnded.status}`);
 const editEnded = await j('/api/me', { method: 'POST', headers: P, body: { name: 'x' } });
-check('结束后依旧拒绝改护照', editEnded.status === 403, `状态码 ${editEnded.status}`);
+check('活动结束后仍能维护护照', editEnded.status === 200, `状态码 ${editEnded.status}`);
 const badgeData = await j('/api/me', { headers: P });
 check('结束后仍能拉取护照用于生成徽章', badgeData.status === 200);
 

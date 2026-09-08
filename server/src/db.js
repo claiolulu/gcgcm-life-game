@@ -210,7 +210,9 @@ export function getSettings() {
   const rows = db.prepare('SELECT key, value FROM settings').all();
   const out = { ...DEFAULT_SETTINGS };
   for (const r of rows) {
-    if (r.key.startsWith('_')) continue; // 内部键（密钥、PIN）不外发
+    // registrationOpen 是旧版的全局报名开关。护照签发与单场活动已经解耦，
+    // 老数据库里即使还留着这个键，也不能再让旧值影响新客户端。
+    if (r.key.startsWith('_') || r.key === 'registrationOpen') continue;
     out[r.key] = safeJSON(r.value, out[r.key]);
   }
   return out;

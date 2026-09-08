@@ -200,7 +200,6 @@ export const THEME_PRESETS = [
 /** 默认可调参数（存进 settings 表，Admin 后台可改） */
 export const DEFAULT_SETTINGS = {
   gameState: 'lobby',              // lobby | running | ended
-  registrationOpen: true,
   leaderboardPublic: true,
   showFullNames: true,
 };
@@ -211,5 +210,4 @@ export const DEFAULT_SETTINGS = {
  * 不用念一串随机数字，也不会念错。
  */
 export const RESET_PIN = '3927';
-
 

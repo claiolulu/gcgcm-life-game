@@ -52,7 +52,6 @@ export default function Register() {
   const toast = useToast();
   const { config } = useConfig();
   const game = config?.game;
-  const open = config?.settings?.registrationOpen ?? true;
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -106,16 +105,7 @@ export default function Register() {
           </div>
         </div>
 
-        {!open ? (
-          <div className="card center" style={{ padding: '28px 18px' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>🚪</div>
-            <div className="bold" style={{ marginBottom: 6 }}>报名通道已经关闭</div>
-            <div className="small muted">如果你还没领到护照，请找 Reception 的同工</div>
-            <button className="btn btn--ghost btn--full" style={{ marginTop: 16 }} onClick={() => setRestoreOpen(true)}>
-              我已经有护照，用编号找回
-            </button>
-          </div>
-        ) : step === 0 ? (
+        {step === 0 ? (
           <>
             <div className="card stack">
               <div className="field">
@@ -215,17 +205,17 @@ export default function Register() {
             </button>
 
             <button className="btn btn--ghost btn--full" onClick={() => setRestoreOpen(true)}>
-              已经报过名？用编号找回护照
+              已经有护照？用编号找回
             </button>
 
             <div className="card card--flat">
               <div className="section-title">这是什么</div>
               <div className="small muted" style={{ lineHeight: 1.7 }}>
                 这是一本活动打卡护照。GCGCM 的每一场活动都是里面的一页签证，
-                途中可能撞上人生的意外，也可以随时去恩典站寻求帮助。
+                报名活动后到现场出示护照二维码，同工会在对应页面盖一枚「已参加」的章。
                 <br /><br />
-                你的护照和积分<span className="gold bold">绑定到个人</span>：
-                就算中途组队变动、或者帮了别人，过关后工作人员也只在你自己的护照上盖章记分。
+                这本护照<span className="gold bold">属于你本人</span>，不属于某一场活动：
+                任何时候都能领取、找回和修改。记好个人编号和四位密码，换手机后还能继续使用同一本。
               </div>
             </div>
           </>

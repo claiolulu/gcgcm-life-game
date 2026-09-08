@@ -314,6 +314,34 @@ check('错误 PIN 被拒', badPin.status === 401);
   const after = await j('/api/config');
   check('全局状态确实写进去了', after.body.settings.gameState === 'running');
 
+  const liveInfo = await j(`/api/activity/${base[0].id}`);
+  check('进行中的活动二维码显示报名截止话术',
+    liveInfo.body.registration?.status === 'live'
+      && /报名已截止/.test(liveInfo.body.registration?.label || ''),
+    JSON.stringify(liveInfo.body.registration));
+  const liveSignup = await j(`/api/activity/${base[0].id}/signup`, {
+    method: 'POST', headers: { authorization: `Bearer ${playerToken}` },
+  });
+  check('进行中的活动不再接受线上报名', liveSignup.status === 409, `状态码 ${liveSignup.status}`);
+
+  const upcomingInfo = await j(`/api/activity/${base[1].id}`);
+  check('还没开始的活动二维码显示报名中', upcomingInfo.body.registration?.status === 'open',
+    JSON.stringify(upcomingInfo.body.registration));
+  const upcomingSignup = await j(`/api/activity/${base[1].id}/signup`, {
+    method: 'POST', headers: { authorization: `Bearer ${playerToken}` },
+  });
+  check('还没开始的活动可以报名', upcomingSignup.status === 200, `状态码 ${upcomingSignup.status}`);
+  const upcomingCancel = await j(`/api/activity/${base[1].id}/signup`, {
+    method: 'DELETE', headers: { authorization: `Bearer ${playerToken}` },
+  });
+  check('报名中可以取消报名', upcomingCancel.status === 200, `状态码 ${upcomingCancel.status}`);
+
+  const passportDuringLive = await j('/api/register', {
+    method: 'POST', body: { name: `活动中领护照-${Date.now()}`, pin: '2468' },
+  });
+  check('活动进行中仍可独立领取护照', passportDuringLive.status === 200,
+    `状态码 ${passportDuringLive.status}`);
+
   const two = await j('/api/admin/activities', {
     method: 'POST', headers: adminH,
     body: { activities: base.map((a, i) => ({ ...a, state: i < 2 ? 'live' : 'upcoming' })) },
@@ -329,6 +357,15 @@ check('错误 PIN 被拒', badPin.status === 401);
     body: { activities: base.map((a) => ({ ...a, state: 'done' })) },
   });
   check('没有进行中的时候，全局状态回到 lobby', none.body.gameState === 'lobby');
+
+  const endedInfo = await j(`/api/activity/${base[0].id}`);
+  check('已结束的活动二维码显示结束话术', endedInfo.body.registration?.status === 'ended'
+    && /已结束/.test(endedInfo.body.registration?.label || ''),
+    JSON.stringify(endedInfo.body.registration));
+  const endedSignup = await j(`/api/activity/${base[0].id}/signup`, {
+    method: 'POST', headers: { authorization: `Bearer ${playerToken}` },
+  });
+  check('已结束的活动不接受报名', endedSignup.status === 409, `状态码 ${endedSignup.status}`);
 
   const bad = await j('/api/admin/activities', {
     method: 'POST', headers: adminH,

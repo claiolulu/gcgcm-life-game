@@ -36,11 +36,18 @@ export default function Join() {
   useEffect(() => { load(); }, [load]);
 
   const signedUp = !!me?.signups?.includes(id);
+  const registration = info?.registration || {
+    status: info?.activity?.state === 'done' ? 'ended' : info?.activity?.state === 'live' ? 'live' : 'open',
+    label: info?.activity?.state === 'done' ? '活动已结束' : info?.activity?.state === 'live' ? '报名已截止 · 活动进行中' : '报名中',
+    message: '',
+  };
+  const signupOpen = registration.status === 'open';
 
   async function toggle() {
     if (!player.session) {
-      // 领完护照回到这一页，回来之后下面那个 effect 会自动把名报上
-      nav(`/register?next=${encodeURIComponent(`/join/${id}`)}&signup=${encodeURIComponent(id)}`);
+      // 报名中：领完护照顺手报名；截止后：仍然可以领护照，但不偷偷补报名。
+      const next = encodeURIComponent(`/join/${id}`);
+      nav(signupOpen ? `/register?next=${next}&signup=${encodeURIComponent(id)}` : `/register?next=${next}`);
       return;
     }
     setBusy(true);
@@ -106,6 +113,13 @@ export default function Join() {
 
         {a.desc && <div className="small" style={{ lineHeight: 1.9 }}>{a.desc}</div>}
 
+        <div className="card card--tight" style={{
+          borderColor: signupOpen ? 'rgba(47,97,72,.35)' : 'rgba(92,26,34,.28)',
+        }}>
+          <div className="small bold">{registration.label}</div>
+          <div className="tiny dim" style={{ marginTop: 4 }}>{registration.message}</div>
+        </div>
+
         {(a.links || []).length > 0 && (
           <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
             {a.links.map((l, i) => (
@@ -121,16 +135,18 @@ export default function Join() {
         {!player.session ? (
           <>
             <div className="small">
-              先领一本人生护照 —— 报名、盖章、看自己参加过哪些活动，都在那本护照上。
+              {signupOpen
+                ? '先领一本人生护照 —— 领完会自动报名这场活动。'
+                : '即使这场活动不再接受报名，你仍然可以领取自己的人生护照，用于之后的活动。'}
             </div>
             <button className="btn btn--primary btn--full" onClick={toggle}>
-              领护照并报名 →
+              {signupOpen ? '领护照并报名 →' : '领取人生护照 →'}
             </button>
             <Link className="btn btn--ghost btn--full" to={`/restore?next=${encodeURIComponent(`/join/${id}`)}`}>
               我已经有护照了，用编号找回
             </Link>
           </>
-        ) : (
+        ) : signupOpen ? (
           <>
             <div className="small">
               {signedUp
@@ -145,6 +161,15 @@ export default function Join() {
               {busy ? '…' : signedUp ? '取消报名' : '我要报名'}
             </button>
             <Link className="btn btn--ghost btn--full" to="/passport">打开我的护照</Link>
+          </>
+        ) : (
+          <>
+            <div className="small">
+              {signedUp
+                ? `${me?.name}，你的报名记录还在。${registration.message}`
+                : `${me?.name}，${registration.message}`}
+            </div>
+            <Link className="btn btn--primary btn--full" to="/passport">打开我的护照</Link>
           </>
         )}
       </div>

@@ -116,22 +116,8 @@ app.get('/api/config', (_req, res) => {
 });
 
 app.post('/api/register', (req, res) => {
-  const settings = getSettings();
-  // 报名只看「开放报名」这一个开关，不再额外卡游戏阶段。
-  //
-  // 原来是「非 lobby 一律拒绝」，但现场真实需求是：开场之后陆续还有人来，
-  // 同工手动把开关打开就该能报名 —— 状态切走时开关会自动关掉（见
-  // /api/admin/settings），所以默认仍然是关的，打开是一次明确的决定。
-  //
-  // 改名换头像仍然只限 lobby（见 POST /api/me）：那会影响排行榜上的
-  // 显示，中途变身不合适。报名是新增一个人，没有这个问题。
-  if (!settings.registrationOpen) {
-    return res.status(403).json({
-      error: settings.gameState === 'lobby'
-        ? '报名通道已关闭，请找 Reception 的同工'
-        : '游戏已经开始。想让人中途加入，请同工在总控台打开「开放报名」',
-    });
-  }
+  // 领护照不是报名某一场活动。任何时候都能领、找回和维护自己的护照；
+  // 活动是否接受报名，只由那一场自己的 state 决定（见 /api/activity/:id/signup）。
 
   const name = String(req.body?.name || '').trim().slice(0, 24);
   if (name.length < 1) return res.status(400).json({ error: '请填写你的名字' });
@@ -369,11 +355,8 @@ app.get('/api/me', playerAuth, (req, res) => {
 
 app.post('/api/me', playerAuth, (req, res) => {
   const p = stmts.playerById.get(req.player.id);
-  const settings = getSettings();
-  // 游戏开始后不允许再改名/改头像，避免排行榜上有人中途变身
-  if (settings.gameState !== 'lobby') {
-    return res.status(403).json({ error: '游戏已经开始，护照信息已锁定' });
-  }
+  // 护照属于本人，不跟任何一场活动的状态绑定。活动进行中或结束后，
+  // 持照人仍然可以修正姓名、头像和联系方式。
   const name = String(req.body?.name ?? p.name).trim().slice(0, 24) || p.name;
   const avatar = JSON.stringify(req.body?.avatar ?? safeJSON(p.avatar, {}));
   const contact = String(req.body?.contact ?? p.contact).trim().slice(0, 64);
@@ -784,14 +767,45 @@ app.get('/api/activity/:id', (req, res) => {
       links: a.links || [], state: a.state || 'upcoming',
     },
     signupCount: counts.get(a.id) || 0,
-    registrationOpen: !!getSettings().registrationOpen,
+    registration: activityRegistration(a),
   });
 });
+
+/**
+ * 活动状态同时就是这场活动的报名状态：
+ *   upcoming  报名中；live 报名截止、活动进行中；done 活动已结束。
+ * 护照签发完全不看这里，避免一场活动关报名把整个护照系统一起关掉。
+ */
+function activityRegistration(a) {
+  if (a.state === 'live') {
+    return {
+      status: 'live',
+      label: '报名已截止 · 活动进行中',
+      message: '活动已经开始，线上报名已截止。如果你刚到现场，请直接找同工。',
+    };
+  }
+  if (a.state === 'done') {
+    return {
+      status: 'ended',
+      label: '活动已结束',
+      message: '这场活动已经结束，报名记录和护照印章会继续保留。',
+    };
+  }
+  return {
+    status: 'open',
+    label: '报名中',
+    message: '活动还没开始，现在可以报名。报名成功后，活动当天带上人生护照。',
+  };
+}
 
 /** 报名。已经报过就当没事发生 —— 主键就是 (活动, 人)，天然幂等。 */
 app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
   if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  const registration = activityRegistration(a);
+  if (registration.status !== 'open') {
+    return res.status(409).json({ error: registration.message, registration });
+  }
   stmts.addSignup.run(a.id, req.player.id, Date.now());
   broadcast('signup');
   res.json({ ok: true, signedUp: true });
@@ -799,7 +813,13 @@ app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
 
 /** 取消报名。人会变卦，别让他只能来找同工改。 */
 app.delete('/api/activity/:id/signup', playerAuth, (req, res) => {
-  stmts.dropSignup.run(req.params.id, req.player.id);
+  const a = getActivities().find((x) => x.id === req.params.id);
+  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  const registration = activityRegistration(a);
+  if (registration.status !== 'open') {
+    return res.status(409).json({ error: '报名已经截止，不能再取消。如需变更请联系同工。', registration });
+  }
+  stmts.dropSignup.run(a.id, req.player.id);
   broadcast('signup');
   res.json({ ok: true, signedUp: false });
 });
@@ -824,15 +844,10 @@ app.get('/api/admin/activity/:id/signups', staffAuth('admin'), (req, res) => {
 
 app.post('/api/admin/settings', staffAuth('admin'), (req, res) => {
   const patch = req.body || {};
-  // 记分档位、盲盒红线、Help Token 这几项跟着迎新游戏一起去掉了
-  const allowed = ['gameState', 'registrationOpen', 'leaderboardPublic', 'showFullNames'];
+  // 活动状态和报名规则都在每一场活动自己身上；这里只保留真正的全局展示项。
+  const allowed = ['leaderboardPublic', 'showFullNames'];
   for (const [k, v] of Object.entries(patch)) {
     if (allowed.includes(k)) setSetting(k, v);
-  }
-  // 一旦离开 lobby，选手端立刻进入只读：顺手把报名通道也关掉，
-  // 不指望现场有人记得多点一下那个开关。
-  if (patch.gameState && patch.gameState !== 'lobby') {
-    setSetting('registrationOpen', false);
   }
 
   broadcast('settings');
