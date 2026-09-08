@@ -344,10 +344,7 @@ export default function Admin() {
       {theme && (
         <div className="card stack" style={{ marginBottom: 12 }}>
           <div className="section-title">🎨 护照模版</div>
-          <div className="tiny dim">
-            改的是所有人手机上那本护照的样子。保存之后立刻生效，不用重启，
-            也不用让人重新打开页面。
-          </div>
+          <div className="tiny dim">改所有人手机上那本护照的样子，保存就生效。</div>
 
           {/* 预览：跟真页面用同一套算法算颜色，所见即所得 */}
           <div
@@ -456,8 +453,8 @@ export default function Admin() {
             ))}
           </div>
 
-          {/* 四个色 */}
-          <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+          {/* 五个色排一行。色值码不印了 —— 取色器就在旁边，再印一遍 hex 是给机器看的 */}
+          <div className="row" style={{ gap: 12 }}>
             {[
               ['ink', '主色', '抬头、边框、签证横幅'],
               ['gold', '烫金', '封面的字和线'],
@@ -465,44 +462,39 @@ export default function Admin() {
               ['text', '正文', '正文黑'],
               ['stamp', '盖章', '「已参加」那个章'],
             ].map(([key, label, hint]) => (
-              <label key={key} className="stack-sm" style={{ gap: 3 }} title={hint}>
-                <div className="tiny dim">{label}</div>
-                <div className="row" style={{ gap: 5, alignItems: 'center' }}>
-                  <input
-                    type="color" value={theme[key] || '#000000'}
-                    onChange={(e) => editTheme({ [key]: e.target.value, preset: 'custom' })}
-                    style={{
-                      width: 34, height: 28, padding: 0, border: '1px solid var(--line)',
-                      background: 'none', cursor: 'pointer',
-                    }}
-                  />
-                  <code className="tiny dim">{theme[key]}</code>
-                </div>
+              <label key={key} className="center" style={{ flex: 1 }} title={`${label} —— ${hint}`}>
+                <input
+                  type="color" value={theme[key] || '#000000'}
+                  onChange={(e) => editTheme({ [key]: e.target.value, preset: 'custom' })}
+                  style={{
+                    width: '100%', height: 26, padding: 0, border: '1px solid var(--line)',
+                    background: 'none', cursor: 'pointer', display: 'block',
+                  }}
+                />
+                <div className="tiny dim" style={{ marginTop: 2 }}>{label}</div>
               </label>
             ))}
           </div>
 
           {/* 水印浓度 */}
-          <label className="stack-sm" style={{ gap: 4 }}>
-            <div className="tiny dim">
-              水印浓度 <b>{Number(theme.watermark).toFixed(2)}</b>
-              —— 每页底下那张地标图。调太浓会压住正文，所以上限卡在 0.30
-            </div>
+          <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <span className="tiny dim" style={{ flex: '0 0 auto' }} title="每页底下那张地标图。调太浓会压住正文">
+              水印 <b>{Number(theme.watermark).toFixed(2)}</b>
+            </span>
             <input
               type="range" min="0" max="0.3" step="0.01"
               value={theme.watermark}
               onChange={(e) => editTheme({ watermark: Number(e.target.value) })}
-              style={{ width: '100%' }}
+              style={{ flex: 1 }}
             />
           </label>
 
-          {/* 印在护照上的字 */}
-          <div className="stack-sm">
-            <div className="tiny dim">
-              印在护照上的字。别的团契要用这本册子，改的就是这几行 ——
-              代码里没有写死任何一处。
-            </div>
-            <div className="row" style={{ gap: 6 }}>
+          {/* 印在护照上的字：六个输入框，折起来 —— 装好一次之后基本不会再动 */}
+          <details className="stack-sm">
+            <summary className="tiny dim" style={{ cursor: 'pointer' }}>
+              印在护照上的字（封面、签证横幅）—— 别的团契要用这本册子，改的就是这几行
+            </summary>
+            <div className="row" style={{ gap: 6, marginTop: 8 }}>
               <input className="input grow" value={theme.coverTitle} maxLength={12}
                 placeholder="封面大字" aria-label="封面大字"
                 onChange={(e) => editTheme({ coverTitle: e.target.value })} />
@@ -526,7 +518,7 @@ export default function Admin() {
                 placeholder="签证横幅中文" aria-label="签证横幅中文"
                 onChange={(e) => editTheme({ visaBrandCn: e.target.value })} />
             </div>
-          </div>
+          </details>
 
           <div className="row" style={{ gap: 8 }}>
             <button
@@ -583,6 +575,9 @@ export default function Admin() {
         </div>
       )}
 
+      {/* 参数和数据都矮，合成一个网格单元竖着摞 ——
+          各占一格的话，那一行会被最高的护照模版撑开，它俩底下白掉大半 */}
+      <div className="cell-stack">
       {/* 参数 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">⚙️ 参数</div>
@@ -614,13 +609,17 @@ export default function Admin() {
         </button>
       </div>
 
-      {/* 花名册：一行一个人，横跨整行才看得清 */}
-      <div className="card stack col-full">
+      </div>
+
+      {/* 花名册 */}
+      <div className="card stack">
         <div className="row-between">
           <div className="section-title" style={{ margin: 0 }}>👥 全部选手</div>
           <button className="btn btn--sm btn--ghost" onClick={() => flush({ full: true })}>↻</button>
         </div>
-        <div className="stack-sm">
+        {/* 宽屏上排成几列：一千多像素宽里一行一个人，十八个人要滚半天，
+            而每一行右边空着两尺 */}
+        <div className="stack-sm grid-cards list-cap">
           {board.map((p) => (
             <button key={p.id} className="lb-row" onClick={() => nav(`/staff/p/${p.id}`)} style={{ width: '100%', textAlign: 'left' }}>
               <div className="lb-rank">{p.rank}</div>

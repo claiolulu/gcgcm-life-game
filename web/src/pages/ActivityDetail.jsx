@@ -217,6 +217,10 @@ export default function ActivityDetail() {
 
       <div className="cols-2">
 
+      {/* 宽屏下分三摞：现在怎么样 / 怎么让人来 / 这一页长什么样。
+          不分的话每张卡各占一格，那一行会被最高的报名码撑到五百多，
+          矮的两张底下白掉一大片（网格的行高按最高那张算，填不回去） */}
+      <div className="cell-stack">
       {/* 这一场的状态 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">🎯 这一场</div>
@@ -256,64 +260,6 @@ export default function ActivityDetail() {
         ) : (
           <div className="tiny dim">
             报名开关在「进行中」那一场里 —— 现在这一场不是。
-          </div>
-        )}
-      </div>
-
-      {/* 报名 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">📣 报名（{signups.length}）</div>
-        <div className="tiny dim">
-          把这个码贴出去 / 投到屏幕上，大家扫了就能报名。没有护照的人会先领一本，
-          领完自动报上 —— 所以活动当天同工扫码盖章时，人是对得上的。
-        </div>
-
-        <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ flex: '0 0 auto', background: '#fff', padding: 8, borderRadius: 4 }}>
-            <JoinQR url={joinUrl} />
-          </div>
-          <div className="stack-sm grow" style={{ minWidth: 180 }}>
-            <div className="tiny dim">扫不了就发这个链接：</div>
-            <input className="input" readOnly value={joinUrl} onFocus={(e) => e.target.select()} />
-            <button
-              className="btn btn--sm btn--ghost"
-              onClick={() => {
-                navigator.clipboard?.writeText(joinUrl)
-                  .then(() => toast('链接已复制', 'ok'))
-                  .catch(() => toast('复制不了，长按上面那行自己选', 'warn'));
-              }}
-            >
-              复制链接
-            </button>
-            <a className="btn btn--sm btn--ghost" href={joinUrl} target="_blank" rel="noopener noreferrer">
-              看看别人扫到什么 →
-            </a>
-          </div>
-        </div>
-
-        {signups.length > 0 && (
-          <div className="stack-sm">
-            {signups.map((p) => {
-              const came = !!attended.find((x) => x.id === p.id);
-              return (
-                <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
-                  <Avatar avatar={p.avatar} size={26} />
-                  <div className="grow" style={{ minWidth: 0 }}>
-                    <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {p.name}
-                    </div>
-                    <div className="tiny dim">{p.code}{p.contact ? ` · ${p.contact}` : ''}</div>
-                  </div>
-                  <span className="tiny" style={{ flex: '0 0 auto', color: came ? 'var(--green)' : 'var(--text-3)' }}>
-                    {came ? '来了 ✓' : '待到场'}
-                  </span>
-                </div>
-              );
-            })}
-            {/* 报了名没来的人，是活动结束之后最该被问一句的那批 */}
-            <div className="tiny dim">
-              报名 {signups.length} 人，到场 {signups.filter((p) => attended.find((x) => x.id === p.id)).length} 人。
-            </div>
           </div>
         )}
       </div>
@@ -374,31 +320,65 @@ export default function ActivityDetail() {
         </div>
       </div>
 
-      {/* 配图 */}
+      </div>
+
+      <div className="cell-stack">
+      {/* 报名 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">🖼 配图</div>
-        <div className="tiny dim">贴在签证页右上角，横构图最好看。上传完还要点保存才算数。</div>
-        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-          <div style={{
-            flex: '0 0 120px', height: 76, border: '1px solid var(--line)', borderRadius: 3,
-            overflow: 'hidden', background: 'var(--ink-3)',
-            backgroundImage: draft.photo ? `url("${draft.photo}")` : 'none',
-            backgroundSize: 'cover', backgroundPosition: 'center',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {!draft.photo && <span className="tiny dim">无图</span>}
+        <div className="section-title">📣 报名（{signups.length}）</div>
+        <div className="tiny dim">
+          把这个码贴出去 / 投到屏幕上，大家扫了就能报名。没有护照的人会先领一本，
+          领完自动报上 —— 所以活动当天同工扫码盖章时，人是对得上的。
+        </div>
+
+        <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: '0 0 auto', background: '#fff', padding: 8, borderRadius: 4 }}>
+            <JoinQR url={joinUrl} />
           </div>
-          <div className="stack-sm grow">
-            <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
-              {busy === 'photo' ? '上传中…' : draft.photo ? '换一张' : '＋ 选一张图'}
-              <input type="file" accept="image/*" hidden disabled={busy === 'photo'}
-                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; pickPhoto(f); }} />
-            </label>
-            {draft.photo && (
-              <button className="btn btn--sm btn--ghost" onClick={() => edit({ photo: '' })}>去掉</button>
-            )}
+          <div className="stack-sm grow" style={{ minWidth: 180 }}>
+            <div className="tiny dim">扫不了就发这个链接：</div>
+            <input className="input" readOnly value={joinUrl} onFocus={(e) => e.target.select()} />
+            <button
+              className="btn btn--sm btn--ghost"
+              onClick={() => {
+                navigator.clipboard?.writeText(joinUrl)
+                  .then(() => toast('链接已复制', 'ok'))
+                  .catch(() => toast('复制不了，长按上面那行自己选', 'warn'));
+              }}
+            >
+              复制链接
+            </button>
+            <a className="btn btn--sm btn--ghost" href={joinUrl} target="_blank" rel="noopener noreferrer">
+              看看别人扫到什么 →
+            </a>
           </div>
         </div>
+
+        {signups.length > 0 && (
+          <div className="stack-sm">
+            {signups.map((p) => {
+              const came = !!attended.find((x) => x.id === p.id);
+              return (
+                <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
+                  <Avatar avatar={p.avatar} size={26} />
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.name}
+                    </div>
+                    <div className="tiny dim">{p.code}{p.contact ? ` · ${p.contact}` : ''}</div>
+                  </div>
+                  <span className="tiny" style={{ flex: '0 0 auto', color: came ? 'var(--green)' : 'var(--text-3)' }}>
+                    {came ? '来了 ✓' : '待到场'}
+                  </span>
+                </div>
+              );
+            })}
+            {/* 报了名没来的人，是活动结束之后最该被问一句的那批 */}
+            <div className="tiny dim">
+              报名 {signups.length} 人，到场 {signups.filter((p) => attended.find((x) => x.id === p.id)).length} 人。
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 页面链接 */}
@@ -426,6 +406,36 @@ export default function ActivityDetail() {
           {links.length < 6 && (
             <button className="btn btn--sm btn--ghost" onClick={linkOps.add}>+ 加一个链接</button>
           )}
+        </div>
+      </div>
+
+      </div>
+
+      <div className="cell-stack">
+      {/* 配图 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">🖼 配图</div>
+        <div className="tiny dim">贴在签证页右上角，横构图最好看。上传完还要点保存才算数。</div>
+        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+          <div style={{
+            flex: '0 0 120px', height: 76, border: '1px solid var(--line)', borderRadius: 3,
+            overflow: 'hidden', background: 'var(--ink-3)',
+            backgroundImage: draft.photo ? `url("${draft.photo}")` : 'none',
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {!draft.photo && <span className="tiny dim">无图</span>}
+          </div>
+          <div className="stack-sm grow">
+            <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+              {busy === 'photo' ? '上传中…' : draft.photo ? '换一张' : '＋ 选一张图'}
+              <input type="file" accept="image/*" hidden disabled={busy === 'photo'}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; pickPhoto(f); }} />
+            </label>
+            {draft.photo && (
+              <button className="btn btn--sm btn--ghost" onClick={() => edit({ photo: '' })}>去掉</button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -458,6 +468,8 @@ export default function ActivityDetail() {
         <button className="btn btn--danger btn--full" disabled={busy === 'save'} onClick={remove}>
           ⚠️ 删掉「{draft.name}」
         </button>
+      </div>
+
       </div>
 
       </div>

@@ -684,20 +684,38 @@ html.book-locked body {
      挤在三分之一宽里没法看。 */
   .page--wide .cols-2 {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-    gap: 0 16px;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 0 14px;
     align-items: start;
+    /* 短卡片回填前面留下的空格。不开 dense 的话，一张横跨整行的卡
+       会把后面的卡挤到新的一行，行高又按最高那张算 —— 上一版
+       1440px 下就是「三张卡占一行、第四列整列空着」 */
+    grid-auto-flow: row dense;
   }
   /* 卡片自己带 margin-bottom，网格只管横向间距 */
   .page--wide .cols-2 > * { min-width: 0; }
   .page--wide .col-full { grid-column: 1 / -1; }
+  .page--wide .col-2 { grid-column: span 2; }
+  /* 把几张矮卡片摞成一个网格单元，别让它们各占一格、被同一行里最高的
+     那张撑出一大片空白。窄屏下它就是个普通的 div，卡片照常一张张往下排。 */
+  .page--wide .cell-stack { display: block; }
 
-  /* 活动清单横跨整行之后一行一场太旷，让里面的卡片自己再排成几列 */
+  /* 一行一个人 / 一行一场的长列表：给个高度让它自己滚。
+     不封顶的话花名册一张卡就一千二百多像素高，整页要滚三屏，
+     而真正要看的东西（活动、参数）全被推到看不见的地方 */
+  .page--wide .list-cap { max-height: 46vh; overflow-y: auto; }
+
+  /* 活动清单横跨之后一行一场太旷，让里面的卡片自己再排成几列 */
   .page--wide .grid-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 8px;
   }
+
+  /* 宽屏上卡片内边距收一收：一屏能多放一张卡，比多出来的留白有用 */
+  .page--wide .card { padding: 13px; }
+  .page--wide .card--tight { padding: 10px; }
+  .page--wide .stack { gap: 11px; }
 }
 
 @media (min-width: 1280px) {
