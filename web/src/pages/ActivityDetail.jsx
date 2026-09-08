@@ -76,6 +76,26 @@ export default function ActivityDetail() {
     .map((p) => ({ ...p, stamp: p.stations[id] }))
     .sort((a, b) => b.stamp.at - a.stamp.at), [players, id]);
 
+  /**
+   * 自动保存。
+   *
+   * 停手一秒多就存一次 —— 这一页全是零碎的输入框（名字、日期、链接、
+   * 配图），每改一处都要人记得去按保存，迟早有人改完直接关掉。
+   *
+   * 只在 dirty 时排，存完 dirty 清掉、定时器自然不再排，不会来回打转。
+   * 每次改动都重置定时器，所以打字中途不会插进来存一半。
+   * 保存按钮留着：想立刻落盘、或者自动保存失败过一次，还得有个手动的。
+   *
+   * 位置必须在所有早退（!config / !draft）之前 —— hook 写在条件返回
+   * 后面的话，走早退那一支时 hook 数量对不上，整页直接白掉（React #310）。
+   * save 是函数声明，会提升，在这儿引用没问题。
+   */
+  useEffect(() => {
+    if (!dirty || busy) return;
+    const t = setTimeout(() => { save({}, { quiet: true }); }, 1200);
+    return () => clearTimeout(t);
+  }, [draft, dirty, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!config) return <div className="page"><NetBar /><div className="dim">正在载入…</div></div>;
   if (!draft) {
     return (
@@ -102,7 +122,7 @@ export default function ActivityDetail() {
   };
 
   /** 把这一场的改动写回整份清单 */
-  async function save(patch = {}) {
+  async function save(patch = {}, { quiet = false } = {}) {
     const next = { ...draft, ...patch };
     setBusy('save');
     try {
@@ -117,8 +137,11 @@ export default function ActivityDetail() {
       setDirty(false);
       setDraft(res.activities.find((a) => a.id === id) || next);
       await loadConfig();
-      toast('已保存', 'ok');
+      // 自动保存不吐提示：每停手一次弹一个「已保存」，一页填下来能弹十几次。
+      // 存没存成看右上角那个按钮就够了（灰掉 = 没有未保存的改动）
+      if (!quiet) toast('已保存', 'ok');
     } catch (err) {
+      // 失败一定要说，自动保存也一样 —— 不吭声的话人以为存上了
       toast(err.message || '保存失败', 'err');
     } finally {
       setBusy(null);
@@ -212,16 +235,15 @@ export default function ActivityDetail() {
         </div>
         {/* 设计和删掉各自只有一个动作，不值得各占一张卡 */}
         <div className="row" style={{ gap: 6, flex: '0 0 auto', marginLeft: 'auto' }}>
-        <Link className="btn btn--sm btn--ghost" to={`/staff/admin/a/${id}/design`}>🎨 设计这一页</Link>
-        <button className="btn btn--sm btn--ghost" onClick={remove} disabled={busy === 'save'}
-          title={`删掉「${draft.name}」`} style={{ color: 'var(--red)' }}>🗑 删掉</button>
-        <button
-          className="btn btn--sm btn--primary"
-          disabled={busy === 'save' || !dirty}
-          onClick={() => save()}
-        >
-          {busy === 'save' ? '保存中…' : dirty ? '保存' : '已保存'}
-        </button>
+          <Link className="btn btn--sm btn--ghost" to={`/staff/admin/a/${id}/design`}>🎨 设计这一页</Link>
+          {/* 自动保存已经在管了，这个按钮是给「想立刻落盘」和
+              「自动保存失败过一次」留的 */}
+          <button className="btn btn--sm btn--primary" disabled={busy === 'save' || !dirty}
+            onClick={() => save()} title={dirty ? '立刻保存' : '没有未保存的改动'}>
+            💾 保存
+          </button>
+          <button className="btn btn--sm btn--danger" onClick={remove} disabled={busy === 'save'}
+            title={`删掉「${draft.name}」`}>🗑 删除</button>
         </div>
       </div>
 
@@ -261,22 +283,16 @@ export default function ActivityDetail() {
           <input className="input grow" value={draft.host} maxLength={20} placeholder="负责人"
             onChange={(e) => edit({ host: e.target.value })} />
         </div>
+        {/* 每一栏该填什么就写在灰字提示里，不再在框下面另起一行解释 ——
+            解释常年占着地方，而真正要看它的只有第一次填的那一下 */}
         <input className="input" value={draft.issuer || ''} maxLength={24}
-          placeholder="签发机构（留空就用护照模版上的那个）"
+          placeholder="签发机构（留空用护照模版上的；控制号那栏印「机构 + 日期」）"
           onChange={(e) => edit({ issuer: e.target.value })} />
-        <div className="tiny dim">
-          签发机构印在签证页的「ISSUING AUTHORITY」栏；控制号那一栏印的是
-          <b>签发机构 + 日期</b>，所以改了这里两栏一起变。
-        </div>
-        <input className="input" value={draft.desc} maxLength={200} placeholder="这场活动是什么（显示在签证页上）"
-          onChange={(e) => edit({ desc: e.target.value })} />
-        <div className="tiny dim">
-          id <code>{draft.id}</code> —— 盖过的章认这个 id，所以建了就不能改。
-        </div>
-      </div>
-      {/* 页面链接和配图合成一张卡：两块都不高，各占一张卡的话
-          左边这一摞会被切得很碎。各自的小标题就是分隔 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
+        <textarea className="input" rows={4} value={draft.desc} maxLength={200}
+          placeholder="这场活动是什么。印在签证页的备注栏里，翻到这一页就看到这段。"
+          onChange={(e) => edit({ desc: e.target.value })}
+          style={{ resize: 'vertical', minHeight: 92, lineHeight: 1.7 }} />
+        <div style={{ height: 1, background: 'var(--line-soft)' }} />
         <div className="section-title">🔗 页面链接（{links.length}）</div>
         <div className="tiny dim">
           印成签证页底下一排可点的小图标 —— 相册、报名表、场地地图、群。
