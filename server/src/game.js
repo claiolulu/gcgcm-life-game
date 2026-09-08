@@ -84,6 +84,8 @@ export function playerState(player, settings = getSettings()) {
     surname: player.surname || '',
     given: player.given || '',
     avatar: safeJSON(player.avatar, {}),
+    // 这个人自己调过的护照配色。没调过是 null，护照按默认那套渲染
+    theme: player.theme ? safeJSON(player.theme, null) : null,
     contact: player.contact,
     identity: player.identity,
     teamId: player.team_id,

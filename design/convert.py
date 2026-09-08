@@ -646,6 +646,32 @@ def apply_patches(jsx):
     jsx = jsx[:line_start] + body + jsx[j + len(tail):]
     n += 1
 
+    # 资料页右上角加一个「自定义」，点开改这本护照的配色。
+    #
+    # 这件事原来在总控台上，全场一个样子。搬到本人的资料页之后，
+    # 它就是「我的护照长什么样」—— 一本用一年的册子，本来就该各人不同。
+    #
+    # 挂在资料页正文那一层的右上角（absolute），不占版面：资料页那一栏栏
+    # 信息是排满的，插一个按钮进去会把后面的都挤下去。
+    marker = '{v.isData ? (\n'
+    i = jsx.find(marker)
+    assert i != -1, "没找到资料页区块"
+    open_end = jsx.find('>\n', jsx.find('<div style={{position: "relative", zIndex: "4"', i)) + len('>\n')
+    line_start = jsx.rfind('\n', 0, open_end - 1) + 1
+    indent = jsx[line_start:jsx.find('<', line_start)] + '  '
+    btn = (
+        indent + '<button onClick={v.openTheme} title="换个配色" '
+        'style={{position: "absolute", right: "10px", top: "8px", zIndex: 7, '
+        'height: "22px", padding: "0 9px", border: "1px solid rgba(92,26,34,.35)", '
+        'background: "rgba(92,26,34,.05)", color: "#5c1a22", '
+        'fontFamily: "\'EB Garamond\',serif", fontSize: "9px", letterSpacing: ".14em", '
+        'whiteSpace: "nowrap"}}>\n'
+        + indent + '  ✎ 自定义\n'
+        + indent + '</button>\n'
+    )
+    jsx = jsx[:open_end] + btn + jsx[open_end:]
+    n += 1
+
     # ================== 护照模版：让后台能改样式 ==================
     #
     # 下面这几段必须放在所有其它补丁之后：最后那一步会把设计稿里写死的

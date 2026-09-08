@@ -355,7 +355,13 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
    * 活动是按时间顺序装订的，不走关卡那套按忙闲排班的路线 ——
    * 那是为了把人从同一个门口摊开，活动分散在几个月里，没这个问题。
    */
-  const theme = { ...THEME_FALLBACK, ...(config?.theme || {}) };
+  /**
+   * 这本护照的配色。
+   *
+   * 三层叠：兜底 → 服务端下发的默认 → 这个人自己调过的。
+   * 最后一层是他在资料页点「自定义」改的，只影响他自己那一本。
+   */
+  const theme = { ...THEME_FALLBACK, ...(config?.theme || {}), ...(me?.theme || {}) };
   const stations = config?.activities || [];
   const pages = buildPages(stations);
   const cur = pages[ui.page] || pages[0];
@@ -495,6 +501,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     /* ---- 模版 ---- */
     // 变量挂在最外层，护照册整棵树（包括翻页时克隆出去的那份影子页）都继承
     themeVars: themeVarsOf(theme),
+    // 「自定义」弹层要拿它当起点：三层叠完之后的实际配色
+    themeNow: theme,
     coverBg: coverBgOf(theme),
     coverIssuer: theme.coverIssuer,
     coverSub: theme.coverSub,
@@ -606,6 +614,8 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     teamBadge,
     teammates,
     goTeam: () => actions.openTeam(),
+    // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
+    openTheme: () => actions.openTheme(),
     photo: ui.photo || null,
     openQr: () => actions.setModal('qr'),
     closeModal: () => actions.setModal(null),

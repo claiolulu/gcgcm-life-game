@@ -16,7 +16,7 @@ import {
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
-  getActivities, setActivities, getTheme, setTheme, UPLOAD_DIR,
+  getActivities, setActivities, getTheme, UPLOAD_DIR,
   getVisaTemplate,
 } from './db.js';
 import {
@@ -341,6 +341,43 @@ app.post('/api/restore', (req, res) => {
 
   restoreFails.delete(key);
   res.json({ token: player.token, player: playerState(player), ...rankOf(player.id) });
+});
+
+/**
+ * 改自己那本护照的配色。
+ *
+ * 原来这是总控台上的一个全局设置，全场一个样子。搬到每个人自己身上之后
+ * 它就是「我的护照长什么样」—— 一本用一年的册子，本来就该允许各人不同。
+ *
+ * 校验照旧卡死：这些值会变成 CSS 变量，放任意字符串进去等于把一个样式
+ * 注入口开在护照上。传 null 表示恢复默认。
+ */
+app.post('/api/me/theme', playerAuth, (req, res) => {
+  const b = req.body?.theme;
+  if (b === null) {
+    stmts.setTheme_.run('', Date.now(), req.player.id);
+    return res.json({ theme: null });
+  }
+  if (!b || typeof b !== 'object') return res.status(400).json({ error: '格式不对' });
+
+  const t = {};
+  for (const k of ['ink', 'gold', 'paper', 'text', 'stamp']) {
+    if (b[k] === undefined) continue;
+    if (!HEX.test(String(b[k]))) return res.status(400).json({ error: `${k} 要是 #rrggbb 格式的颜色` });
+    t[k] = String(b[k]).toLowerCase();
+  }
+  if (b.watermark !== undefined) {
+    const n = Number(b.watermark);
+    if (!Number.isFinite(n) || n < 0 || n > 0.3) {
+      return res.status(400).json({ error: '水印浓度要在 0 到 0.3 之间' });
+    }
+    t.watermark = Math.round(n * 100) / 100;
+  }
+  if (b.preset !== undefined) t.preset = String(b.preset).slice(0, 20);
+  if (!Object.keys(t).length) return res.status(400).json({ error: '没有可改的字段' });
+
+  stmts.setTheme_.run(JSON.stringify(t), Date.now(), req.player.id);
+  res.json({ theme: t });
 });
 
 app.get('/api/me', playerAuth, (req, res) => {
@@ -760,41 +797,6 @@ function cleanBlocks(raw, where) {
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
-
-/**
- * 改护照模版。字段少但都要卡死 —— 颜色直接进 CSS 变量，
- * 放任意字符串进去等于把一个样式注入口开在所有人的护照上。
- */
-app.post('/api/admin/theme', staffAuth('admin'), (req, res) => {
-  const b = req.body || {};
-  const patch = {};
-
-  for (const k of ['ink', 'gold', 'paper', 'text', 'stamp']) {
-    if (b[k] === undefined) continue;
-    if (!HEX.test(String(b[k]))) return res.status(400).json({ error: `${k} 要是 #rrggbb 格式的颜色` });
-    patch[k] = String(b[k]).toLowerCase();
-  }
-
-  if (b.watermark !== undefined) {
-    const n = Number(b.watermark);
-    if (!Number.isFinite(n) || n < 0 || n > 0.3) {
-      return res.status(400).json({ error: '水印浓度要在 0 到 0.3 之间' });
-    }
-    patch.watermark = Math.round(n * 100) / 100;
-  }
-
-  for (const [k, max] of [
-    ['coverIssuer', 20], ['coverSub', 24], ['coverTitle', 12], ['coverEn', 20],
-    ['visaBrand', 24], ['visaBrandCn', 16], ['preset', 20],
-  ]) {
-    if (b[k] === undefined) continue;
-    patch[k] = String(b[k]).replace(/[\r\n]/g, ' ').trim().slice(0, max);
-  }
-
-  setTheme(patch);
-  broadcast('config');
-  res.json({ theme: getTheme() });
-});
 
 /**
  * 上传一张活动配图。

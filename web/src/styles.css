@@ -696,6 +696,10 @@ html.book-locked body {
   .page--wide .cols-2 > * { min-width: 0; }
   .page--wide .col-full { grid-column: 1 / -1; }
   .page--wide .col-2 { grid-column: span 2; }
+
+  /* 总控台就两块内容（活动清单 / 全部选手），要的是左右各一半。
+     auto-fill 会按最小宽度尽量塞列，1248px 下塞出三列、空一列 */
+  .page--wide .cols-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* 把几张矮卡片摞成一个网格单元，别让它们各占一格、被同一行里最高的
      那张撑出一大片空白。窄屏下它就是个普通的 div，卡片照常一张张往下排。 */
   .page--wide .cell-stack { display: block; }

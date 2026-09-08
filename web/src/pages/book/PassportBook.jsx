@@ -14,6 +14,7 @@ import { kvGet, kvSet } from '../../lib/idb.js';
 import { onTick } from '../../lib/realtime.js';
 import { useLocalState } from '../../components/ui.jsx';
 import TeamPanel from './TeamPanel.jsx';
+import ThemeSheet from './ThemeSheet.jsx';
 import Tour from './Tour.jsx';
 
 /**
@@ -25,7 +26,7 @@ import Tour from './Tour.jsx';
 export default function PassportBook() {
   const nav = useNavigate();
   const { config } = useConfig();
-  const { me, rank, of, online, connected, loading } = usePlayer();
+  const { me, rank, of, online, connected, loading, session } = usePlayer();
 
   const [page, setPage] = useState(0);
   const [overlay, setOverlay] = useState(null);   // null | 'board' | 'guide'
@@ -34,6 +35,7 @@ export default function PassportBook() {
   const [checking, setChecking] = useState(false);
   const lastCheckRef = useRef(0);
   const [teamOpen, setTeamOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   // 抽到身份后自动弹一次队友面板 —— 这是选手最需要立刻知道的事
   const [seenTeam, setSeenTeam] = useLocalState('mlg.teamSeen', null);
   const [tourOpen, setTourOpen] = useState(false);
@@ -378,6 +380,8 @@ export default function PassportBook() {
       actions: {
         move, goto, setOverlay, setModal, share, checkStamp,
         openTeam: () => setTeamOpen(true),
+        // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
+        openTheme: () => setThemeOpen(true),
         startTour: () => setTourOpen(true),
       },
     });
@@ -433,6 +437,14 @@ export default function PassportBook() {
         steps={tourSteps}
         onGoPage={jump}
         onClose={() => { setTourOpen(false); setTourDone(true); }}
+      />
+
+      <ThemeSheet
+        open={themeOpen}
+        onClose={() => setThemeOpen(false)}
+        token={session?.token}
+        theme={v.themeNow}
+        presets={config?.themePresets || []}
       />
 
       <TeamPanel

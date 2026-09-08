@@ -5,8 +5,7 @@ import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { onTick } from '../lib/realtime.js';
-import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster } from '../lib/staff.js';
-import { themeVarsOf, coverBgOf } from './book/bookVals.js';
+import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp } from '../lib/staff.js';
 
 const ACT_STATE = {
   upcoming: { icon: '🗓', label: '还没到' },
@@ -95,43 +94,8 @@ export default function Admin() {
   // （/staff/admin/a/<id>/design），默认版式是代码里的常量，不再是一个要人维护
   // 的设置。多一个「模版」只会让人先去改模版、发现某一场没跟着变、再回来找原因。
 
-  /* -------------------------- 护照模版 -------------------------- */
-
-  const [theme, setTheme] = useState(null);        // null = 还没从配置载入
-  const [themeDirty, setThemeDirty] = useState(false);
-  const presets = config?.themePresets || [];
-
-  useEffect(() => {
-    if (themeDirty) return;
-    if (config?.theme) setTheme({ ...config.theme });
-  }, [config, themeDirty]);
-
-  const editTheme = (patch) => {
-    setTheme((cur) => ({ ...cur, ...patch }));
-    setThemeDirty(true);
-  };
-
-  const applyPreset = (pre) => {
-    const { key, name, ...colors } = pre;
-    editTheme({ ...colors, preset: key });
-  };
-
-  async function saveTheme() {
-    setBusy('theme');
-    try {
-      const res = await api('/api/admin/theme', { method: 'POST', body: theme, token });
-      setTheme(res.theme);
-      setThemeDirty(false);
-      await loadConfig();
-      toast('模版已保存，所有人的护照都换了', 'ok');
-    } catch (err) {
-      toast(err.message || '保存失败', 'err');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-
+  // 「护照模版」搬到选手自己的资料页去了（护照页右上角的「✎ 自定义」）——
+  // 一本用一年的册子，配色本来就该各人不同，不该全场一个样子。
 
   useEffect(() => {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
@@ -185,6 +149,49 @@ export default function Admin() {
     }
   }
 
+  /* ---------------------- 选手详情 ---------------------- */
+
+  const [detail, setDetail] = useState(null);      // 点开的那个人的 id
+  const [signupMap, setSignupMap] = useState({});  // 活动 id → 报了名的人 id 集合
+  const detailPlayer = detail ? players.find((x) => x.id === detail) : null;
+
+  // 报名名单要按人看，而接口是按活动给的，所以整份拉回来自己倒排一次。
+  // 活动就几场，比给每个人单独发一次请求省事
+  useEffect(() => {
+    if (!token || !detail) return;
+    let dead = false;
+    (async () => {
+      const out = {};
+      for (const a of activities) {
+        try {
+          const r = await api(`/api/admin/activity/${a.id}/signups`, { token });
+          out[a.id] = new Set((r.signups || []).map((x) => x.id));
+        } catch { out[a.id] = new Set(); }
+      }
+      if (!dead) setSignupMap(out);
+    })();
+    return () => { dead = true; };
+  }, [token, detail, activities]);
+
+  /**
+   * 替某人把一场活动标成已参加。
+   *
+   * 走的是同工端那条记分通道（queueOp），所以离线也排得住、重复点也只算
+   * 一次（服务端那条「一场只盖一次」的唯一索引挡着）。
+   * 给 1 分是为了让总分等于「参加过几场」，章上写的是「已参加」。
+   */
+  async function markDone(playerId, stationId, name) {
+    setBusy(`done-${stationId}`);
+    try {
+      await queueOp({ type: 'score', playerId, stationId, points: 1, checkin: true, note: '总控台补录' });
+      toast(`${name} 已标记为参加`, 'ok');
+    } catch (err) {
+      toast(err.message || '标记失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const togglePick = (id) =>
     setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
@@ -209,46 +216,7 @@ export default function Admin() {
       .finally(() => setBusy(null));
   }
 
-  async function reset() {
-    const confirmed = await ask({
-      title: '⚠️ 重置游戏数据',
-      danger: true,
-      confirmText: '我确认要重置',
-      requireText: 'RESET',
-      body: '这会清空全部积分、盖章、盲盒和 Token 记录。\n重置前会自动备份到服务器。',
-    });
-    if (!confirmed) return;
-
-    const keepPlayers = await ask({
-      title: '选手名单怎么处理？',
-      body: '积分记录无论如何都会清空，这一步只决定选手名单。',
-      choices: [
-        { value: 'keep', label: '保留选手，只清积分', primary: true },
-        { value: 'wipe', label: '连选手名单一起删掉', danger: true },
-      ],
-    });
-    if (!keepPlayers) return;
-    setBusy('reset');
-    try {
-      await api('/api/admin/reset', {
-        method: 'POST', body: { confirm: 'RESET', keepPlayers: keepPlayers === 'keep' }, token,
-      });
-      await flush({ full: true });
-      await loadConfig();
-      toast('已重置，旧数据已自动备份到服务器', 'ok');
-    } catch (err) {
-      toast(err.message || '重置失败', 'err');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const stateMeta = {
-    lobby: { label: '入场 / 报名中', icon: '🚪', hint: '选手可以自助报名、改头像。身份还没抽。' },
-    running: { label: '游戏进行中', icon: '🎮', hint: '报名通道已自动关闭，选手端全面只读，只剩各站记分。' },
-    ended: { label: '已结束', icon: '🏁', hint: '可以颁奖了，选手可以生成分享徽章。' },
-  };
-
+  // stateMeta 没人用了：游戏状态那块搬到每场活动自己身上了
   return (
     <div className="page page--wide">
       <NetBar
@@ -267,7 +235,7 @@ export default function Admin() {
         <button className="btn btn--sm btn--ghost" onClick={() => { logout(); nav('/staff'); }}>退出</button>
       </div>
 
-      <div className="cols-2">
+      <div className="cols-2 cols-pair">
       {/* 概览 */}
       <div className="card row-between col-full" style={{ marginBottom: 12 }}>
         {[
@@ -284,7 +252,8 @@ export default function Admin() {
       </div>
 
       {/* 活动清单 —— 只是一份索引，点进去才是这一场的全部 */}
-      <div className="card stack col-full" style={{ marginBottom: 12 }}>
+      <div className="cell-stack">
+      <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="row-between">
           <div className="section-title" style={{ margin: 0 }}>🗓 活动清单</div>
           <button className="btn btn--sm btn--primary" disabled={busy === 'acts'} onClick={addAct}>
@@ -297,7 +266,7 @@ export default function Admin() {
           同工端和所有人的护照都会跟着变，不用重启。
         </div>
 
-        <div className="stack-sm grid-cards">
+        <div className="stack-sm">
           {activities.map((a) => {
             const st = ACT_STATE[a.state] || ACT_STATE.upcoming;
             return (
@@ -340,206 +309,10 @@ export default function Admin() {
         </div>
 
       </div>
+      </div>
 
-      {/* 护照模版 */}
-      {theme && (
-        <div className="card stack" style={{ marginBottom: 12 }}>
-          <div className="section-title">🎨 护照模版</div>
-          <div className="tiny dim">改所有人手机上那本护照的样子，保存就生效。</div>
-
-          {/* 预览：跟真页面用同一套算法算颜色，所见即所得 */}
-          <div
-            style={{
-              ...themeVarsOf(theme),
-              display: 'flex', gap: 8, padding: 10, borderRadius: 6,
-              background: '#141110', border: '1px solid var(--line)',
-            }}
-          >
-            {/* 封面 */}
-            <div style={{
-              flex: '0 0 92px', height: 132, background: coverBgOf(theme),
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', gap: 6, position: 'relative',
-            }}>
-              <div style={{ position: 'absolute', inset: 6, border: '1px solid rgba(var(--pp-gold-2-rgb),.45)' }} />
-              <div style={{ fontSize: 7, letterSpacing: '.3em', color: 'var(--pp-gold-2)' }}>
-                {theme.coverIssuer}
-              </div>
-              <div style={{
-                width: 30, height: 30, borderRadius: '50%',
-                border: '1px solid rgba(var(--pp-gold-2-rgb),.6)', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-                fontSize: 14, color: 'var(--pp-gold)', fontFamily: "'EB Garamond',serif",
-              }}>M</div>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.14em', color: 'var(--pp-gold)' }}>
-                {theme.coverTitle}
-              </div>
-              <div style={{ fontSize: 7, letterSpacing: '.24em', color: 'rgba(var(--pp-gold-rgb),.78)' }}>
-                {theme.coverEn}
-              </div>
-            </div>
-
-            {/* 签证页 */}
-            <div style={{
-              flex: 1, minWidth: 0, height: 132, background: theme.paper,
-              display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
-            }}>
-              <div style={{
-                flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 7px',
-                borderBottom: '1px solid rgba(var(--pp-ink-rgb),.4)',
-              }}>
-                <div style={{
-                  width: 14, height: 14, border: '1px solid rgba(var(--pp-ink-rgb),.35)',
-                  color: 'var(--pp-ink)', fontSize: 8, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                }}>T</div>
-                <div style={{ flex: 1, fontSize: 7, letterSpacing: '.16em', color: 'var(--pp-ink)' }}>
-                  🎓 迎新之夜
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--pp-ink)' }}>06</div>
-              </div>
-              <div style={{ padding: 7, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <div style={{ display: 'flex', height: 16, background: '#ece5d6', border: '1px solid rgba(var(--pp-ink-rgb),.35)' }}>
-                  <div style={{
-                    flex: '0 0 38%', display: 'flex', alignItems: 'center', paddingLeft: 5,
-                    fontSize: 8, letterSpacing: '.2em', color: 'var(--pp-ink)',
-                  }}>VISA</div>
-                  <div style={{
-                    flex: 1, background: 'var(--pp-ink)', display: 'flex', alignItems: 'center',
-                    justifyContent: 'flex-end', paddingRight: 5,
-                    fontSize: 6, letterSpacing: '.16em', color: 'var(--pp-gold)',
-                  }}>{theme.visaBrand}</div>
-                </div>
-                <div style={{ fontSize: 6, letterSpacing: '.12em', color: 'rgba(var(--pp-text-rgb),.55)' }}>
-                  ANNOTATION 备注
-                </div>
-                <div style={{ fontSize: 8, lineHeight: 1.6, color: 'var(--pp-text)' }}>
-                  新学年的第一场。分数会归零，但今晚认识的人还在。
-                </div>
-              </div>
-              {/* 水印：用护照里真实那张图，浓度就是滑块的值 */}
-              <div style={{
-                position: 'absolute', right: '4%', top: '18%', width: '38%', bottom: '10%',
-                backgroundImage: 'url("/wm/city-chambers.png")', backgroundSize: 'contain',
-                backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
-                opacity: theme.watermark, pointerEvents: 'none',
-              }} />
-              <div style={{
-                position: 'absolute', right: 8, bottom: 6, width: 40, height: 40,
-                borderRadius: '50%', border: `2px solid ${theme.stamp}`, color: theme.stamp,
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                justifyContent: 'center', opacity: 0.9, transform: 'rotate(-12deg)',
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</div>
-                <div style={{ fontSize: 5.5, fontWeight: 700, marginTop: 1 }}>已参加</div>
-              </div>
-            </div>
-          </div>
-
-          {/* 预设 */}
-          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-            {presets.map((pre) => (
-              <button
-                key={pre.key}
-                className={`btn btn--sm ${theme.preset === pre.key ? 'btn--primary' : 'btn--ghost'}`}
-                onClick={() => applyPreset(pre)}
-              >
-                <span style={{
-                  display: 'inline-block', width: 9, height: 9, borderRadius: '50%',
-                  background: pre.ink, border: `1px solid ${pre.gold}`, marginRight: 5,
-                  verticalAlign: 'middle',
-                }} />
-                {pre.name}
-              </button>
-            ))}
-          </div>
-
-          {/* 五个色排一行。色值码不印了 —— 取色器就在旁边，再印一遍 hex 是给机器看的 */}
-          <div className="row" style={{ gap: 12 }}>
-            {[
-              ['ink', '主色', '抬头、边框、签证横幅'],
-              ['gold', '烫金', '封面的字和线'],
-              ['paper', '纸色', '内页的底'],
-              ['text', '正文', '正文黑'],
-              ['stamp', '盖章', '「已参加」那个章'],
-            ].map(([key, label, hint]) => (
-              <label key={key} className="center" style={{ flex: 1 }} title={`${label} —— ${hint}`}>
-                <input
-                  type="color" value={theme[key] || '#000000'}
-                  onChange={(e) => editTheme({ [key]: e.target.value, preset: 'custom' })}
-                  style={{
-                    width: '100%', height: 26, padding: 0, border: '1px solid var(--line)',
-                    background: 'none', cursor: 'pointer', display: 'block',
-                  }}
-                />
-                <div className="tiny dim" style={{ marginTop: 2 }}>{label}</div>
-              </label>
-            ))}
-          </div>
-
-          {/* 水印浓度 */}
-          <label className="row" style={{ gap: 8, alignItems: 'center' }}>
-            <span className="tiny dim" style={{ flex: '0 0 auto' }} title="每页底下那张地标图。调太浓会压住正文">
-              水印 <b>{Number(theme.watermark).toFixed(2)}</b>
-            </span>
-            <input
-              type="range" min="0" max="0.3" step="0.01"
-              value={theme.watermark}
-              onChange={(e) => editTheme({ watermark: Number(e.target.value) })}
-              style={{ flex: 1 }}
-            />
-          </label>
-
-          {/* 印在护照上的字：六个输入框，折起来 —— 装好一次之后基本不会再动 */}
-          <details className="stack-sm">
-            <summary className="tiny dim" style={{ cursor: 'pointer' }}>
-              印在护照上的字（封面、签证横幅）—— 别的团契要用这本册子，改的就是这几行
-            </summary>
-            <div className="row" style={{ gap: 6, marginTop: 8 }}>
-              <input className="input grow" value={theme.coverTitle} maxLength={12}
-                placeholder="封面大字" aria-label="封面大字"
-                onChange={(e) => editTheme({ coverTitle: e.target.value })} />
-              <input className="input grow" value={theme.coverEn} maxLength={20}
-                placeholder="封面英文" aria-label="封面英文"
-                onChange={(e) => editTheme({ coverEn: e.target.value })} />
-            </div>
-            <div className="row" style={{ gap: 6 }}>
-              <input className="input grow" value={theme.coverIssuer} maxLength={20}
-                placeholder="签发机构" aria-label="签发机构"
-                onChange={(e) => editTheme({ coverIssuer: e.target.value })} />
-              <input className="input grow" value={theme.coverSub} maxLength={24}
-                placeholder="封面副题" aria-label="封面副题"
-                onChange={(e) => editTheme({ coverSub: e.target.value })} />
-            </div>
-            <div className="row" style={{ gap: 6 }}>
-              <input className="input grow" value={theme.visaBrand} maxLength={24}
-                placeholder="签证横幅英文" aria-label="签证横幅英文"
-                onChange={(e) => editTheme({ visaBrand: e.target.value })} />
-              <input className="input grow" value={theme.visaBrandCn} maxLength={16}
-                placeholder="签证横幅中文" aria-label="签证横幅中文"
-                onChange={(e) => editTheme({ visaBrandCn: e.target.value })} />
-            </div>
-          </details>
-
-          <div className="row" style={{ gap: 8 }}>
-            <button
-              className="btn btn--sm btn--ghost grow"
-              disabled={!themeDirty}
-              onClick={() => { setTheme({ ...config.theme }); setThemeDirty(false); }}
-            >
-              还原
-            </button>
-            <button
-              className="btn btn--sm btn--primary grow"
-              disabled={busy === 'theme' || !themeDirty}
-              onClick={saveTheme}
-            >
-              {busy === 'theme' ? '保存中…' : themeDirty ? '保存模版' : '已保存'}
-            </button>
-          </div>
-        </div>
-      )}
-
+      {/* 右边一摞：这批人。疑似重复的号也归它管 —— 那是花名册上的问题 */}
+      <div className="cell-stack">
       {/* 疑似重复报名 */}
       {duplicates.length > 0 && (
         <div className="card stack" style={{ marginBottom: 12, borderColor: 'rgba(247,201,72,.45)' }}>
@@ -576,53 +349,33 @@ export default function Admin() {
         </div>
       )}
 
-      {/* 参数和数据都矮，合成一个网格单元竖着摞 ——
-          各占一格的话，那一行会被最高的护照模版撑开，它俩底下白掉大半 */}
-      <div className="cell-stack">
-      {/* 参数 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">⚙️ 参数</div>
-
-        <Toggle
-          label="公开排行榜"
-          hint="关掉后选手端看不到「谁盖的章最多」"
-          value={settings.leaderboardPublic}
-          onChange={(v) => patchSettings({ leaderboardPublic: v }, 'lb')}
-        />
-        <div className="tiny dim">
-          报名开关搬到活动页里去了 —— 它跟着「正在办的那一场」走，
-          在那儿才知道自己开的是什么。
-        </div>
-      </div>
-
-      {/* 数据 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">💾 数据</div>
-        <button className="btn btn--full" onClick={() => download('/api/admin/export.csv', 'mini-life-game.csv')} disabled={!!busy}>
-          📊 导出成绩 CSV（Excel 可直接打开）
-        </button>
-        <button className="btn btn--full" onClick={() => download('/api/admin/backup.json', 'mlg-backup.json')} disabled={!!busy}>
-          🗄 下载完整备份 JSON
-        </button>
-        <div className="tiny dim">服务器每 60 秒也会自动做一次本地快照备份。</div>
-        <button className="btn btn--danger btn--full" onClick={reset} disabled={!!busy} style={{ marginTop: 6 }}>
-          ⚠️ 重置游戏数据
-        </button>
-      </div>
-
-      </div>
-
       {/* 花名册 */}
       <div className="card stack">
-        <div className="row-between">
+        <div className="row-between" style={{ gap: 8, flexWrap: 'wrap' }}>
           <div className="section-title" style={{ margin: 0 }}>👥 全部选手</div>
-          <button className="btn btn--sm btn--ghost" onClick={() => flush({ full: true })}>↻</button>
+          {/* 排行榜开关和导出备份都收在这儿：它们讲的都是「这批人」的事，
+              各自单开一张卡不值当 */}
+          <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
+            <button
+              className={`btn btn--sm ${settings.leaderboardPublic ? 'btn--primary' : 'btn--ghost'}`}
+              disabled={busy === 'lb'}
+              onClick={() => patchSettings({ leaderboardPublic: !settings.leaderboardPublic }, 'lb')}
+              title="关掉后选手端看不到「谁盖的章最多」"
+            >
+              🏆 排行榜{settings.leaderboardPublic ? '公开' : '已关'}
+            </button>
+            <button className="btn btn--sm btn--ghost" disabled={!!busy} title="导出成绩 CSV，Excel 可直接打开"
+              onClick={() => download('/api/admin/export.csv', 'mini-life-game.csv')}>📊 导出</button>
+            <button className="btn btn--sm btn--ghost" disabled={!!busy} title="下载完整备份 JSON，出事了拿它恢复"
+              onClick={() => download('/api/admin/backup.json', 'mlg-backup.json')}>🗄 备份</button>
+            <button className="btn btn--sm btn--ghost" onClick={() => flush({ full: true })} title="重新拉取花名册">↻</button>
+          </div>
         </div>
         {/* 宽屏上排成几列：一千多像素宽里一行一个人，十八个人要滚半天，
             而每一行右边空着两尺 */}
         <div className="stack-sm grid-cards list-cap">
           {board.map((p) => (
-            <button key={p.id} className="lb-row" onClick={() => nav(`/staff/p/${p.id}`)} style={{ width: '100%', textAlign: 'left' }}>
+            <button key={p.id} className="lb-row" onClick={() => setDetail(p.id)} style={{ width: '100%', textAlign: 'left' }}>
               <div className="lb-rank">{p.rank}</div>
               <Avatar config={p.avatar} size={34} />
               <div className="grow" style={{ minWidth: 0 }}>
@@ -639,8 +392,70 @@ export default function Admin() {
           {board.length === 0 && <div className="center small dim" style={{ padding: 20 }}>还没有人报名</div>}
         </div>
       </div>
+      </div>
 
       </div>
+
+      {/* 点花名册里的人弹出来：他报了哪几场、来了哪几场，
+          还能替他补一个「已参加」—— 有人当场忘了给同工扫，事后就在这儿补 */}
+      <Sheet
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detailPlayer ? `${detailPlayer.name} · ${detailPlayer.code} 号` : ''}
+      >
+        {detailPlayer && (
+          <div className="stack">
+            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <Avatar config={detailPlayer.avatar} size={44} />
+              <div className="grow">
+                <div className="small bold">{detailPlayer.name}</div>
+                <div className="tiny dim mono">
+                  {detailPlayer.code} 号 · 参加过 {detailPlayer.stationsDone} 场
+                  {detailPlayer.contact ? ` · ${detailPlayer.contact}` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div className="stack-sm">
+              {activities.map((a) => {
+                const done = !!detailPlayer.stations?.[a.id];
+                const signed = signupMap[a.id]?.has(detailPlayer.id);
+                return (
+                  <div key={a.id} className="card card--tight row" style={{ gap: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: 18, flex: '0 0 auto' }}>{a.icon}</span>
+                    <div className="grow" style={{ minWidth: 0 }}>
+                      <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {a.name}
+                      </div>
+                      <div className="tiny dim">
+                        {signed ? '已报名' : '没报名'}
+                        {done ? ` · ${ago(detailPlayer.stations[a.id].at)}盖的章` : ''}
+                      </div>
+                    </div>
+                    {done ? (
+                      <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已参加 ✓</span>
+                    ) : (
+                      <button
+                        className="btn btn--sm btn--ghost" style={{ flex: '0 0 auto' }}
+                        disabled={busy === `done-${a.id}`}
+                        onClick={() => markDone(detailPlayer.id, a.id, detailPlayer.name)}
+                      >
+                        {busy === `done-${a.id}` ? '…' : '标为已参加'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="tiny dim">
+              盖过的章撤不掉 —— 那是一条写进记录的事实，不是一个可以来回拨的开关。
+              标错了人只能去数据库改。
+            </div>
+            <button className="btn btn--full" onClick={() => setDetail(null)}>关掉</button>
+          </div>
+        )}
+      </Sheet>
 
       <PlayerSheet
         open={manualOpen}

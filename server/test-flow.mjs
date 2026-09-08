@@ -163,38 +163,44 @@ check('普通工作人员不能调管理员接口', noAuth.status === 403);
 const badPin = await j('/api/staff/login', { method: 'POST', body: { pin: '0000' } });
 check('错误 PIN 被拒', badPin.status === 401);
 
-// 16. 护照模版
+// 16. 护照配色（搬到每个人自己身上了，不再是总控台的全局设置）
 {
-  const before = await j('/api/config');
-  check('配置里带着模版和预设',
-    !!before.body.theme?.ink && Array.isArray(before.body.themePresets) && before.body.themePresets.length > 0);
+  const playerH = { authorization: `Bearer ${playerToken}` };
 
-  const ok = await j('/api/admin/theme', {
-    method: 'POST', headers: adminH,
-    body: { ink: '#1F3A5C', watermark: 0.2, coverTitle: '打卡护照', preset: 'midnight' },
+  const before = await j('/api/me', { headers: playerH });
+  check('没调过的人 theme 是 null', before.body.player.theme === null);
+
+  const ok = await j('/api/me/theme', {
+    method: 'POST', headers: playerH,
+    body: { theme: { ink: '#26452F', watermark: 0.2, preset: 'forest' } },
   });
-  check('管理员能改模版', ok.status === 200 && ok.body.theme.ink === '#1f3a5c', JSON.stringify(ok.body));
+  check('选手能改自己那本的配色', ok.status === 200 && ok.body.theme.ink === '#26452f',
+    JSON.stringify(ok.body));
 
-  const after = await j('/api/config');
-  check('改完立刻下发给所有人',
-    after.body.theme.ink === '#1f3a5c' && after.body.theme.watermark === 0.2
-    && after.body.theme.coverTitle === '打卡护照');
-  check('没提到的字段保持不变', after.body.theme.gold === before.body.theme.gold);
+  const after = await j('/api/me', { headers: playerH });
+  check('改完自己看得到', after.body.player.theme?.watermark === 0.2);
 
-  const badHex = await j('/api/admin/theme', { method: 'POST', headers: adminH, body: { ink: 'red; background:url(x)' } });
+  // 另一个人不受影响 —— 这是「搬到个人身上」的全部意义
+  const other = await j('/api/register', { method: 'POST', body: { name: '配色不受影响的人', pin: '4321' } });
+  const otherMe = await j('/api/me', { headers: { authorization: `Bearer ${other.body.token}` } });
+  check('别人的护照不受影响', otherMe.body.player.theme === null);
+
+  const badHex = await j('/api/me/theme', {
+    method: 'POST', headers: playerH, body: { theme: { ink: 'red; background:url(x)' } } });
   check('非法颜色被拒', badHex.status === 400, `状态码 ${badHex.status}`);
 
-  const badWm = await j('/api/admin/theme', { method: 'POST', headers: adminH, body: { watermark: 5 } });
-  check('水印浓度越界被拒', badWm.status === 400, `状态码 ${badWm.status}`);
+  const badWm = await j('/api/me/theme', {
+    method: 'POST', headers: playerH, body: { theme: { watermark: 9 } } });
+  check('水印浓度越界被拒', badWm.status === 400);
 
-  const notAdmin = await j('/api/admin/theme', { method: 'POST', headers: staffH, body: { ink: '#000000' } });
-  check('普通工作人员改不了模版', notAdmin.status === 403);
+  const anon = await j('/api/me/theme', { method: 'POST', body: { theme: { ink: '#000000' } } });
+  check('匿名改不了', anon.status === 401);
 
-  // 改回默认，免得留给后面的测试一套花里胡哨的颜色
-  await j('/api/admin/theme', {
-    method: 'POST', headers: adminH,
-    body: { ink: '#5c1a22', watermark: 0.13, coverTitle: '人生护照', preset: 'classic' },
-  });
+  const gone = await j('/api/admin/theme', { method: 'POST', headers: adminH, body: { ink: '#000000' } });
+  check('总控台那个全局模版接口已经没有了', gone.status === 404, `状态码 ${gone.status}`);
+
+  const reset = await j('/api/me/theme', { method: 'POST', headers: playerH, body: { theme: null } });
+  check('能换回默认', reset.status === 200 && reset.body.theme === null);
 }
 
 // 17. 活动配图

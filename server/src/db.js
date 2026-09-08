@@ -115,7 +115,8 @@ CREATE TABLE IF NOT EXISTS awards (
     console.log('[db] 已为 players 表添加 pin 列');
   }
   // 老库没有姓/名两列。空字符串表示报名时没填，护照上按 name 猜。
-  for (const col of ['surname', 'given', 'route', 'team_name']) {
+  // theme 是这个人自己调的护照配色（JSON）。空串 = 没调过，用默认那套
+  for (const col of ['surname', 'given', 'route', 'team_name', 'theme']) {
     if (!cols.includes(col)) {
       db.exec(`ALTER TABLE players ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
       console.log(`[db] 已为 players 表添加 ${col} 列`);
@@ -160,7 +161,10 @@ export function setActivities(list) {
 }
 
 /**
- * 护照模版。和活动清单一样存在 settings 里，没改过就是 config.js 的默认值。
+ * 所有人共同的护照配色起点。
+ *
+ * 每个人可以在自己的资料页上改（players.theme），这里这份是他还没改过时
+ * 看到的样子。以前它是总控台上的一个全局设置，现在没有那个入口了。
  *
  * 一定要和默认值合并再返回：以后往 THEME 里加字段时，库里那份老记录
  * 缺这个键，不合并的话前端拿到 undefined，页面上就是一块没颜色的地方。
@@ -171,9 +175,8 @@ export function getTheme() {
   return { ...THEME, ...(saved && typeof saved === 'object' ? saved : {}) };
 }
 
-export function setTheme(patch) {
-  setSetting('_theme', { ...getTheme(), ...patch });
-}
+// setTheme 没有了：配色搬到每个人自己身上（players.theme），
+// 这里这份只是所有人共同的起点。
 
 /**
  * 签证页的默认版式。
@@ -283,6 +286,9 @@ export const stmts = {
   // updatePlayerFields 里塞字段，免得所有调用点都得传
   setTeamName: db.prepare('UPDATE players SET team_name = ?, updated_at = ? WHERE team_id = ?'),
   setRoute: db.prepare('UPDATE players SET route = ?, start_station = ?, updated_at = ? WHERE id = ?'),
+  // 护照配色单独更新，理由同 setNameParts：不往被多处复用的
+  // updatePlayerFields 里塞字段
+  setTheme_: db.prepare('UPDATE players SET theme = ?, updated_at = ? WHERE id = ?'),
   setNameParts: db.prepare(
     'UPDATE players SET surname = ?, given = ?, updated_at = ? WHERE id = ?',
   ),

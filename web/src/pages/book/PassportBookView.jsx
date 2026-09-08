@@ -499,6 +499,9 @@ export default function PassportBookView({ v }) {
                 {v.isData ? (
                   <>
                     <div style={{position: "relative", zIndex: "4", flex: "1", minHeight: "0", display: "flex", gap: "18px", padding: "13px 20px 0"}}>
+                      <button onClick={v.openTheme} title="换个配色" style={{position: "absolute", right: "10px", top: "8px", zIndex: 7, height: "22px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".14em", whiteSpace: "nowrap"}}>
+                        ✎ 自定义
+                      </button>
                       <div style={{flex: "none", width: "126px", display: "flex", flexDirection: "column", gap: "10px"}}>
                         <div style={{position: "relative", padding: "5px", background: "#fff", border: "1px solid rgba(var(--pp-ink-rgb),.45)"}}>
                           <div style={{width: "100%", aspectRatio: ".78", background: "linear-gradient(170deg,#e9e3d6,#d8d0c0)", position: "relative", overflow: "hidden"}}>
