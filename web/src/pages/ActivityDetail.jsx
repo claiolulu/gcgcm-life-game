@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
+import IconPicker from '../components/IconPicker.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { useConfig, loadConfig } from '../lib/config.js';
@@ -401,14 +402,15 @@ export default function ActivityDetail() {
         </div>
         <div className="stack-sm">
           {links.map((l, k) => (
-            <div key={k} className="row" style={{ gap: 6 }}>
-              <input className="input" style={{ flex: '0 0 46px', textAlign: 'center' }}
-                value={l.icon} maxLength={4} aria-label="图标"
-                onChange={(e) => linkOps.edit(k, { icon: e.target.value })} />
-              <input className="input" style={{ flex: '0 0 92px' }}
+            <div key={k} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <IconPicker
+                value={l.icon} label={l.label}
+                onChange={(patch) => linkOps.edit(k, patch)}
+              />
+              <input className="input" style={{ flex: '1 1 90px' }}
                 value={l.label} maxLength={12} placeholder="名字"
                 onChange={(e) => linkOps.edit(k, { label: e.target.value })} />
-              <input className="input grow" value={l.url} maxLength={300}
+              <input className="input" style={{ flex: '3 1 160px' }} value={l.url} maxLength={300}
                 placeholder="https://…" inputMode="url"
                 onChange={(e) => linkOps.edit(k, { url: e.target.value })} />
               <button className="btn btn--sm btn--ghost" onClick={() => linkOps.remove(k)} title="删掉">✕</button>

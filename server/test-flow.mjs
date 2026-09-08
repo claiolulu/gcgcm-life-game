@@ -253,13 +253,17 @@ check('错误 PIN 被拒', badPin.status === 401);
 {
   const cfg = await j('/api/config');
   check('配置里带着默认版式和可选的数据来源',
-    Array.isArray(cfg.body.visaTemplate?.rows) && cfg.body.visaTemplate.rows.length === 11
+    Array.isArray(cfg.body.visaTemplate?.rows) && cfg.body.visaTemplate.rows.length === 10
     && (cfg.body.visaSources || []).some((x) => x.key === 'text'));
   check('数据来源里有持照人的名字（栏目条能绑它）',
     (cfg.body.visaSources || []).some((x) => x.key === 'player' && x.group === '持照人'));
   check('来源都分了组，下拉才好找', (cfg.body.visaSources || []).every((x) => x.key === 'text' || x.group));
   check('签发站改叫签发机构',
     (cfg.body.visaSources || []).find((x) => x.key === 'post')?.name === '签发机构');
+  check('默认版式里没有出席那一栏（章已经说清楚了）',
+    !cfg.body.visaTemplate.rows.some((r) => r.src === 'status'));
+  check('但出席这个来源还在，需要的话能自己加回来',
+    (cfg.body.visaSources || []).some((x) => x.key === 'status'));
   check('默认栏目标题也跟着改了',
     cfg.body.visaTemplate.rows.some((r) => r.src === 'post' && r.label.includes('签发机构')));
 

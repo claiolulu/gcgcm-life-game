@@ -112,7 +112,6 @@ const VISA_TPL_FALLBACK = {
     { key: 'entries', label: 'ENTRIES 入境次数',        src: 'text', text: 'ONE 一次' },
     { key: 'issued',  label: 'ISSUING DATE 签发日期',   src: 'date' },
     { key: 'expiry',  label: 'EXPIRATION DATE 有效期',  src: 'text', text: 'ETERNAL 无尽无穷', accent: true },
-    { key: 'status',  label: 'ATTENDED 出席',           src: 'status' },
   ],
 };
 

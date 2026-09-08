@@ -156,6 +156,10 @@ export const VISA_ROW_SOURCES = [
   { key: 'control',   group: '这一场', name: '控制号',     hint: '签发机构 + 日期，例如 GCGCM 迎新组/13 SEP 2026' },
 ];
 
+/**
+ * 默认版式里没有「出席状态」那一栏 —— 来没来过，那个章已经说得很清楚了，
+ * 再用一行字写一遍 ✓ 是重复。需要的话在画布编辑器里加回来，来源还在。
+ */
 export const VISA_TEMPLATE = {
   banner: 'VISA',
   stationLabel: 'STATION 关卡',
@@ -174,7 +178,6 @@ export const VISA_TEMPLATE = {
     { key: 'entries', label: 'ENTRIES 入境次数',        src: 'text', text: 'ONE 一次' },
     { key: 'issued',  label: 'ISSUING DATE 签发日期',   src: 'date' },
     { key: 'expiry',  label: 'EXPIRATION DATE 有效期',  src: 'text', text: 'ETERNAL 无尽无穷', accent: true },
-    { key: 'status',  label: 'ATTENDED 出席',           src: 'status' },
   ],
 };
 
