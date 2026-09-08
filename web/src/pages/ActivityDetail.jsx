@@ -208,8 +208,11 @@ export default function ActivityDetail() {
             {draft.name || '（还没起名字）'}
           </h1>
         </div>
-        <div className="row" style={{ gap: 6 }}>
+        {/* 设计和删掉各自只有一个动作，不值得各占一张卡 */}
+        <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
         <Link className="btn btn--sm btn--ghost" to={`/staff/admin/a/${id}/design`}>🎨 设计这一页</Link>
+        <button className="btn btn--sm btn--ghost" onClick={remove} disabled={busy === 'save'}
+          title={`删掉「${draft.name}」`} style={{ color: 'var(--red)' }}>🗑 删掉</button>
         <button
           className="btn btn--sm btn--primary"
           disabled={busy === 'save' || !dirty}
@@ -225,6 +228,9 @@ export default function ActivityDetail() {
       {/* 宽屏下分三摞：现在怎么样 / 怎么让人来 / 这一页长什么样。
           不分的话每张卡各占一格，那一行会被最高的报名码撑到五百多，
           矮的两张底下白掉一大片（网格的行高按最高那张算，填不回去） */}
+      {/* 宽屏下分三摞。报名单独占最右边一摞 —— 它最高（二维码 + 名单），
+          和别的卡挤在一行的话，那一行按它的高度算，旁边就白掉一大片。
+          版式和删掉不在这里：各自只有一个动作，做成了右上角的按钮 */}
       <div className="cell-stack">
       {/* 这一场的状态 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
@@ -268,7 +274,6 @@ export default function ActivityDetail() {
           </div>
         )}
       </div>
-
       {/* 谁来了 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">
@@ -295,7 +300,37 @@ export default function ActivityDetail() {
           </div>
         )}
       </div>
+      {/* 页面链接 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">🔗 页面链接（{links.length}）</div>
+        <div className="tiny dim">
+          印成签证页底下一排可点的小图标 —— 相册、报名表、场地地图、群。
+          地址要以 http:// 或 https:// 开头。
+        </div>
+        <div className="stack-sm">
+          {links.map((l, k) => (
+            <div key={k} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <IconPicker
+                value={l.icon} label={l.label}
+                onChange={(patch) => linkOps.edit(k, patch)}
+              />
+              <input className="input" style={{ flex: '1 1 90px' }}
+                value={l.label} maxLength={12} placeholder="名字"
+                onChange={(e) => linkOps.edit(k, { label: e.target.value })} />
+              <input className="input" style={{ flex: '3 1 160px' }} value={l.url} maxLength={300}
+                placeholder="https://…" inputMode="url"
+                onChange={(e) => linkOps.edit(k, { url: e.target.value })} />
+              <button className="btn btn--sm btn--ghost" onClick={() => linkOps.remove(k)} title="删掉">✕</button>
+            </div>
+          ))}
+          {links.length < 6 && (
+            <button className="btn btn--sm btn--ghost" onClick={linkOps.add}>+ 加一个链接</button>
+          )}
+        </div>
+      </div>
+      </div>
 
+      <div className="cell-stack">
       {/* 基本信息 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">📝 基本信息</div>
@@ -331,7 +366,34 @@ export default function ActivityDetail() {
           id <code>{draft.id}</code> —— 盖过的章认这个 id，所以建了就不能改。
         </div>
       </div>
-
+      {/* 配图 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">🖼 配图</div>
+        <div className="tiny dim">贴在签证页右上角，横构图最好看。上传完还要点保存才算数。</div>
+        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+          <div style={{
+            flex: '0 0 120px', height: 76, border: '1px solid var(--line)', borderRadius: 3,
+            overflow: 'hidden', background: 'var(--ink-3)',
+            backgroundImage: draft.photo ? `url("${draft.photo}")` : 'none',
+            // contain 而不是 cover：这一块是给人确认「我传上去的是什么」的，
+            // 裁着显示会让人以为图就是那样
+            backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {!draft.photo && <span className="tiny dim">无图</span>}
+          </div>
+          <div className="stack-sm grow">
+            <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+              {busy === 'photo' ? '上传中…' : draft.photo ? '换一张' : '＋ 选一张图'}
+              <input type="file" accept="image/*" hidden disabled={busy === 'photo'}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; pickPhoto(f); }} />
+            </label>
+            {draft.photo && (
+              <button className="btn btn--sm btn--ghost" onClick={() => edit({ photo: '' })}>去掉</button>
+            )}
+          </div>
+        </div>
+      </div>
       </div>
 
       <div className="cell-stack">
@@ -392,98 +454,8 @@ export default function ActivityDetail() {
           </div>
         )}
       </div>
-
-      {/* 页面链接 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">🔗 页面链接（{links.length}）</div>
-        <div className="tiny dim">
-          印成签证页底下一排可点的小图标 —— 相册、报名表、场地地图、群。
-          地址要以 http:// 或 https:// 开头。
-        </div>
-        <div className="stack-sm">
-          {links.map((l, k) => (
-            <div key={k} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-              <IconPicker
-                value={l.icon} label={l.label}
-                onChange={(patch) => linkOps.edit(k, patch)}
-              />
-              <input className="input" style={{ flex: '1 1 90px' }}
-                value={l.label} maxLength={12} placeholder="名字"
-                onChange={(e) => linkOps.edit(k, { label: e.target.value })} />
-              <input className="input" style={{ flex: '3 1 160px' }} value={l.url} maxLength={300}
-                placeholder="https://…" inputMode="url"
-                onChange={(e) => linkOps.edit(k, { url: e.target.value })} />
-              <button className="btn btn--sm btn--ghost" onClick={() => linkOps.remove(k)} title="删掉">✕</button>
-            </div>
-          ))}
-          {links.length < 6 && (
-            <button className="btn btn--sm btn--ghost" onClick={linkOps.add}>+ 加一个链接</button>
-          )}
-        </div>
       </div>
 
-      </div>
-
-      <div className="cell-stack">
-      {/* 配图 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">🖼 配图</div>
-        <div className="tiny dim">贴在签证页右上角，横构图最好看。上传完还要点保存才算数。</div>
-        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-          <div style={{
-            flex: '0 0 120px', height: 76, border: '1px solid var(--line)', borderRadius: 3,
-            overflow: 'hidden', background: 'var(--ink-3)',
-            backgroundImage: draft.photo ? `url("${draft.photo}")` : 'none',
-            backgroundSize: 'cover', backgroundPosition: 'center',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {!draft.photo && <span className="tiny dim">无图</span>}
-          </div>
-          <div className="stack-sm grow">
-            <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
-              {busy === 'photo' ? '上传中…' : draft.photo ? '换一张' : '＋ 选一张图'}
-              <input type="file" accept="image/*" hidden disabled={busy === 'photo'}
-                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; pickPhoto(f); }} />
-            </label>
-            {draft.photo && (
-              <button className="btn btn--sm btn--ghost" onClick={() => edit({ photo: '' })}>去掉</button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 这一页的版式 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">
-          🎫 这一页的版式 —— {draft.blocks ? <b style={{ color: 'var(--gold)' }}>自己排过</b> : '默认版式'}
-        </div>
-        <div className="tiny dim">
-          {draft.blocks
-            ? `这一页在编辑器里排过了，${draft.blocks.length} 个块。`
-            : '这一页还没排过，用的是默认版式（横框、栏目、活动名、备注、配图、链接、机读区）。进编辑器动一次就归它自己管。'}
-        </div>
-        <Link className="btn btn--sm btn--ghost btn--full" to={`/staff/admin/a/${id}/design`}>
-          🎨 打开画布编辑器
-        </Link>
-        {draft.blocks && (
-          <button className="btn btn--sm btn--ghost" onClick={() => edit({ blocks: undefined })}>
-            回到默认版式（自己排的会丢掉，要点保存才生效）
-          </button>
-        )}
-      </div>
-
-      {/* 删掉 */}
-      <div className="card stack" style={{ marginBottom: 12 }}>
-        <div className="section-title">🗑 删掉这一场</div>
-        <div className="tiny dim">
-          护照里不再有这一页。已经盖过的章还在数据库里，但不会再显示。
-        </div>
-        <button className="btn btn--danger btn--full" disabled={busy === 'save'} onClick={remove}>
-          ⚠️ 删掉「{draft.name}」
-        </button>
-      </div>
-
-      </div>
 
       </div>
     </div>

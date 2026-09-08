@@ -80,10 +80,19 @@ export default function Join() {
 
       <div className="card stack" style={{ marginBottom: 12 }}>
         {a.photo && (
-          <div style={{
-            width: '100%', height: 150, borderRadius: 4, backgroundImage: `url("${a.photo}")`,
-            backgroundSize: 'cover', backgroundPosition: 'center',
-          }} />
+          /* 整张图完整显示，高度跟着图片自己的比例走。
+             原来是「固定 150 高 + cover」—— 那是按框裁图，竖构图的照片
+             只剩中间一条，海报上的字直接被切掉。
+             max-height 是给竖图兜底的：不裁，但别把报名按钮顶到屏幕外。 */
+          <img
+            src={a.photo} alt=""
+            style={{
+              display: 'block', margin: '0 auto',
+              // 框贴着图走：给死宽度的话，竖构图两边会空出两条底色带
+              width: 'auto', height: 'auto',
+              maxWidth: '100%', maxHeight: '52vh', borderRadius: 4,
+            }}
+          />
         )}
         <div className="eyebrow">GCGCM {a.tag || '活动'}</div>
         <h1 style={{ margin: '2px 0 0' }}>{a.icon} {a.name}</h1>
