@@ -108,7 +108,7 @@ export default function Badge() {
 
           {/* 抬头 */}
           <text x="320" y="80" textAnchor="middle" fill="#b99a48" fontSize="15" fontWeight="700" letterSpacing="5">
-            MINI LIFE GAME
+            {game.titleEn || 'LIFE PASSPORT'}
           </text>
           <text x="320" y="112" textAnchor="middle" fill="#eef1f8" fontSize="25" fontWeight="700">
             人生护照 · 结业徽章
@@ -186,7 +186,7 @@ export default function Badge() {
             {game.verseEn || "You don't have to do life alone"}
           </text>
           <text x="320" y="906" textAnchor="middle" fill="#4a5470" fontSize="12" letterSpacing="2">
-            {game.church || 'GCGCM 迎新'}
+            {game.church || 'GCGCM'}
           </text>
         </svg>
       </div>

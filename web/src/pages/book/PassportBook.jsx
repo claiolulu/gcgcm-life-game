@@ -428,7 +428,7 @@ function BookSplash({ text }) {
       fontFamily: "'Noto Serif SC','EB Garamond',serif", color: '#e6cd91',
     }}>
       <div style={{ fontSize: 13, letterSpacing: '.5em', textIndent: '.5em', opacity: 0.75 }}>
-        迷 你 人 生 国
+        人 生 国
       </div>
       <div style={{ fontSize: 15, letterSpacing: '.18em', opacity: 0.6 }}>{text}</div>
     </div>

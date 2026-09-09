@@ -49,9 +49,8 @@ const TONES = { cream: '#f3ede0', ivory: '#f7f2e7', blue: '#eceff0' };
 const THEME_FALLBACK = {
   ink: '#5c1a22', gold: '#e6cd91', paper: '#f3ede0', text: '#2a2320',
   watermark: 0.13, stamp: '#2f6148',
-  coverIssuer: 'GCGCM', coverSub: '迷 你 人 生 国',
+  coverIssuer: 'GCGCM', coverSub: '人 生 国',
   coverTitle: '人生护照', coverEn: 'PASSPORT',
-  visaBrand: 'MINI LIFE GAME', visaBrandCn: '迷你人生游戏',
 };
 
 const hex2rgb = (h) => {
@@ -124,12 +123,28 @@ const VISA_TPL_FALLBACK = {
  * 单位是页面框的百分比。横版页的宽高比不是定值（它等于手机屏的高宽比），
  * 所以这里只能取一个常见比例来定坐标 —— 特别长或特别方的屏上会有出入。
  */
+/**
+ * 横幅右边那两行字：印这一场活动的名字。
+ *
+ * 原来印的是全书统一的「MINI LIFE GAME / 迷你人生游戏」—— 一本护照里
+ * 每一页都一样，等于没说。签证页本来就是「哪一场」的那一页，这两行
+ * 是页面上最显眼的位置，给活动名最合适。
+ *
+ * 没填英文名的活动，中文名直接占主行 —— 否则大字那行空着，只剩一行小字。
+ */
+export function bannerBrandOf(station) {
+  const en = String(station?.en || '').trim();
+  const cn = String(station?.name || '').trim();
+  if (en) return { brand: en.toUpperCase(), brandCn: cn };
+  return { brand: cn || 'GCGCM', brandCn: '' };
+}
+
 function defaultBlocks(tpl, station) {
   const out = [];
   const push = (b) => out.push({ rot: 0, opacity: 1, href: '', ...b });
 
   push({ id: 'banner', kind: 'banner', x: 4, y: 12.5, w: 92, h: 11,
-         word: tpl.banner, brand: tpl.brand, brandCn: tpl.brandCn });
+         word: tpl.banner, ...bannerBrandOf(station) });
 
   push({ id: 'fields', kind: 'fields', x: 4.5, y: 27, w: 52, h: 62,
          cols: 2, rows: tpl.rows });
@@ -166,12 +181,9 @@ export function resolveBlocks(template, station, theme) {
   // 只看「有没有这个字段」，不看长度：空数组是同工把块删光了，
   // 那就是他要的白页，不该被当成「没设计过」又把默认版式塞回去
   if (Array.isArray(station?.blocks)) return station.blocks;
-  const tpl = resolveVisaTemplate(template);
-  const t = { ...THEME_FALLBACK, ...(theme || {}) };
   // 横幅右边那两行字原来存在护照模版里（那时它是全书统一的）。
-  // 现在它是横幅块自己的属性，同工可以一场一场改 —— 但默认值仍然
-  // 从护照模版取，老数据不用迁移
-  return defaultBlocks({ ...tpl, brand: t.visaBrand, brandCn: t.visaBrandCn }, station);
+  // 现在按活动名生成，同工照样能在编辑器里一场一场改
+  return defaultBlocks(resolveVisaTemplate(template), station);
 }
 
 /**
@@ -484,8 +496,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     coverSub: theme.coverSub,
     coverTitle: theme.coverTitle,
     coverEn: theme.coverEn,
-    visaBrand: theme.visaBrand,
-    visaBrandCn: theme.visaBrandCn,
     wmOpacity: String(theme.watermark),
 
     paper: theme.paper || TONES.cream,

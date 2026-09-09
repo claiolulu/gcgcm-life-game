@@ -104,10 +104,10 @@ export default function Register() {
             height="64"
             style={{ display: 'block', margin: '0 auto 10px', borderRadius: 14 }}
           />
-          <div className="eyebrow">{game?.church || 'GCGCM 迎新'}</div>
-          <h1 className="title-xl" style={{ marginTop: 6 }}>{game?.title || 'Mini Life Game'}</h1>
+          <div className="eyebrow">{game?.church || 'GCGCM'}</div>
+          <h1 className="title-xl" style={{ marginTop: 6 }}>{game?.title || '人生护照'}</h1>
           <div className="muted small" style={{ marginTop: 4 }}>
-            {game?.subtitle || '人生护照 · Life Passport'}
+            {game?.subtitle || 'Life Passport'}
           </div>
         </div>
 

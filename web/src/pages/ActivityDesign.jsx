@@ -8,7 +8,7 @@ import { useStaff } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import VisaPageFrame, { PAGE_ASPECT } from './book/VisaPageFrame.jsx';
 import { BlockBody } from './book/VisaBlocks.jsx';
-import { resolveBlocks, blockData } from './book/bookVals.js';
+import { resolveBlocks, blockData, bannerBrandOf } from './book/bookVals.js';
 
 /**
  * 签证页的版式编辑器。
@@ -28,7 +28,7 @@ const round = (n) => Math.round(n * 10) / 10;
 const PALETTE = [
   { kind: 'text',    name: '文字',     make: () => ({ x: 8, y: 30, w: 40, h: 14, text: '写点什么', size: 4, color: '', font: 'sans', align: 'left', bold: false, lh: 1.5 }) },
   { kind: 'image',   name: '图片',     make: () => ({ x: 10, y: 25, w: 30, h: 34, src: '', fit: 'cover', radius: 0 }) },
-  { kind: 'banner',  name: 'VISA 横框', make: (t) => ({ x: 4, y: 12.5, w: 92, h: 11, word: t.banner, brand: 'MINI LIFE GAME', brandCn: '迷你人生游戏' }) },
+  { kind: 'banner',  name: 'VISA 横框', make: (t) => ({ x: 4, y: 12.5, w: 92, h: 11, word: t.banner, ...t.brand }) },
   { kind: 'fields',  name: '栏目',     make: (t) => ({ x: 4.5, y: 27, w: 52, h: 62, cols: 2, rows: t.rows }) },
   { kind: 'station', name: '活动名',   make: (t) => ({ x: 60, y: 27, w: 36, h: 16, label: t.stationLabel }) },
   { kind: 'note',    name: '备注',     make: (t) => ({ x: 60, y: 47, w: 36, h: 30, label: t.annotationLabel }) },
@@ -190,6 +190,7 @@ export default function ActivityDesign() {
     const made = {
       id: `b${Date.now().toString(36)}`, kind, rot: 0, opacity: 1, href: '',
       ...def.make({ banner: tpl.banner || 'VISA', rows: tpl.rows || [],
+                    brand: bannerBrandOf(activity),
                     stationLabel: tpl.stationLabel || '', annotationLabel: tpl.annotationLabel || '' }),
     };
     setBlocks((cur) => [...cur, made]);
@@ -708,9 +709,9 @@ function Inspector({ b, patch, sources, busy, onPickImage }) {
         <input className="input" value={b.word} maxLength={16} placeholder="VISA"
           onChange={(e) => patch({ word: e.target.value })} />
         <div className="row" style={{ gap: 6 }}>
-          <input className="input grow" value={b.brand} maxLength={24} placeholder="MINI LIFE GAME"
+          <input className="input grow" value={b.brand} maxLength={24} placeholder="活动英文名"
             onChange={(e) => patch({ brand: e.target.value })} />
-          <input className="input grow" value={b.brandCn} maxLength={16} placeholder="中文副题（可留空）"
+          <input className="input grow" value={b.brandCn} maxLength={16} placeholder="活动中文名（可留空）"
             onChange={(e) => patch({ brandCn: e.target.value })} />
         </div>
       </>

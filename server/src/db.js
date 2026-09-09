@@ -169,6 +169,23 @@ export function setSetting(key, value) {
 const SRC_KEYS = new Set(VISA_ROW_SOURCES.map((x) => x.key));
 
 /**
+ * 横幅右边那两行原来是全书统一的「MINI LIFE GAME / 迷你人生游戏」，
+ * 现在印这一场活动自己的名字。已经在编辑器里排过版的活动，那两行是
+ * 存下来的字面值，不迁移的话会一直停在旧品牌上。
+ *
+ * 只认「一字不差还是老默认值」的那种 —— 同工自己敲过的字不动。
+ */
+function bannerBrand(b, activity) {
+  if (b?.kind !== 'banner') return b;
+  if (b.brand !== 'MINI LIFE GAME' && b.brandCn !== '迷你人生游戏') return b;
+  const en = String(activity?.en || '').trim();
+  const cn = String(activity?.name || '').trim();
+  return en
+    ? { ...b, brand: en.toUpperCase(), brandCn: cn }
+    : { ...b, brand: cn || 'GCGCM', brandCn: '' };
+}
+
+/**
  * 当前的活动清单。总控台改过就用库里的，没改过就是 config.js 的默认值。
  *
  * 不放进 getSettings() 一起返回：它是个数组，而 settings 那个对象
@@ -196,7 +213,7 @@ export function getActivities() {
           .filter((r) => SRC_KEYS.has(String(r?.src || 'text')))
           .map((r) => (r?.src === 'control' && r.label === 'CONTROL NUMBER 控制号'
             ? { ...r, label: 'NUMBER 编号' } : r)),
-      } : b),
+      } : bannerBrand(b, a)),
     } : {}),
   }));
   // 启动后第一次读取就把旧日期/标题真正写回库，之后存储始终是新格式。

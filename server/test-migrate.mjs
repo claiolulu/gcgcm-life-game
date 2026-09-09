@@ -78,8 +78,11 @@ console.log('\n=== 老库升级迁移 ===\n');
   // 一场在画布里存过版式的活动。它的栏目里有一栏绑着迎新游戏那套的
   // 「身份」—— 那个来源已经不存在了，留着的话保存这场活动会被服务端拒掉。
   db.prepare('INSERT INTO settings VALUES (?,?)').run('_activities', JSON.stringify([{
-    id: 'freshers', name: '迎新之夜', icon: '🎉', state: 'upcoming',
+    id: 'freshers', name: '迎新之夜', en: 'Freshers Night', icon: '🎉', state: 'upcoming',
     blocks: [{
+      kind: 'banner', x: 4, y: 12.5, w: 92, h: 11,
+      word: 'VISA', brand: 'MINI LIFE GAME', brandCn: '迷你人生游戏',
+    }, {
       kind: 'fields', x: 4, y: 27, w: 92, h: 58, cols: 2,
       rows: [
         { key: 'surname', label: 'SURNAME 姓', src: 'surname' },
@@ -161,7 +164,7 @@ check('重建前留了一份备份',
 {
   const line = (run.stdout || '').split('\n').find((l) => l.startsWith('ACTS:'));
   const acts = line ? JSON.parse(line.slice(5)) : [];
-  const rows = acts[0]?.blocks?.[0]?.rows || [];
+  const rows = (acts[0]?.blocks || []).find((b) => b.kind === 'fields')?.rows || [];
   const srcs = rows.map((r) => r.src);
   check('绑着「身份」的那一栏被剔掉了（留着会让这场活动保存失败）',
     !srcs.includes('identity'), JSON.stringify(srcs));
@@ -170,6 +173,12 @@ check('重建前留了一份备份',
   check('顺手把「控制号」的标题迁成「编号」',
     rows.find((r) => r.src === 'control')?.label === 'NUMBER 编号',
     JSON.stringify(rows.map((r) => r.label)));
+
+  // 横幅右边原来印全书统一的品牌，现在印这一场活动自己的名字
+  const banner = (acts[0]?.blocks || []).find((b) => b.kind === 'banner');
+  check('横幅右侧从旧品牌迁成活动名',
+    banner?.brand === 'FRESHERS NIGHT' && banner?.brandCn === '迎新之夜',
+    JSON.stringify(banner));
 }
 
 /* ---------- 再跑一次，不该重复迁移 ---------- */

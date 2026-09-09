@@ -1,9 +1,14 @@
 // 游戏静态配置 —— 前后端共享（前端通过 GET /api/config 拉取并缓存到本地，离线可用）
 
 export const GAME = {
-  title: 'Mini Life Game',
-  subtitle: '人生护照 · Life Passport',
-  church: 'GCGCM 迎新',
+  title: '人生护照',
+  // 徽章抬头那行大写英文用它。中文标题塞进那个位置会很怪
+  titleEn: 'LIFE PASSPORT',
+  // 副题不再带 GCGCM：注册页上它正下方就是眉标 game.church，
+  // 两行挨着各写一遍 GCGCM，看着像模板没填完
+  subtitle: 'Life Passport',
+  // 护照覆盖的是一整年的活动，不再只是迎新那一场
+  church: 'GCGCM',
   verse: '我的恩典够你用的',
   verseEn: "You don't have to do life alone",
 };
@@ -126,12 +131,9 @@ export const THEME = {
   stamp: '#2f6148',
   // 封面
   coverIssuer: 'GCGCM',
-  coverSub: '迷 你 人 生 国',
+  coverSub: '人 生 国',
   coverTitle: '人生护照',
   coverEn: 'PASSPORT',
-  // 签证页横幅右侧那两行
-  visaBrand: 'MINI LIFE GAME',
-  visaBrandCn: '迷你人生游戏',
 };
 
 /**

@@ -932,7 +932,7 @@ process.on('SIGINT', () => { try { writeSnapshot(); } catch {} process.exit(0); 
 
 server.listen(PORT, () => {
   const s = getSettings();
-  console.log(`\n  🎲 Mini Life Game 人生护照系统`);
+  console.log(`\n  🛂 ${GAME.title} · ${GAME.subtitle}`);
   console.log(`  → http://localhost:${PORT}`);
   console.log(`  → 状态：${s.gameState}｜已报名 ${stmts.countPlayers.get().n} 人`);
   const usingEnv = !!(process.env.STAFF_PIN && process.env.ADMIN_PIN);

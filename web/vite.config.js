@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['passport-icon.svg', 'passport-apple-touch-icon.png'],
       manifest: {
-        name: 'Mini Life Game 人生护照',
+        name: '人生护照',
         short_name: '人生护照',
         description: 'GCGCM 活动打卡护照',
         lang: 'zh-CN',
