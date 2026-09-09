@@ -180,7 +180,7 @@ export const VISA_ROW_SOURCES = [
  */
 export const VISA_TEMPLATE = {
   banner: 'VISA',
-  stationLabel: 'STATION 关卡',
+  stationLabel: 'STATION 活动',
   annotationLabel: 'ANNOTATION 备注',
   showPhoto: true,
   showAnnotation: true,

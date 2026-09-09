@@ -215,7 +215,7 @@ const applyOpTx = db.transaction((op, settings) => {
   switch (op.type) {
     case 'score': {
       const station = stationById(op.stationId);
-      if (!station) return { status: 'error', message: '未知关卡' };
+      if (!station) return { status: 'error', message: '未知活动' };
 
       const already = stmts.stationEvent.get(player.id, op.stationId);
       if (already) {

@@ -106,7 +106,7 @@ export default function App() {
     });
   }, []);
 
-  if (!booted && !config) return <Loading label="正在载入游戏…" />;
+  if (!booted && !config) return <Loading label="正在载入…" />;
 
   return (
     <ToastProvider>

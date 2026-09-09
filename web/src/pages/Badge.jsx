@@ -20,9 +20,13 @@ export default function Badge() {
 
   if (!me) return <div className="page"><Empty icon="🛂" title="还没有护照" hint="先去报名领一本护照吧" /></div>;
 
-  // 身份和奖项跟着迎新游戏一起去掉了：这张徽章现在只讲「参加过哪几场」
-  const identity = null;
-  const awardName = null;
+  // 入册日期：徽章上第三栏原来是「人生意外」（盲盒抽了几张），那个字段没了
+  // 手写而不用 toLocaleDateString：zh-CN 在 Chrome 上给的是「9/9」，
+  // 而它旁边两栏是「1/1 排名」和「2/6 参加场次」—— 三个斜杠并排，
+  // 日期会被读成比例
+  const joinedOn = me.createdAt
+    ? `${new Date(me.createdAt).getMonth() + 1}月${new Date(me.createdAt).getDate()}日`
+    : '—';
 
   async function render() {
     setBusy(true);
@@ -123,23 +127,24 @@ export default function Badge() {
             {me.name}
           </text>
           <text x="320" y="366" textAnchor="middle" fill="#a8b2c9" fontSize="15" letterSpacing="3">
-            {identity ? `${identity.name} · ${identity.cn}` : '参与者'}　|　{me.code}
+            参与者　|　{me.code}
           </text>
 
-          {/* 主分数 */}
+          {/* 主数字：盖了几个章。打卡本里它同时也是总分，两者永远相等 */}
           <text x="320" y="450" textAnchor="middle" fill="url(#badge-gold)" fontSize="82" fontWeight="800">
-            {me.total}
+            {me.stationsDone}
           </text>
           <text x="320" y="480" textAnchor="middle" fill="#6d7791" fontSize="14" letterSpacing="4">
-            FINAL SCORE
+            VISAS COLLECTED
           </text>
 
-          {/* 三个数据 */}
+          {/* 三个数据。原来第三栏是「人生意外」（盲盒抽了几张），
+              服务端早就不发那个字段了，印出来是 undefined */}
           <g>
             {[
               { x: 160, label: '排名', value: rank ? `${rank}/${of}` : '—' },
-              { x: 320, label: '完成关卡', value: `${me.stationsDone}/${me.stationsTotal}` },
-              { x: 480, label: '人生意外', value: `${me.lifeEventsTaken}` },
+              { x: 320, label: '参加场次', value: `${me.stationsDone}/${me.stationsTotal}` },
+              { x: 480, label: '入册', value: joinedOn },
             ].map((s) => (
               <g key={s.label}>
                 <text x={s.x} y="536" textAnchor="middle" fill="#eef1f8" fontSize="24" fontWeight="700">{s.value}</text>
@@ -148,11 +153,11 @@ export default function Badge() {
             ))}
           </g>
 
-          {/* 七关点阵 */}
+          {/* 活动点阵：去过的实心带勾，没去的虚线圈 */}
           <line x1="80" y1="590" x2="560" y2="590" stroke="#2a3450" strokeWidth="1" />
           {stations.map((st, i) => {
             const hit = me.stations?.[st.id];
-            // 间距按关卡数自适应，7 关或 8 关都能均匀铺满 640 宽的画布
+            // 间距按场数自适应，几场都能均匀铺满 640 宽的画布
             const step = 460 / Math.max(1, stations.length - 1);
             const x = 90 + i * step;
             return (
@@ -166,35 +171,18 @@ export default function Badge() {
                 />
                 <text x={x} y="640" textAnchor="middle" fontSize="20" opacity={hit ? 1 : 0.3}>{st.icon}</text>
                 <text x={x} y="676" textAnchor="middle" fill={hit ? '#b99a48' : '#6d7791'} fontSize="14" fontWeight="700">
-                  {hit ? hit.points : '—'}
+                  {hit ? '✓' : '—'}
                 </text>
               </g>
             );
           })}
 
-          {/* 奖项 */}
-          {awardName && (
-            <g>
-              <rect x="180" y="700" width="280" height="42" rx="21" fill="rgba(232,197,106,0.14)" stroke="#b99a48" />
-              <text x="320" y="727" textAnchor="middle" fill="#e8c56a" fontSize="17" fontWeight="700">
-                {awardName.icon} {awardName.name}
-              </text>
-            </g>
-          )}
-
-          {/* Token */}
-          <text x="320" y={awardName ? 776 : 740} textAnchor="middle" fill="#a8b2c9" fontSize="14">
-            {me.tokensLeft > 0
-              ? '🪙 我一个人扛完了全程 —— 但其实不必如此'
-              : '🪙 我在恩典站伸手求助过一次'}
-          </text>
-
           {/* 经文 */}
-          <line x1="140" y1={awardName ? 806 : 772} x2="500" y2={awardName ? 806 : 772} stroke="#2a3450" strokeWidth="1" />
-          <text x="320" y={awardName ? 848 : 816} textAnchor="middle" fill="#e8c56a" fontSize="22" fontWeight="700">
+          <line x1="140" y1="772" x2="500" y2="772" stroke="#2a3450" strokeWidth="1" />
+          <text x="320" y="816" textAnchor="middle" fill="#e8c56a" fontSize="22" fontWeight="700">
             「{game.verse || '我的恩典够你用的'}」
           </text>
-          <text x="320" y={awardName ? 878 : 848} textAnchor="middle" fill="#a8b2c9" fontSize="15" fontStyle="italic">
+          <text x="320" y="848" textAnchor="middle" fill="#a8b2c9" fontSize="15" fontStyle="italic">
             {game.verseEn || "You don't have to do life alone"}
           </text>
           <text x="320" y="906" textAnchor="middle" fill="#4a5470" fontSize="12" letterSpacing="2">

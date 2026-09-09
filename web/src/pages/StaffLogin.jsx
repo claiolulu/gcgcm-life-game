@@ -36,7 +36,7 @@ export default function StaffLogin() {
         <div style={{ fontSize: 40, marginBottom: 8 }}>🎯</div>
         <div className="eyebrow">Staff Console</div>
         <h1 style={{ marginTop: 4 }}>工作人员端</h1>
-        <div className="small muted" style={{ marginTop: 6 }}>扫码记分 · 支持离线操作</div>
+        <div className="small muted" style={{ marginTop: 6 }}>扫码盖章 · 支持离线操作</div>
       </div>
 
       <div className="card stack">
@@ -62,7 +62,7 @@ export default function StaffLogin() {
             className="input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="记分时会记录是谁操作的"
+            placeholder="盖章时会记录是谁操作的"
             maxLength={24}
           />
         </div>
@@ -82,7 +82,7 @@ export default function StaffLogin() {
               </button>
             ))}
           </div>
-          <div className="tiny dim">选了之后扫码界面会直接跳到这个站的记分，少点两下</div>
+          <div className="tiny dim">选了之后扫码界面会直接跳到这一场，少点两下</div>
         </div>
 
         <button className="btn btn--primary btn--lg btn--full" disabled={busy} onClick={go}>
@@ -92,8 +92,8 @@ export default function StaffLogin() {
 
       <div className="card card--flat" style={{ marginTop: 14 }}>
         <div className="small muted" style={{ lineHeight: 1.7 }}>
-          <span className="bold gold">离线也能记分。</span>
-          网不好的时候照常扫码打分，操作会存在手机本地，恢复联网后自动上传，
+          <span className="bold gold">离线也能盖章。</span>
+          网不好的时候照常扫码，操作会存在手机本地，恢复联网后自动上传，
           <span className="bold">不会重复加分、也不会丢</span>。顶部的状态条会告诉你还有几条没传上去。
         </div>
       </div>

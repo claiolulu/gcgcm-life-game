@@ -511,7 +511,7 @@ export default function PassportBookView({ v }) {
                   {v.passportNo}
                 </div>
                 <div style={{fontSize: "12.5px", color: "rgba(240,226,196,.6)"}}>
-                  出示给工作人员扫描记分
+                  出示给工作人员扫描盖章
                 </div>
               </div>
             </>

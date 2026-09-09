@@ -79,7 +79,7 @@ export default function Register() {
         contact: contact.trim(),
         avatar, pin, confirmNew: confirmNew === true,
       });
-      toast('护照已生成，欢迎来到 Mini Life Game', 'ok');
+      toast(`护照已生成，欢迎来到 ${game?.title || 'GCGCM'}`, 'ok');
       await done();
     } catch (err) {
       // 同名：多半是忘了密码想重新注册。先问清楚，避免一个人两个号

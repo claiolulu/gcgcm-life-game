@@ -99,7 +99,7 @@ export default function StaffPlayer() {
 
       {player.hasPending && (
         <div className="card card--tight small" style={{ color: 'var(--yellow)', marginBottom: 12 }}>
-          ⏳ 这位选手有 {player.pending.length} 条记分还没上传，分数是本地预估值
+          ⏳ 这位选手有 {player.pending.length} 个章还没上传，下面的数字是本地预估
         </div>
       )}
 

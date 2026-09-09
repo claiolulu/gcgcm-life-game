@@ -752,7 +752,7 @@ function Inspector({ b, patch, sources, busy, onPickImage }) {
           {b.kind === 'station' ? '名字' : '说明'}，在活动详情页里改。
         </div>
         <input className="input" value={b.label || ''} maxLength={30}
-          placeholder={b.kind === 'station' ? 'STATION 关卡' : 'ANNOTATION 备注'}
+          placeholder={b.kind === 'station' ? 'STATION 活动' : 'ANNOTATION 备注'}
           onChange={(e) => patch({ label: e.target.value })} />
       </>
     );

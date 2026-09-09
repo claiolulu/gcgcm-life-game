@@ -176,7 +176,7 @@ export default function Admin() {
   /**
    * 替某人把一场活动标成已参加。
    *
-   * 走的是同工端那条记分通道（queueOp），所以离线也排得住、重复点也只算
+   * 走的是同工端那条盖章通道（queueOp），所以离线也排得住、重复点也只算
    * 一次（服务端那条「一场只盖一次」的唯一索引挡着）。
    * 给 1 分是为了让总分等于「参加过几场」，章上写的是「已参加」。
    */
@@ -381,8 +381,6 @@ export default function Admin() {
                 <div className="small bold">{p.name}</div>
                 <div className="tiny dim mono">
                   {p.code} 号 · {p.stationsDone}/{p.stationsTotal ?? activities.length}
-                  {p.identity && ` · ${p.identity}`}
-                  {p.teamSymbol && ` ${p.teamSymbol}`}
                 </div>
               </div>
               <div className="lb-score">{p.total}</div>

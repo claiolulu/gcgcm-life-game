@@ -98,7 +98,7 @@ export function themeVarsOf(theme) {
  */
 const VISA_TPL_FALLBACK = {
   banner: 'VISA',
-  stationLabel: 'STATION 关卡',
+  stationLabel: 'STATION 活动',
   annotationLabel: 'ANNOTATION 备注',
   showPhoto: true, showAnnotation: true, showLinks: true,
   rows: [
@@ -107,7 +107,6 @@ const VISA_TPL_FALLBACK = {
     { key: 'surname', label: 'SURNAME 姓',              src: 'surname' },
     { key: 'given',   label: 'GIVEN NAMES 名',          src: 'given' },
     { key: 'type',    label: 'VISA TYPE 类型',          src: 'tag' },
-    { key: 'class',   label: 'CLASS 身份',              src: 'identity' },
     { key: 'staff',   label: 'STAFF 工作人员',          src: 'host' },
     { key: 'entries', label: 'ENTRIES 入境次数',        src: 'text', text: 'ONE 一次' },
     { key: 'issued',  label: 'ISSUING DATE 签发日期',   src: 'date' },
@@ -262,7 +261,7 @@ const GUIDE = [
 ];
 
 
-/** 页码表：封面 → 欢迎 → 导航 → 资料页 → 八张签证 → 恩典站 → 结语 */
+/** 页码表：封面 → 欢迎 → 导航 → 资料页 → 每场活动一张签证 → 结语 */
 export function buildPages(stations) {
   return [
     { kind: 'cover',   label: 'COVER 封面' },
@@ -325,7 +324,9 @@ export function visaNoOf(station, issuer = 'GCGCM') {
 function mrzLine(n, { surname, given, passportNo, code, total }) {
   const pad = (s, len) => (s + '<'.repeat(Math.max(0, len - s.length))).slice(0, len);
   if (n === 1) return pad('P<GCGCM' + clean(surname, 'PLAYER') + '<<' + clean(given, 'ONE'), 38);
-  return pad(passportNo + '<GCGCM<' + clean(code, '00') + '<' + String(total).padStart(2, '0') + 'PTS', 38);
+  // 尾巴上那个数字是参加过几场，不是分数 —— 页眉那两处早就从 PTS 改成
+  // VISAS 了，机读码这一行是最后一处还写着 PTS 的地方
+  return pad(passportNo + '<GCGCM<' + clean(code, '00') + '<' + String(total).padStart(2, '0') + 'VISAS', 38);
 }
 
 function visaMrzLine(n, { surname, given, visaNo, passportNo, code }) {
@@ -673,12 +674,12 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
     guide: GUIDE,
 
-    // 导航页的活动简介（原来那三张功能卡片换成了这个）
     /**
-     * 导航页：讲清楚这本护照是什么、有哪些活动、怎么盖章。
+     * 导航页：讲清楚这本护照是什么、怎么盖章、活动在哪儿看。
      *
-     * 活动清单直接从配置生成，加了新活动这里自动跟着变 ——
-     * 手抄一份迟早会和签证页对不上。
+     * 这里**不列**活动清单。清单就在后面的签证页上，一场一页，
+     * 翻过去就是；在导航页再抄一份，等于同一件事说两遍，而且那一份
+     * 还会随着活动增删和后面对不上。这几张卡只讲不会变的东西。
      */
     intro: [
       { h: 'WHAT IS THIS 这是什么',
@@ -686,13 +687,11 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
            '你去了，就在那一页盖一个章。' +
            '一年下来翻开它，就是你在这里走过的路。' },
       { h: 'HOW TO GET STAMPED 怎么盖章',
-        t: '活动现场找同工，出示护照上的二维码（每一页右下角都有，也可以翻到资料页看大图）。' +
-           '同工扫一下就盖章，当场生效，你自己的手机上立刻能看到。' +
-           '每场活动只盖一次，重复扫会被系统拦下。' },
-      { h: 'THE ACTIVITIES 有哪些活动',
-        t: stations.length
-          ? stations.map((a) => `${a.icon || ''}${a.name}${a.date ? `（${a.date}）` : ''}`).join('　')
-          : '活动清单还在准备中。' },
+        t: '到现场把二维码给同工扫一下就行。每一页右下角都有，点一下会放大。' +
+           '章当场就盖上，你的手机上立刻看得到。一场活动只盖一次。' },
+      { h: 'THE ACTIVITIES 活动在后面',
+        t: '往后翻，一场活动一页 —— 日期、类型、当天找哪位同工，' +
+           '都写在那一页上。没去过的那几页，章的位置还空着。' },
       { h: 'ONE MORE THING 还有一件事',
         t: '章盖满了会有惊喜，但那不是重点。' +
            '这本护照记的不是你参加了几场，是你在这里认识了谁、被谁记得。' },

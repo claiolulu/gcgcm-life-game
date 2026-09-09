@@ -61,7 +61,6 @@ export function foldPending(player, pendingOps) {
   const next = {
     ...player,
     stations: { ...player.stations },
-    modifiers: [...(player.modifiers || [])],
     pending: [],
   };
 
@@ -77,12 +76,6 @@ export function foldPending(player, pendingOps) {
         at: op.clientTs,
         pending: true,
       };
-    } else if (op.type === 'life_event') {
-      next.total += op.provisionalPoints || 0;
-      next.lifeEventsTaken += 1;
-    } else if (op.type === 'grace') {
-      next.tokensUsed += 1;
-      next.tokensLeft = Math.max(0, next.tokensLeft - 1);
     } else if (op.type === 'adjust') {
       next.total += op.points || 0;
     }

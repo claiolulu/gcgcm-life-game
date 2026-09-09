@@ -87,7 +87,7 @@ export default function StaffScan() {
       <div className="row-between" style={{ marginBottom: 12 }}>
         <div>
           <div className="eyebrow">{staff.session?.role === 'admin' ? 'Admin' : 'Staff'}</div>
-          <h2>{myStation ? `${myStation.icon} ${myStation.name}` : '扫码记分'}</h2>
+          <h2>{myStation ? `${myStation.icon} ${myStation.name}` : '扫码盖章'}</h2>
           <div className="tiny dim">
             {staff.session?.name || '未署名'} · 花名册 {staff.players.length} 人 · {ago(staff.lastSyncedAt)}同步
           </div>
@@ -175,12 +175,12 @@ export default function StaffScan() {
                 </button>
               ))}
             </div>
-            <div className="tiny dim">选中之后扫码会直接跳到这个站的记分界面。</div>
+            <div className="tiny dim">选中之后扫码会直接跳到这一场的盖章界面。</div>
           </div>
 
           {staff.outbox.length > 0 && (
             <div className="card card--tight small" style={{ color: 'var(--yellow)' }}>
-              ⚠️ 还有 {staff.outbox.length} 条记分没上传，现在退出会丢掉。请先等它传完。
+              ⚠️ 还有 {staff.outbox.length} 个章没上传，现在退出会丢掉。请先等它传完。
             </div>
           )}
 
@@ -192,7 +192,7 @@ export default function StaffScan() {
                 danger: true,
                 confirmText: '退出登录',
                 body: staff.outbox.length > 0
-                  ? `⚠️ 还有 ${staff.outbox.length} 条记分没有上传，现在退出会丢掉这些记录。\n建议等顶部那条「正在上传」消失之后再退。`
+                  ? `⚠️ 还有 ${staff.outbox.length} 个章没有上传，现在退出会丢掉这些记录。\n建议等顶部那条「正在上传」消失之后再退。`
                   : '下次需要重新输入 PIN。',
               });
               if (!ok) return;

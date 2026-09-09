@@ -162,14 +162,14 @@ export function NetBar({ online, syncing, pending = 0, lastSyncedAt }) {
     return (
       <div className="netbar netbar--pending">
         <span className="pulse" />
-        {online ? `正在上传 ${pending} 条记分…` : `已离线记录 ${pending} 条，联网后自动上传`}
+        {online ? `正在上传 ${pending} 个章…` : `已离线盖了 ${pending} 个章，联网后自动上传`}
       </div>
     );
   }
   if (!online) {
     return (
       <div className="netbar netbar--offline">
-        📴 离线模式 · 数据停留在 {ago(lastSyncedAt)}，记分照常可用
+        📴 离线模式 · 数据停留在 {ago(lastSyncedAt)}，盖章照常可用
       </div>
     );
   }
