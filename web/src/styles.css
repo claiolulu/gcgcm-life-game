@@ -57,6 +57,10 @@ body {
 }
 
 /* 背景微光，让深色不死板 */
+/* 徽章页把整屏换成护照的纸色。下面那两团冷光是给深色底画的，压在纸上是脏的 */
+html.paper-screen body::before { display: none; }
+html.paper-screen { --nav-bg: var(--ink); }
+
 body::before {
   content: '';
   position: fixed;
@@ -314,7 +318,9 @@ h3 { font-size: 16px; }
   display: flex;
   height: calc(var(--nav-h) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
-  background: rgba(13, 18, 32, 0.92);
+  /* 用变量而不是写死那个深蓝：徽章页会把整屏换成护照的纸色，
+     写死的话底下会留一条深蓝的条 */
+  background: var(--nav-bg, rgba(13, 18, 32, 0.92));
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-top: 1px solid var(--line-soft);

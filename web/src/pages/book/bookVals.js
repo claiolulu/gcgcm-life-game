@@ -53,6 +53,16 @@ const THEME_FALLBACK = {
   coverTitle: '人生护照', coverEn: 'PASSPORT',
 };
 
+/**
+ * 这本护照最终用的配色：默认 → 全局设置 → 本人自己改的，依次覆盖。
+ *
+ * 徽章图也要用它 —— 分享出去的那张图和护照长得不一样的话，
+ * 收到的人不会把两者联系起来。
+ */
+export function passportTheme(config, me) {
+  return { ...THEME_FALLBACK, ...(config?.theme || {}), ...(me?.theme || {}) };
+}
+
 const hex2rgb = (h) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '').trim());
   if (!m) return [0, 0, 0];
@@ -372,7 +382,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
    * 三层叠：兜底 → 服务端下发的默认 → 这个人自己调过的。
    * 最后一层是他在资料页点「自定义」改的，只影响他自己那一本。
    */
-  const theme = { ...THEME_FALLBACK, ...(config?.theme || {}), ...(me?.theme || {}) };
+  const theme = passportTheme(config, me);
   const stations = config?.activities || [];
   const pages = buildPages(stations);
   const cur = pages[ui.page] || pages[0];
@@ -459,6 +469,35 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
   const noop = () => {};
 
+  /**
+   * 屏幕左右两侧翻页 —— 整页和签证页正文上那层透明点击层共用这一份。
+   *
+   * getBoundingClientRect 已经把 transform 算进去了，所以这个盒子就是
+   * 这一页在屏幕上的实际位置：横版页在竖屏被旋转 90° 显示，它给的仍然是
+   * 旋转之后的屏幕坐标。于是不用分「转没转」两种情况 —— 左边永远是上一页、
+   * 右边永远是下一页，横屏竖屏、正页转页都一样。
+   *
+   * 以前这里按旋转与否切到纵轴判断，于是竖屏看签证页时翻页要点屏幕的上下边，
+   * 和其它页正好差 90°，没人猜得到。
+   *
+   * 上下各留一条边不翻页：页眉那几个按钮（排行榜、导览）和页脚的二维码就贴在
+   * 这两条边上，旋转之后它们正好落在屏幕的左右两侧、也就是翻页带里。点在按钮
+   * 上有 closest() 挡着，但按钮只有 30px 见方，点偏一点就翻页了。
+   *
+   * 返回 true 表示「这一下已经当翻页处理了」，调用方就该收手。
+   */
+  const EDGE_BAND = 0.12;
+  const edgeFlip = (e) => {
+    const box = e?.currentTarget?.getBoundingClientRect?.();
+    if (!box || !box.width || !box.height) return false;
+    const fy = (e.clientY - box.top) / box.height;
+    if (fy <= EDGE_BAND || fy >= 1 - EDGE_BAND) return false;
+    const fx = (e.clientX - box.left) / box.width;
+    if (fx <= 0.25) { e.__flip = true; actions.move(-1); return true; }
+    if (fx >= 0.75) { e.__flip = true; actions.move(1); return true; }
+    return false;
+  };
+
   // 向后翻时动的是克隆出来的旧页（PassportBook 直接改它的 style），
   // React 这一层静止不动、当作被揭开后露出的下一页。
   // 向前翻反过来：旧页留在底下不动，这一层倒放着盖回去。
@@ -517,19 +556,14 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
     /* ---- 翻页（唯一保留的交互） ---- */
     next: () => actions.move(1),
+    edgeFlip,
     pageTap: (e) => {
       if (e.__flip) return;
       if (e.target.closest('button, input, a, textarea, select')) return;
       // 封面整页可点，不用去够某个按钮
       if (kind === 'cover') { e.__flip = true; actions.move(1); return; }
-      const box = e.currentTarget.getBoundingClientRect();
-      // 横版页在竖屏上是旋转 90° 显示的，左右方向落在屏幕的纵轴上
-      const rot = landscape && !ui.vpLandscape;
-      const frac = rot ? (e.clientY - box.top) / box.height
-                       : (e.clientX - box.left) / box.width;
-      if (frac <= 0.25) { e.__flip = true; actions.move(-1); return; }
-      if (frac >= 0.75) { e.__flip = true; actions.move(1); return; }
-      // 点在中间：如果这一关还没盖章，就主动查一次。
+      if (edgeFlip(e)) return;
+      // 点在中间：如果这一场还没盖章，就主动查一次。
       // 页面上不放任何常驻标识，只在请求进行中给一个很轻的反馈。
       // 已经盖章的页面不发请求，防止反复戳。
       if (station && visaScore == null) actions.checkStamp();
@@ -667,16 +701,11 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       if (!station || visaScore != null) return;
       actions.checkStamp();
     },
+    // 签证页正文上盖着一层透明的点击层。它和整页用同一份边缘判断 ——
+    // 各写各的话，同一个位置在正文上和在页边上会有两种反应
     stampTap: (e) => {
       if (e && e.__flip) return;
-      const box = e.currentTarget?.getBoundingClientRect?.();
-      if (box) {
-        // 左右边缘依旧是翻页
-        const rot = !ui.vpLandscape;
-        const frac = rot ? (e.clientY - box.top) / box.height : (e.clientX - box.left) / box.width;
-        if (frac <= 0.25) { e.__flip = true; actions.move(-1); return; }
-        if (frac >= 0.75) { e.__flip = true; actions.move(1); return; }
-      }
+      if (edgeFlip(e)) return;
       if (!station) return;
       if (visaScore != null) return;      // 已盖章，不发请求
       actions.checkStamp();

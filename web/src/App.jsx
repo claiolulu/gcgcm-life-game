@@ -21,9 +21,18 @@ import Admin from './pages/Admin.jsx';
 
 /* ------------------------------ 底部导航 ------------------------------ */
 
+/**
+ * 选手端底栏只有这两个。
+ *
+ * 排行榜从这儿拿掉了 —— 护照页眉上那个奖杯就是它，点开是书里的浮层，
+ * 底栏再挂一个是同一件事的第二个入口。/leaderboard 那条路由留着：
+ * 总控台可以把排行榜设成公开，那个地址是给投屏和转发用的。
+ *
+ * 「工作人员」也拿掉了：那是同工的入口，不该摆在每个选手的屏幕底下。
+ * 同工走 staff 那个独立域名进（见 server/src/index.js 的域名分流）。
+ */
 const PLAYER_TABS = [
   { to: '/passport', icon: '🛂', label: '护照' },
-  { to: '/leaderboard', icon: '🏆', label: '排行榜' },
   { to: '/badge', icon: '🎖', label: '徽章' },
 ];
 
@@ -52,10 +61,6 @@ function BottomNav() {
           <span>{t.label}</span>
         </NavLink>
       ))}
-      <NavLink to="/staff" className="nav__item">
-        <span className="nav__icon">🎯</span>
-        <span>工作人员</span>
-      </NavLink>
     </nav>
   );
 }
