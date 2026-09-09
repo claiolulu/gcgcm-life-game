@@ -159,7 +159,7 @@ export default function StaffScan() {
           </div>
 
           <div className="field">
-            <label className="label">换一个站点</label>
+            <label className="label">换一场活动</label>
             <div className="opt-wrap">
               {stations.map((st) => (
                 <button

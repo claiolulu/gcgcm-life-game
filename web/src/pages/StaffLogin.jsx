@@ -68,7 +68,7 @@ export default function StaffLogin() {
         </div>
 
         <div className="field">
-          <label className="label">你负责哪个站</label>
+          <label className="label">你负责哪一场</label>
           <div className="opt-row" style={{ flexWrap: 'wrap', overflowX: 'visible' }}>
             {stations.map((s) => (
               <button

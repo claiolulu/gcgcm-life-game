@@ -491,7 +491,7 @@ function JoinQR({ url }) {
     if (!canvas || !url) return;
     QRCode.toCanvas(canvas, url, {
       errorCorrectionLevel: 'M', margin: 1, width: 440,
-      color: { dark: '#0d1220ff', light: '#ffffffff' },
+      color: { dark: '#000000ff', light: '#ffffffff' },
     }, (err) => {
       if (err) return console.error('[qr]', err);
       // qrcode 会把行内 style 覆盖成位图尺寸（这里是 2 倍），画完得改回显示尺寸

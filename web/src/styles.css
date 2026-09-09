@@ -5,20 +5,23 @@
    ============================================================ */
 
 :root {
-  --ink:        #0d1220;
-  --ink-2:      #131a2c;
-  --ink-3:      #1b2338;
-  --ink-4:      #263050;
-  --line:       #2a3450;
-  --line-soft:  rgba(255, 255, 255, 0.07);
+  /* 一条中性的黑灰梯度。原来是带蓝的深藏青（#0d1220 一路到 #263050），
+     而护照页外围是暖黑（#26201d→#141110）—— 两处一冷一暖，在同一台
+     手机上来回切就是两种黑。现在全都落在同一条中性梯度上。 */
+  --ink:        #000000;
+  --ink-2:      #0c0c0d;
+  --ink-3:      #141416;
+  --ink-4:      #1f1f22;
+  --line:       #2a2a2e;
+  --line-soft:  rgba(255, 255, 255, 0.06);
 
   --gold:       #e8c56a;
   --gold-dim:   #b99a48;
   --gold-glow:  rgba(232, 197, 106, 0.18);
 
-  --text:       #eef1f8;
-  --text-2:     #a8b2c9;
-  --text-3:     #6d7791;
+  --text:       #f0f0f2;
+  --text-2:     #a9a9b0;
+  --text-3:     #71717a;
 
   --green:      #3ec98a;
   --red:        #ff5a5f;
@@ -56,21 +59,8 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* 背景微光，让深色不死板 */
-/* 徽章页把整屏换成护照的纸色。下面那两团冷光是给深色底画的，压在纸上是脏的 */
-html.paper-screen body::before { display: none; }
+/* 徽章页把整屏换成护照的纸色。底栏的底色写成变量就是为了这一下 */
 html.paper-screen { --nav-bg: var(--ink); }
-
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(60% 40% at 50% -5%, rgba(232, 197, 106, 0.10), transparent 70%),
-    radial-gradient(50% 35% at 100% 100%, rgba(74, 155, 255, 0.07), transparent 70%);
-  z-index: 0;
-}
 
 input, textarea, select, button { font: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; }
@@ -164,7 +154,7 @@ h3 { font-size: 16px; }
 /* ------------------------------- 卡片 ------------------------------- */
 
 .card {
-  background: linear-gradient(160deg, var(--ink-3), var(--ink-2));
+  background: var(--ink-2);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
@@ -175,26 +165,6 @@ h3 { font-size: 16px; }
 .card--tight { padding: 12px; }
 
 /* 护照封面 */
-.passport {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--gold-dim);
-  background:
-    radial-gradient(120% 80% at 50% 0%, rgba(232, 197, 106, 0.12), transparent 60%),
-    linear-gradient(165deg, #1a2338, #10182b);
-  padding: 20px 18px;
-  box-shadow: var(--shadow);
-}
-.passport::after {
-  content: '';
-  position: absolute;
-  inset: 6px;
-  border: 1px solid rgba(232, 197, 106, 0.16);
-  border-radius: calc(var(--radius-lg) - 6px);
-  pointer-events: none;
-}
-
 /* ------------------------------- 按钮 ------------------------------- */
 
 .btn {
@@ -320,7 +290,7 @@ h3 { font-size: 16px; }
   padding-bottom: var(--safe-bottom);
   /* 用变量而不是写死那个深蓝：徽章页会把整屏换成护照的纸色，
      写死的话底下会留一条深蓝的条 */
-  background: var(--nav-bg, rgba(13, 18, 32, 0.92));
+  background: var(--nav-bg, rgba(0, 0, 0, 0.92));
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-top: 1px solid var(--line-soft);

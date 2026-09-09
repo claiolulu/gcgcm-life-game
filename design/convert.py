@@ -802,6 +802,16 @@ def apply_patches(jsx):
     assert jsx != before, "没找到最外层容器"
     n += 1
 
+    # 10) 护照页外围那层暖黑渐变（#26201d→#141110）换成纯黑。
+    #     设计稿里它是独立作品，自带一层暖调背景；放进 app 里，它旁边
+    #     所有页面是中性黑，来回切就是一冷一暖两种黑。
+    before = jsx
+    jsx = jsx.replace(
+        'background: "radial-gradient(130% 100% at 50% 0%,#26201d,#141110 70%)"',
+        'background: "#000"', 1)
+    assert jsx != before, "没找到最外层的背景"
+    n += 1
+
     print(f'  应用了 {n} 处定制补丁')
     return jsx
 
