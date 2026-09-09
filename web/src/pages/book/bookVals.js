@@ -355,7 +355,7 @@ function visaMrzLine(n, { surname, given, visaNo, passportNo, code }) {
  *  rank, of   排名
  *  config     游戏配置
  *  board      实时排行榜
- *  ui         { page, overlay, modal, vpLandscape, shared, qrThumb, qrBigImg }
+ *  ui         { page, overlay, modal, vpLandscape, qrThumb, qrBigImg }
  *  actions    { move, goto, setOverlay, setModal, share }
  */
 export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
@@ -617,7 +617,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       + '「你出你入，耶和华要保护你，从今时直到永远。」\n'
       + '——诗篇 121:8',
 
-    shareLabel: ui.shared ? 'COPIED 已复制' : 'SHARE 分享我的护照',
     share: actions.share,
 
     /* ---- 签证页 ---- */

@@ -228,17 +228,12 @@ export default function PassportBookView({ v }) {
                             <div style={{whiteSpace: "pre-line", fontSize: "13.5px", fontWeight: "600", lineHeight: "2.05", color: "var(--pp-text)", textWrap: "pretty"}}>
                               {v.closingText}
                             </div>
-                            <button onClick={v.share} style={{marginTop: "auto", padding: "15px", background: "var(--pp-ink)", border: "1px solid rgba(var(--pp-gold-2-rgb),.6)", color: "var(--pp-gold)", fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".24em", textIndent: ".24em"}} style-active="opacity:.85">
-                              {v.shareLabel}
+                            <button onClick={v.goBadge} style={{marginTop: "auto", padding: "15px", background: "var(--pp-ink)", border: "1px solid rgba(var(--pp-gold-2-rgb),.6)", color: "var(--pp-gold)", fontFamily: "'EB Garamond',serif", fontSize: "12px", letterSpacing: ".24em", textIndent: ".24em"}} style-active="opacity:.85">
+                              BADGE 我的徽章
                             </button>
-                            <div style={{marginTop: "10px", display: "flex", gap: "10px"}}>
-                              <button onClick={v.goBoard} style={{flex: 1, minWidth: 0, padding: "13px 6px", background: "transparent", border: "1px solid rgba(var(--pp-ink-rgb),.45)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "11.5px", letterSpacing: ".18em", textIndent: ".18em", whiteSpace: "nowrap"}}>
-                                RANKING 排名
-                              </button>
-                              <button onClick={v.goBadge} style={{flex: 1, minWidth: 0, padding: "13px 6px", background: "transparent", border: "1px solid rgba(var(--pp-ink-rgb),.45)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "11.5px", letterSpacing: ".18em", textIndent: ".18em", whiteSpace: "nowrap"}}>
-                                BADGE 徽章
-                              </button>
-                            </div>
+                            <button onClick={v.goBoard} style={{marginTop: "10px", padding: "13px", background: "transparent", border: "1px solid rgba(var(--pp-ink-rgb),.45)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "11.5px", letterSpacing: ".18em", textIndent: ".18em"}}>
+                              RANKING 查看排名
+                            </button>
                           </div>
                         </>
                       ) : null}

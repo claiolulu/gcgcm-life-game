@@ -29,7 +29,6 @@ export default function PassportBook() {
   const [page, setPage] = useState(0);
   const [overlay, setOverlay] = useState(null);   // null | 'board' | 'guide'
   const [modal, setModal] = useState(null);       // null | 'token' | 'qr'
-  const [shared, setShared] = useState(false);
   const [checking, setChecking] = useState(false);
   const lastCheckRef = useRef(0);
   const lastBoardRequestRef = useRef(0);
@@ -316,17 +315,6 @@ export default function PassportBook() {
 
   /* ------------------------------ 分享 ------------------------------ */
 
-  const share = useCallback(() => {
-    if (!me) return;
-    // 分享的是打卡进度，不是分数 —— 分数没有上限，「30/72」那种写法不成立
-    const doneCount = Object.keys(me.stations || {}).length;
-    const txt = `GCGCM 活动护照 · ${me.name} · 已参加 ${doneCount}/${activities.length} 场活动，累计 ${me.total} 分。`;
-    const done = () => { setShared(true); setTimeout(() => setShared(false), 2000); };
-    if (navigator.share) { navigator.share({ title: 'GCGCM 活动护照', text: txt }).then(done).catch(() => {}); return; }
-    if (navigator.clipboard) { navigator.clipboard.writeText(txt).then(done).catch(done); return; }
-    done();
-  }, [me, stations.length, config]);
-
   /* ------------------------------ 组装 ------------------------------ */
 
   const v = useMemo(() => {
@@ -334,7 +322,7 @@ export default function PassportBook() {
     return buildVals({
       me, rank, of, config, board,
       ui: {
-        page, overlay, modal, vpLandscape, shared, flip,
+        page, overlay, modal, vpLandscape, flip,
         qrThumb: qr.thumb, qrBigImg: qr.big, checking,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
@@ -346,7 +334,7 @@ export default function PassportBook() {
         ),
       },
       actions: {
-        move, goto, setOverlay, setModal, share, checkStamp,
+        move, goto, setOverlay, setModal, checkStamp,
         // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
         openTheme: () => setThemeOpen(true),
         startTour: () => setTourOpen(true),
@@ -356,8 +344,8 @@ export default function PassportBook() {
         goBadge: () => nav('/badge'),
       },
     });
-  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, flip, qr, checking,
-      move, goto, share, checkStamp]);
+  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, flip, qr, checking,
+      move, goto, checkStamp]);
 
   if (loading && !me) {
     return <BookSplash text="正在打开你的护照…" />;

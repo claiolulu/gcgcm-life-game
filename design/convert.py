@@ -268,7 +268,11 @@ def apply_patches(jsx):
     jsx = jsx.replace(stage, 'containerType: "size", perspective: "1500px"}}>', 1)
     n += 1
 
-    # 2) 结语页：分享按钮下面补「查看排名」和「生成分享图」两个入口。
+    # 2) 结语页：把「分享我的护照」换成「我的徽章」，下面跟一个「查看排名」。
+    #
+    #    原来那个分享按钮复制的是一句纯文字进度。徽章页能导出一张图，
+    #    分享图比分享一句话有用得多，两个功能合成一个：入口在这儿，
+    #    转发在徽章页里。
     #
     #    徽章页挂在底部导航上，而底部导航在护照页是不显示的（护照是整屏
     #    翻页界面），登录后又直接落在护照页 —— 不在书里给一个入口，
@@ -276,27 +280,27 @@ def apply_patches(jsx):
     share_btn_end = '{v.shareLabel}\n'
     idx = jsx.find(share_btn_end)
     if idx != -1:
+        open_at = jsx.rfind('<button', 0, idx)
         close = jsx.find('</button>\n', idx)
-        if close != -1:
-            end = close + len('</button>\n')
-            indent = ' ' * (len(jsx[:close].split('\n')[-1]))
-            # 两个并排，不各占一行 —— 竖着堆三个按钮会把最后一个顶到
-            # 页脚底下，手机上要往下滑才看得见，而这一个正是入口
-            btn = ('style={{flex: 1, minWidth: 0, padding: "13px 6px", background: "transparent", '
-                   'border: "1px solid rgba(92,26,34,.45)", color: "#5c1a22", '
-                   'fontFamily: "\'EB Garamond\',serif", fontSize: "11.5px", '
-                   'letterSpacing: ".18em", textIndent: ".18em", whiteSpace: "nowrap"}}')
-            extra = (
-                indent + '<div style={{marginTop: "10px", display: "flex", gap: "10px"}}>\n'
-                + indent + '  <button onClick={v.goBoard} ' + btn + '>\n'
-                + indent + '    RANKING 排名\n'
-                + indent + '  </button>\n'
-                + indent + '  <button onClick={v.goBadge} ' + btn + '>\n'
-                + indent + '    BADGE 徽章\n'
-                + indent + '  </button>\n'
-                + indent + '</div>\n'
+        if open_at != -1 and close != -1:
+            end_at = close + len('</button>\n')
+            line_start = jsx.rfind('\n', 0, open_at) + 1
+            indent = jsx[line_start:open_at]
+            replacement = (
+                indent + '<button onClick={v.goBadge} style={{marginTop: "auto", padding: "15px", '
+                'background: "#5c1a22", border: "1px solid rgba(230,205,145,.6)", color: "#e6cd91", '
+                'fontFamily: "\'EB Garamond\',serif", fontSize: "12px", letterSpacing: ".24em", '
+                'textIndent: ".24em"}}>\n'
+                + indent + '  BADGE 我的徽章\n'
+                + indent + '</button>\n'
+                + indent + '<button onClick={v.goBoard} style={{marginTop: "10px", padding: "13px", '
+                'background: "transparent", border: "1px solid rgba(92,26,34,.45)", color: "#5c1a22", '
+                'fontFamily: "\'EB Garamond\',serif", fontSize: "11.5px", letterSpacing: ".18em", '
+                'textIndent: ".18em"}}>\n'
+                + indent + '  RANKING 查看排名\n'
+                + indent + '</button>\n'
             )
-            jsx = jsx[:end] + extra + jsx[end:]
+            jsx = jsx[:line_start] + replacement + jsx[end_at:]
             n += 1
 
     # 3) 签证页：只在正在查询时给一个很轻的反馈；没盖章时不留任何常驻标识，
