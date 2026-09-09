@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import Avatar from '../../components/Avatar.jsx';
 
@@ -23,6 +23,7 @@ import Tour from './Tour.jsx';
  */
 export default function PassportBook() {
   const nav = useNavigate();
+  const loc = useLocation();
   const { config } = useConfig();
   const { me, rank, of, loading, session } = usePlayer();
 
@@ -181,6 +182,19 @@ export default function PassportBook() {
     targetRef.current = to;
     setPage(to);
   }, [pageCount]);
+
+  /**
+   * 从徽章页返回时，回到点进去时的那一页。
+   *
+   * 页码是组件状态、不在地址里，所以离开再回来会归零 —— 在最后一页点
+   * 「我的徽章」，返回却落在封面，还得再翻十页。用 jump 而不是 goto：
+   * 不放翻页动画，直接就在那一页，像从没离开过。
+   */
+  const backTo = loc.state?.page;
+  useEffect(() => {
+    if (typeof backTo !== 'number' || !pageCount) return;
+    jump(backTo);
+  }, [backTo, pageCount, jump]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -341,7 +355,7 @@ export default function PassportBook() {
         // 徽章页在底部导航里，而底部导航在护照页上是不显示的（这一页
         // 是整屏翻页界面）—— 登录后又直接落在护照页，于是那一页原本
         // 谁也到不了。结语页是书里放「分享 / 查看排名」的地方，加在这儿
-        goBadge: () => nav('/badge'),
+        goBadge: () => nav('/badge', { state: { back: page } }),
       },
     });
   }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, flip, qr, checking,

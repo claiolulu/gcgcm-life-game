@@ -45,6 +45,9 @@ function BottomNav() {
   if (isStaff) return null;
   // 护照册是整屏的翻页界面，自带导航，不叠底部 tab
   if (pathname === '/passport') return null;
+  // 徽章页整屏换成了护照的纸色，底下压一条深色 tab 条会把它劈成两半；
+  // 那一页左上角自己有返回按钮
+  if (pathname === '/badge') return null;
   // 画布编辑器在所有设备上都只保留自己的工具，不叠「扫码 / 总控」。
   if (pathname.endsWith('/design')) return null;
   if (pathname === '/' || pathname === '/register') return null;

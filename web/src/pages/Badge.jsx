@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AvatarContent } from '../components/Avatar.jsx';
 import { useToast, Empty } from '../components/ui.jsx';
 import { usePlayer } from '../lib/player.js';
@@ -20,6 +21,8 @@ function shadeHex(hex, k) {
 
 export default function Badge() {
   const toast = useToast();
+  const nav = useNavigate();
+  const loc = useLocation();
   const { me, rank, of } = usePlayer();
   const { config } = useConfig();
   const svgRef = useRef(null);
@@ -198,8 +201,28 @@ export default function Badge() {
     a.remove();
   }
 
+  /** 回到上一页 */
+  const goBack = () => {
+    const back = loc.state?.back;
+    // 带着页码回去，护照就落回点进来时那一页（见 PassportBook 的 backTo）。
+    // replace 是为了别让「护照 → 徽章 → 护照」在历史里堆成三条。
+    if (typeof back === 'number') { nav('/passport', { state: { page: back }, replace: true }); return; }
+    // 直接开这个地址进来的（扫码、书签、刷新）没有上一页，nav(-1) 会把人
+    // 退出整个站。v6 里首个历史条目的 key 就是 'default'。
+    if (loc.key === 'default') { nav('/passport'); return; }
+    nav(-1);
+  };
+
   return (
-    <div className="page">
+    <div className="page page--nonav">
+      <button
+        className="btn btn--sm btn--ghost"
+        onClick={goBack}
+        style={{ marginBottom: 10 }}
+      >
+        ← 返回
+      </button>
+
       <div className="center" style={{ marginBottom: 14 }}>
         <div className="eyebrow">Badge</div>
         <h1 style={{ marginTop: 4 }}>我的护照徽章</h1>
