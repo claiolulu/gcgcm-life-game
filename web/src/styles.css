@@ -605,7 +605,7 @@ html.book-locked body {
   padding: 3px;
   border: 1px solid var(--gold-dim);
   border-radius: 9px;
-  background: rgba(13, 18, 32, .96);
+  background: rgba(0, 0, 0, .96);
   box-shadow: 0 5px 16px rgba(0, 0, 0, .45);
   white-space: nowrap;
 }
@@ -631,7 +631,7 @@ html.book-locked body {
   padding: 0;
   border: 2px solid var(--gold-dim);
   border-radius: 50%;
-  background: rgba(13, 18, 32, .97);
+  background: rgba(0, 0, 0, .97);
   color: var(--gold);
   font-size: 20px;
   line-height: 1;
