@@ -350,6 +350,10 @@ export default function PassportBook() {
         // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
         openTheme: () => setThemeOpen(true),
         startTour: () => setTourOpen(true),
+        // 徽章页在底部导航里，而底部导航在护照页上是不显示的（这一页
+        // 是整屏翻页界面）—— 登录后又直接落在护照页，于是那一页原本
+        // 谁也到不了。结语页是书里放「分享 / 查看排名」的地方，加在这儿
+        goBadge: () => nav('/badge'),
       },
     });
   }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, shared, flip, qr, checking,

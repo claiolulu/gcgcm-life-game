@@ -268,7 +268,11 @@ def apply_patches(jsx):
     jsx = jsx.replace(stage, 'containerType: "size", perspective: "1500px"}}>', 1)
     n += 1
 
-    # 2) 结语页：分享按钮旁边补一个「查看排名」，方便直接跳排行榜
+    # 2) 结语页：分享按钮下面补「查看排名」和「生成分享图」两个入口。
+    #
+    #    徽章页挂在底部导航上，而底部导航在护照页是不显示的（护照是整屏
+    #    翻页界面），登录后又直接落在护照页 —— 不在书里给一个入口，
+    #    那一页谁也到不了。
     share_btn_end = '{v.shareLabel}\n'
     idx = jsx.find(share_btn_end)
     if idx != -1:
@@ -276,13 +280,21 @@ def apply_patches(jsx):
         if close != -1:
             end = close + len('</button>\n')
             indent = ' ' * (len(jsx[:close].split('\n')[-1]))
+            # 两个并排，不各占一行 —— 竖着堆三个按钮会把最后一个顶到
+            # 页脚底下，手机上要往下滑才看得见，而这一个正是入口
+            btn = ('style={{flex: 1, minWidth: 0, padding: "13px 6px", background: "transparent", '
+                   'border: "1px solid rgba(92,26,34,.45)", color: "#5c1a22", '
+                   'fontFamily: "\'EB Garamond\',serif", fontSize: "11.5px", '
+                   'letterSpacing: ".18em", textIndent: ".18em", whiteSpace: "nowrap"}}')
             extra = (
-                indent + '<button onClick={v.goBoard} style={{marginTop: "10px", padding: "14px", '
-                'background: "transparent", border: "1px solid rgba(92,26,34,.45)", color: "#5c1a22", '
-                'fontFamily: "\'EB Garamond\',serif", fontSize: "12px", letterSpacing: ".24em", '
-                'textIndent: ".24em"}}>\n'
-                + indent + '  LEADERBOARD 查看排名\n'
-                + indent + '</button>\n'
+                indent + '<div style={{marginTop: "10px", display: "flex", gap: "10px"}}>\n'
+                + indent + '  <button onClick={v.goBoard} ' + btn + '>\n'
+                + indent + '    RANKING 排名\n'
+                + indent + '  </button>\n'
+                + indent + '  <button onClick={v.goBadge} ' + btn + '>\n'
+                + indent + '    BADGE 徽章\n'
+                + indent + '  </button>\n'
+                + indent + '</div>\n'
             )
             jsx = jsx[:end] + extra + jsx[end:]
             n += 1

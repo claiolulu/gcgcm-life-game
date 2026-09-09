@@ -537,6 +537,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     stop: (e) => e.stopPropagation(),
 
     goBoard: () => actions.setOverlay(ui.overlay === 'board' ? null : 'board'),
+    goBadge: () => actions.goBadge(),
     // ? 按钮直接启动新手引导：静态说明读完还是不知道哪个按钮是哪个，
     // 不如把界面元素圈出来一条条指给他看
     goGuide: () => actions.startTour(),
