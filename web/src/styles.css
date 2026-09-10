@@ -99,6 +99,71 @@ a { color: inherit; text-decoration: none; }
   padding-bottom: calc(var(--safe-bottom) + 24px);
 }
 
+/* 分享页分成两个真实布局区域：上方内容自己滚动，下方操作栏始终可见但
+   不悬浮覆盖预览。纸色主题会把通用主按钮变成低对比色，所以这里明确
+   使用纸色文字，保证始终可读。 */
+.page--badge {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  padding-bottom: calc(var(--safe-bottom) + 10px);
+}
+.badge-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 8px;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.badge-action-dock {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--badge-action) 24%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, .24);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.badge-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  gap: 8px;
+}
+.badge-action-dock .badge-action-main {
+  width: 100%;
+  border-color: var(--badge-action);
+  background: var(--badge-action);
+  color: var(--badge-action-text);
+  box-shadow: 0 7px 20px color-mix(in srgb, var(--badge-action) 24%, transparent);
+}
+.badge-action-dock .badge-action-save {
+  width: 100%;
+  border-color: color-mix(in srgb, var(--badge-action) 45%, transparent);
+  background: color-mix(in srgb, var(--badge-action) 9%, var(--ink));
+  color: var(--badge-action);
+}
+.badge-share-apps {
+  margin-top: 7px;
+  color: var(--text-2);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+}
+
+@media (max-width: 370px) {
+  .badge-action-dock { padding: 8px; }
+  .badge-action-dock .btn { min-height: 50px; padding: 0 10px; font-size: 15px; }
+  .badge-share-apps { font-size: 9.5px; }
+}
+
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
@@ -925,7 +990,9 @@ kbd {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  padding: .5cqh 10cqh .4cqh 2.4cqh;
+  /* 一律按横版护照的宽度计算。VISA 页位于可编辑画布容器内，iOS 对其
+     cqh 会取到不同的高度基准；cqw 在资料页和 VISA 页始终是同一张纸。 */
+  padding: .2632cqw 5.2632cqw .2105cqw 1.2632cqw;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -933,18 +1000,12 @@ kbd {
   border-top: 1px solid rgba(var(--pp-ink-rgb), .4);
   overflow: hidden;
 }
-.passport-mrz--data {
-  position: relative;
-  z-index: 4;
-  flex: none;
-  height: 12cqh;
-}
 .passport-mrz__line {
   max-width: 100%;
   overflow: hidden;
   font-family: 'Courier Prime', monospace;
   font-weight: 700;
-  font-size: 2.15cqh;
+  font-size: 1.1316cqw;
   line-height: 1.35;
   letter-spacing: .06em;
   font-variant-ligatures: none;
@@ -984,11 +1045,20 @@ kbd {
   will-change: transform;
 }
 
-/* 护照始终沿用竖屏坐标；设备横放时由外层画布整体侧向展示。 */
+/* 横版页始终完整 contain 在浏览器的真实可见视口内：手机浏览器的地址栏、
+   底栏会缩短视口，因此不能只按宽度放大；电脑端也按自身比例自然留黑。 */
 .book-landscape-sheet {
-  width: 190cqw;
-  height: 100cqw;
+  width: min(190cqw, 100cqh);
+  height: min(100cqw, 52.6316cqh);
   transform: translate(-50%, -50%) rotate(90deg);
+}
+
+@media (orientation: landscape) {
+  .book-landscape-sheet {
+    width: min(100cqw, 190cqh);
+    height: min(100cqh, 52.6316cqw);
+    transform: translate(-50%, -50%);
+  }
 }
 
 /* 克隆出来的静态副本：不接受点击，边缘加一道阴影，压出纸张的厚度 */

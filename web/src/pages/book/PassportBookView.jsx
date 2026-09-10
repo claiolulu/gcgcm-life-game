@@ -438,11 +438,9 @@ export default function PassportBookView({ v }) {
                       </div>
                     </div>
                     {v.mrzOn ? (
-                      <PassportMrz
-                        line1={v.mrz1}
-                        line2={v.mrz2}
-                        className="passport-mrz--data"
-                      />
+                      <div style={{position: "relative", zIndex: 4, flex: "none", width: "100%", height: "12cqh"}}>
+                        <PassportMrz line1={v.mrz1} line2={v.mrz2} />
+                      </div>
                     ) : null}
                   </>
                 ) : null}
@@ -450,6 +448,9 @@ export default function PassportBookView({ v }) {
                   <>
                     <div onClick={v.stampTap} style={{position: "absolute", inset: "0", zIndex: "3", cursor: "pointer"}}>
                       <VisaBlocks blocks={v.visaBlocks} data={v.visaBlockData} />
+                    </div>
+                    <div style={{position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 4, height: "12%", pointerEvents: "none"}}>
+                      <PassportMrz line1={v.visaBlockData?.mrz1} line2={v.visaBlockData?.mrz2} />
                     </div>
                     {v.checking ? (
                       <div style={{position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 6, padding: "7px 14px", background: "rgba(var(--pp-ink-rgb),.08)", fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".2em", color: "rgba(var(--pp-ink-rgb),.5)", whiteSpace: "nowrap", pointerEvents: "none"}}>

@@ -7,7 +7,7 @@ import { useConfig, loadConfig } from '../lib/config.js';
 import { useStaff } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import VisaPageFrame, { PAGE_ASPECT } from './book/VisaPageFrame.jsx';
-import { BlockBody } from './book/VisaBlocks.jsx';
+import { BlockBody, PassportMrz } from './book/VisaBlocks.jsx';
 import { resolveBlocks, blockData, bannerBrandOf } from './book/bookVals.js';
 
 /**
@@ -15,7 +15,7 @@ import { resolveBlocks, blockData, bannerBrandOf } from './book/bookVals.js';
  *
  * 这一页上除了页眉、水印、二维码和那个章，每一样都是一个块 —— VISA 横框、
  * 签发站那片栏目、活动名、备注、配图、页面链接、机读区，加上同工自己摆的
- * 字和图。都能挪、能改大小、能转、能删。删光就是一张白页。
+ * 字和图。都能挪、能改大小、能转、能删。机读 footer 属于护照固定模板。
  *
  * 所见即所得靠的是：块在这里和在真护照上是同一个组件（BlockBody）、同一套
  * 单位（位置百分比，字号 cqh），层叠位置也一样（塞在 VisaPageFrame 里）。
@@ -34,7 +34,6 @@ const PALETTE = [
   { kind: 'note',    name: '备注',     make: (t) => ({ x: 60, y: 47, w: 36, h: 30, label: t.annotationLabel }) },
   { kind: 'photo',   name: '配图',     make: () => ({ x: 60, y: 27, w: 36, h: 21, fit: 'cover' }) },
   { kind: 'links',   name: '页面链接', make: () => ({ x: 4.5, y: 80, w: 52, h: 8 }) },
-  { kind: 'mrz',     name: '机读区',   make: () => ({ x: 0, y: 88.5, w: 100, h: 11.5 }) },
 ];
 
 const KIND_NAME = Object.fromEntries(PALETTE.map((p) => [p.kind, p.name]));
@@ -594,6 +593,9 @@ export default function ActivityDesign() {
               );
             })}
           </div>
+          <div style={{position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, height: '12%', pointerEvents: 'none'}}>
+            <PassportMrz line1={data.mrz1} line2={data.mrz2} />
+          </div>
         </VisaPageFrame>
       </div>
 
@@ -626,7 +628,7 @@ export default function ActivityDesign() {
           </div>
         )}
         <div className="tiny dim design__tools-help">
-          这一页上除了页眉、水印、二维码和那个章，每一样都是一个块，都能挪能删 ——
+          页眉、水印、二维码、盖章和底部机读区是固定模板，其余内容都能挪能删 ——
           删光就是一张白页，想做成整页海报就该这样。
           栏目里填的是示例值（真页面上每个人不一样）；页面固定为 1.9:1。
         </div>
@@ -773,10 +775,6 @@ function Inspector({ b, patch, sources, busy, onPickImage }) {
 
   if (b.kind === 'links') {
     return <div className="tiny dim">这一场的页面链接，在活动详情页里加。这里只管它摆在哪。</div>;
-  }
-
-  if (b.kind === 'mrz') {
-    return <div className="tiny dim">护照底下那两行机读区，内容按人算，不用填。</div>;
   }
 
   if (b.kind === 'image') {

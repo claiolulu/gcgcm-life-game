@@ -161,7 +161,7 @@ export default function Badge() {
 
       const dataUrl = canvas.toDataURL('image/png');
       setPng(dataUrl);
-      toast('图生成好了，点「转发这张图」就能发出去', 'ok', 4000);
+      toast('分享图已生成，可以保存或转发', 'ok', 4000);
     } catch (err) {
       toast('生成失败：' + (err.message || '未知错误'), 'err');
     } finally {
@@ -179,16 +179,48 @@ export default function Badge() {
   async function shareImage() {
     if (!png) return;
     try {
-      const blob = await (await fetch(png)).blob();
-      const file = new File([blob], `${me.name}-人生护照.png`, { type: 'image/png' });
+      const file = await pngFile();
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: '我的人生护照' });
+        await navigator.share({
+          files: [file],
+          title: '我的人生护照',
+          text: '我的人生护照参加记录',
+        });
         return;
       }
     } catch (err) {
       if (err?.name === 'AbortError') return;   // 用户自己取消的
     }
     download();
+  }
+
+  async function pngFile() {
+    const blob = await (await fetch(png)).blob();
+    return new File([blob], `${me.name}-人生护照.png`, { type: 'image/png' });
+  }
+
+  /**
+   * 网页不能静默写进 iPhone 相册。iOS 上调用系统图片分享面板，用户点
+   * “存储图像”即可进照片；其它平台直接下载 PNG。
+   */
+  async function saveImage() {
+    if (!png) return;
+    const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isiOS) {
+      try {
+        const file = await pngFile();
+        if (navigator.canShare?.({ files: [file] })) {
+          toast('请在系统面板里选择“存储图像”', 'ok', 3500);
+          await navigator.share({ files: [file], title: '保存人生护照图片' });
+          return;
+        }
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+    download();
+    toast('图片已开始保存', 'ok');
   }
 
   function download() {
@@ -214,34 +246,35 @@ export default function Badge() {
   };
 
   return (
-    <div className="page page--nonav">
-      <button
-        className="btn btn--sm btn--ghost"
-        onClick={goBack}
-        style={{ marginBottom: 10 }}
-      >
-        ← 返回
-      </button>
-
-      <div className="center" style={{ marginBottom: 14 }}>
-        <div className="eyebrow">Badge</div>
-        <h1 style={{ marginTop: 4 }}>我的护照徽章</h1>
-        <div className="small muted" style={{ marginTop: 6 }}>
-          生成一张图，发给朋友或者发朋友圈
-        </div>
-      </div>
-
-      {/* 生成之后就把这份实时预览收起来 —— 它和下面那张 PNG 一模一样，
-          两张叠在一起只会让人以为要发两张图。SVG 必须留在 DOM 里，
-          导出走的是它（序列化不需要它可见）。 */}
-      <div className="card" style={{ padding: 10, overflow: 'hidden', display: png ? 'none' : 'block' }}>
-        <svg
-          ref={svgRef}
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 640 940"
-          width="100%"
-          style={{ display: 'block', borderRadius: 14 }}
+    <div className="page page--nonav page--badge">
+      <div className="badge-scroll">
+        <button
+          className="btn btn--sm btn--ghost"
+          onClick={goBack}
+          style={{ marginBottom: 10 }}
         >
+          ← 返回
+        </button>
+
+        <div className="center" style={{ marginBottom: 14 }}>
+          <div className="eyebrow">Badge</div>
+          <h1 style={{ marginTop: 4 }}>我的护照徽章</h1>
+          <div className="small muted" style={{ marginTop: 6 }}>
+            生成一张图，发给朋友或者发朋友圈
+          </div>
+        </div>
+
+        {/* 生成之后就把这份实时预览收起来 —— 它和下面那张 PNG 一模一样，
+            两张叠在一起只会让人以为要发两张图。SVG 必须留在 DOM 里，
+            导出走的是它（序列化不需要它可见）。 */}
+        <div className="card" style={{ padding: 10, overflow: 'hidden', display: png ? 'none' : 'block' }}>
+          <svg
+            ref={svgRef}
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 640 940"
+            width="100%"
+            style={{ display: 'block', borderRadius: 14 }}
+          >
           <defs>
             <linearGradient id="badge-bg" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={T.paper} />
@@ -357,39 +390,49 @@ export default function Badge() {
           <text x={L.footX} y={L.foot} textAnchor={L.footAnchor} fill={soft(0.45)} fontSize="12" letterSpacing="2">
             {game.church || 'GCGCM'}
           </text>
-        </svg>
+          </svg>
+        </div>
+
+        <div className="stack" style={{ marginTop: 14 }}>
+          <label className="card row" style={{ gap: 10, cursor: 'pointer', alignItems: 'flex-start' }}>
+            <input
+              type="checkbox" checked={withQr}
+              onChange={(e) => setWithQr(e.target.checked)}
+              style={{ width: 18, height: 18, marginTop: 2, flex: 'none' }}
+            />
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div className="small bold">图里加一个二维码</div>
+              <div className="tiny dim" style={{ marginTop: 2 }}>
+                别人扫了就能领一本自己的护照。只发给已经有护照的朋友就可以关掉。
+              </div>
+            </div>
+          </label>
+
+          {png ? (
+            <>
+              <div className="card center stack">
+                <div className="small muted">下面这张就是要发出去的图</div>
+                <img src={png} alt="我的护照徽章" style={{ width: '100%', borderRadius: 12 }} />
+              </div>
+              <button className="btn btn--ghost btn--full" onClick={() => setPng(null)}>重新生成</button>
+            </>
+          ) : null}
+        </div>
       </div>
 
-      <div className="stack" style={{ marginTop: 14 }}>
-        <label className="card row" style={{ gap: 10, cursor: 'pointer', alignItems: 'flex-start' }}>
-          <input
-            type="checkbox" checked={withQr}
-            onChange={(e) => setWithQr(e.target.checked)}
-            style={{ width: 18, height: 18, marginTop: 2, flex: 'none' }}
-          />
-          <div className="grow" style={{ minWidth: 0 }}>
-            <div className="small bold">图里加一个二维码</div>
-            <div className="tiny dim" style={{ marginTop: 2 }}>
-              别人扫了就能领一本自己的护照。只发给已经有护照的朋友就可以关掉。
-            </div>
-          </div>
-        </label>
-
+      {/* 操作栏占据自己的布局空间，不悬浮覆盖上方的预览内容。 */}
+      <div className="badge-action-dock" style={{ '--badge-action': T.ink, '--badge-action-text': T.paper }}>
         {!png ? (
-          <button className="btn btn--primary btn--lg btn--full" onClick={render} disabled={busy}>
-            {busy ? '生成中…' : '📸 生成图片'}
+          <button className="btn btn--lg badge-action-main" onClick={render} disabled={busy}>
+            {busy ? '生成中…' : '📸 生成分享图'}
           </button>
         ) : (
           <>
-            <div className="card center stack">
-              <div className="small muted">下面这张就是要发出去的图</div>
-              <img src={png} alt="我的护照徽章" style={{ width: '100%', borderRadius: 12 }} />
+            <div className="badge-action-row">
+              <button className="btn btn--lg badge-action-save" onClick={saveImage}>↓ 保存图片</button>
+              <button className="btn btn--lg badge-action-main" onClick={shareImage}>↗ 转发图片</button>
             </div>
-            <button className="btn btn--primary btn--lg btn--full" onClick={shareImage}>📤 转发这张图</button>
-            <div className="tiny dim center">
-              系统会弹出分享面板；没弹出来就是这台设备不支持，图会直接下载，从相册里发一样的
-            </div>
-            <button className="btn btn--ghost btn--full" onClick={() => setPng(null)}>重新生成</button>
+            <div className="badge-share-apps">系统分享支持 微信 · 小红书 · Instagram · Facebook</div>
           </>
         )}
       </div>

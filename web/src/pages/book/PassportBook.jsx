@@ -47,20 +47,22 @@ export default function PassportBook() {
     () => typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(orientation: landscape)').matches : false
   );
-  // iPhone 可以向左或向右横放。模拟竖屏锁定时按真实方向反向补偿，
-  // 否则其中一种横放方式会让整页倒置。
-  const readOrientationTurn = () => {
-    const raw = typeof window.orientation === 'number'
-      ? window.orientation : Number(window.screen?.orientation?.angle || 0);
-    if (raw === 90) return -1;
-    if (raw === -90 || raw === 270) return 1;
-    return 0;
-  };
-  const [orientationTurn, setOrientationTurn] = useState(readOrientationTurn);
+  const standalone = typeof window !== 'undefined' && (
+    window.matchMedia?.('(display-mode: standalone)').matches
+    || window.navigator?.standalone === true
+  );
   // iOS 主屏幕 PWA 的 CSS 视口有时只覆盖物理屏幕的左上部分：
   // 竖屏少掉的区域落在底部，横屏少掉的区域落在右侧。CSS 内部居中
   // 仍会在最终截图里显得偏上/偏左，所以量出缺口并在相反一侧留出同宽黑边。
   const [screenGap, setScreenGap] = useState({ x: 0, y: 0 });
+
+  // 自动引导在“第一次实际打开”时就记为已展示，而不是等用户点完或关闭。
+  // 这样用户直接退出网站，下次进来也不会被重复弹出；问号仍可手动重看。
+  useEffect(() => {
+    if (!opened || tourDone) return;
+    setTourOpen(true);
+    setTourDone(true);
+  }, [opened, tourDone, setTourDone]);
 
   const stations = config?.activities || [];
   // 签证页的内容来源：一场活动一页
@@ -230,6 +232,12 @@ export default function PassportBook() {
 
   useLayoutEffect(() => {
     const measure = () => {
+      // 普通 Safari/Chrome 的地址栏和底栏本来就不属于网页视口，不能拿
+      // 物理屏幕高度补偿，否则会把内容挤偏并产生截图里那块巨大黑区。
+      if (!standalone) {
+        setScreenGap({ x: 0, y: 0 });
+        return;
+      }
       const sw = Number(window.screen?.width) || window.innerWidth;
       const sh = Number(window.screen?.height) || window.innerHeight;
       const fullW = vpLandscape ? Math.max(sw, sh) : Math.min(sw, sh);
@@ -246,22 +254,16 @@ export default function PassportBook() {
       window.removeEventListener('resize', measure);
       window.visualViewport?.removeEventListener('resize', measure);
     };
-  }, [vpLandscape]);
+  }, [vpLandscape, standalone]);
 
   useEffect(() => {
     if (!window.matchMedia) return;
     const mq = window.matchMedia('(orientation: landscape)');
-    const on = () => {
-      setVpLandscape(mq.matches);
-      setOrientationTurn(readOrientationTurn());
-    };
+    const on = () => setVpLandscape(mq.matches);
     mq.addEventListener ? mq.addEventListener('change', on) : mq.addListener(on);
     setVpLandscape(mq.matches);
-    setOrientationTurn(readOrientationTurn());
-    window.addEventListener('orientationchange', on);
     return () => {
       mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on);
-      window.removeEventListener('orientationchange', on);
     };
   }, []);
 
@@ -376,7 +378,7 @@ export default function PassportBook() {
     return buildVals({
       me, rank, of, config, board,
       ui: {
-        page, overlay, modal, vpLandscape, orientationTurn, flip,
+        page, overlay, modal, vpLandscape, flip,
         qrThumb: qr.thumb, qrBigImg: qr.big, checking, screenGap,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
@@ -398,7 +400,7 @@ export default function PassportBook() {
         goBadge: () => nav('/badge', { state: { back: page } }),
       },
     });
-  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, orientationTurn, flip, qr, checking, screenGap,
+  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, flip, qr, checking, screenGap,
       move, goto, checkStamp]);
 
   if (loading && !me) {
@@ -441,7 +443,7 @@ export default function PassportBook() {
       <PassportBookView v={v} />
 
       <Tour
-        open={tourOpen || (!tourDone && opened)}
+        open={tourOpen}
         steps={tourSteps}
         onGoPage={jump}
         onClose={() => { setTourOpen(false); setTourDone(true); }}

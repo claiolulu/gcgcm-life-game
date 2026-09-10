@@ -174,7 +174,6 @@ function defaultBlocks(tpl, station) {
     push({ id: 'links', kind: 'links', x: 4.5, y: 80, w: 52, h: 8 });
   }
 
-  push({ id: 'mrz', kind: 'mrz', x: 0, y: 88, w: 100, h: 12 });
   return out;
 }
 
@@ -190,7 +189,8 @@ function defaultBlocks(tpl, station) {
 export function resolveBlocks(template, station, theme) {
   // 只看「有没有这个字段」，不看长度：空数组是同工把块删光了，
   // 那就是他要的白页，不该被当成「没设计过」又把默认版式塞回去
-  if (Array.isArray(station?.blocks)) return station.blocks;
+  // 机读 footer 属于护照固定模板，不再接受活动画板保存的位置或字号。
+  if (Array.isArray(station?.blocks)) return station.blocks.filter((b) => b?.kind !== 'mrz');
   // 横幅右边那两行字原来存在护照模版里（那时它是全书统一的）。
   // 现在按活动名生成，同工照样能在编辑器里一场一场改
   return defaultBlocks(resolveVisaTemplate(template), station);
@@ -494,14 +494,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     const box = e.currentTarget.getBoundingClientRect();
     const fy = (e.clientY - box.top) / box.height;
     const fx = (e.clientX - box.left) / box.width;
-    if (ui.vpLandscape) {
-      // 画布仍是竖屏坐标，只是在物理横屏中侧向显示，所以左右热区映射为上下。
-      if (fx <= EDGE_BAND || fx >= 1 - EDGE_BAND) return;
-      const topDir = ui.orientationTurn < 0 ? 1 : -1;
-      if (fy <= 0.25) { e.__flip = true; actions.move(topDir); }
-      else if (fy >= 0.75) { e.__flip = true; actions.move(-topDir); }
-      return;
-    }
     if (fy <= EDGE_BAND || fy >= 1 - EDGE_BAND) return;
     if (fx <= 0.25) { e.__flip = true; actions.move(-1); }
     else if (fx >= 0.75) { e.__flip = true; actions.move(1); }
@@ -516,18 +508,16 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     /* ---- 版式 ---- */
     // 横版资料/签证页在手机竖屏时会旋转显示：舞台也必须占满屏宽，
     // 否则 430px 的旧上限会在大屏手机/平板两侧留下不对称黑边。
-    stageMax: '430px',
+    stageMax: landscape ? '100%' : '430px',
     // 设备视口缺口补偿：竖屏把底部系统区镜像到顶部，横屏把右侧系统区
     // 镜像到左侧。舞台靠另一端放置，最终物理屏幕上的黑边才真正等宽。
-    // 横放时仍展示同一张竖屏画布，但缩到 92%，让四周明确露出黑色安全边，
-    // 不再像上一版那样由旋转后的长宽刚好把整块物理屏幕铺满。
-    stageWidth: ui.vpLandscape ? '92cqh' : '100%',
-    stageHeight: ui.vpLandscape ? '92cqw'
-      : (ui.screenGap?.y ? `calc(100% - ${ui.screenGap.y}px)` : '100%'),
-    stageTransform: ui.vpLandscape
-      ? `rotate(${(ui.orientationTurn || -1) * 90}deg)` : 'none',
+    stageWidth: ui.vpLandscape && ui.screenGap?.x
+      ? `calc(100% - ${ui.screenGap.x}px)` : '100%',
+    stageHeight: !ui.vpLandscape && ui.screenGap?.y
+      ? `calc(100% - ${ui.screenGap.y}px)` : '100%',
+    stageTransform: 'none',
     screenAlign: ui.vpLandscape ? 'center' : (ui.screenGap?.y ? 'flex-end' : 'center'),
-    screenJustify: 'center',
+    screenJustify: ui.vpLandscape && ui.screenGap?.x ? 'flex-end' : 'center',
     // 横版纸没有铺到的区域属于屏幕留边，不属于护照封皮；统一用黑色，
     // 避免横屏露出主题的酒红色而竖屏却是黑色。
     stageBg: landscape ? '#000' : 'var(--pp-ink)',

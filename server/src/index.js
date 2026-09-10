@@ -27,7 +27,10 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
-const WEB_DIST = path.join(__dirname, '..', '..', 'web', 'dist');
+// 本地视觉回归可指向隔离构建目录，避免“为了测试先覆盖线上正在服务的 dist”。
+const WEB_DIST = process.env.WEB_DIST
+  ? path.resolve(process.env.WEB_DIST)
+  : path.join(__dirname, '..', '..', 'web', 'dist');
 
 const app = express();
 const server = http.createServer(app);
@@ -636,13 +639,16 @@ function num(v, min, max, fallback) {
 }
 
 const BLOCK_KINDS = new Set([
-  'banner', 'fields', 'station', 'note', 'photo', 'links', 'mrz', 'text', 'image',
+  'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image',
 ]);
 
 function cleanBlocks(raw, where) {
   if (raw === undefined) return undefined;
   if (!Array.isArray(raw)) throw new Error(`${where}的版式要是一个数组`);
   if (raw.length > 40) throw new Error(`${where}最多放 40 个块`);
+
+  // 旧数据里可能还有可拖动的 mrz；保存时静默移除，footer 现在由固定模板绘制。
+  raw = raw.filter((b) => b?.kind !== 'mrz');
 
   const seen = new Set();
   return raw.map((b, i) => {
@@ -677,7 +683,6 @@ function cleanBlocks(raw, where) {
       case 'photo':
         return { ...base, fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover' };
       case 'links':
-      case 'mrz':
         return base;
       case 'image':
         return { ...base, src: safePhoto(b?.src),
