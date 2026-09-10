@@ -486,7 +486,7 @@ export default function ActivityDesign() {
 
   if (!config || !blocks) {
     return (
-      <div className="page">
+      <div className="page staff-page">
         {config && !activity ? (
           <div className="card stack">
             <div className="section-title">找不到这一场活动</div>
@@ -498,7 +498,7 @@ export default function ActivityDesign() {
   }
 
   return (
-    <div className="page page--design">
+    <div className="page page--design staff-page staff-design">
       <div className="design__bar row" style={{ gap: 8, alignItems: 'center' }}>
         {/* 光一个「←」看不出是回哪儿，写清楚：回的是这一场的详情页 */}
         <button className="btn btn--ghost" onClick={leave} style={{ flex: '0 0 auto' }}>

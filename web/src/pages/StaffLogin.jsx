@@ -31,15 +31,15 @@ export default function StaffLogin() {
   }
 
   return (
-    <div className="page page--nonav">
-      <div className="center" style={{ padding: '24px 0 18px' }}>
+    <div className="page page--nonav staff-page staff-login">
+      <div className="center staff-login__hero" style={{ padding: '24px 0 18px' }}>
         <div style={{ fontSize: 40, marginBottom: 8 }}>🎯</div>
         <div className="eyebrow">Staff Console</div>
         <h1 style={{ marginTop: 4 }}>工作人员端</h1>
         <div className="small muted" style={{ marginTop: 6 }}>扫码盖章 · 支持离线操作</div>
       </div>
 
-      <div className="card stack">
+      <div className="card stack staff-login__card">
         <div className="field">
           <label className="label" htmlFor="pin">PIN 码</label>
           <input

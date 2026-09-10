@@ -3,6 +3,7 @@ import { Sheet, useToast } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { refreshMe } from '../../lib/player.js';
 import { themeVarsOf, coverBgOf } from './bookVals.js';
+import AvatarEditor from '../../components/AvatarEditor.jsx';
 
 /**
  * 「自定义」—— 每个人自己调这本护照的配色。
@@ -13,10 +14,11 @@ import { themeVarsOf, coverBgOf } from './bookVals.js';
  * 只调颜色和水印浓度。封面上印的字、签证页的版式那些是同工排的，
  * 不归个人改 —— 那关系到这本册子还认不认得出是同一本。
  */
-export default function ThemeSheet({ open, onClose, token, theme, presets }) {
+export default function ThemeSheet({ open, onClose, token, me, theme, presets }) {
   const toast = useToast();
   const [draft, setDraft] = useState(theme);
   const [busy, setBusy] = useState(false);
+  const [profile, setProfile] = useState({ name: '', surname: '', given: '', avatar: {} });
   const wasOpen = useRef(false);
 
   // 只在「刚打开」的那一刻从已保存值起步。
@@ -26,18 +28,33 @@ export default function ThemeSheet({ open, onClose, token, theme, presets }) {
   // 变化时都 setDraft，用户正在挑的颜色/预设就会被突然覆盖回旧值，看起来
   // 像是页面时不时自己跳回默认。
   useEffect(() => {
-    if (open && !wasOpen.current) setDraft(theme);
+    if (open && !wasOpen.current) {
+      setDraft(theme);
+      setProfile({
+        name: me?.name || '', surname: me?.surname || '', given: me?.given || '', avatar: me?.avatar || {},
+      });
+    }
     wasOpen.current = open;
-  }, [open, theme]);
+  }, [open, theme, me]);
 
   const edit = (patch) => setDraft((c) => ({ ...c, ...patch }));
 
-  async function save(next = draft) {
+  async function save(next = draft, saveProfile = true) {
     setBusy(true);
     try {
+      if (saveProfile) {
+        if (!profile.name.trim()) throw new Error('昵称不能为空');
+        await api('/api/me', {
+          method: 'POST', token,
+          body: {
+            name: profile.name.trim(), surname: profile.surname.trim(),
+            given: profile.given.trim(), avatar: profile.avatar,
+          },
+        });
+      }
       await api('/api/me/theme', { method: 'POST', body: { theme: next }, token });
       await refreshMe();
-      toast(next === null ? '换回默认配色了' : '配色已保存', 'ok');
+      toast(next === null ? '资料已保存，配色已恢复默认' : '自定义资料已保存', 'ok');
       onClose?.();
     } catch (err) {
       toast(err.message || '存不上，再试一次', 'err');
@@ -51,6 +68,29 @@ export default function ThemeSheet({ open, onClose, token, theme, presets }) {
   return (
     <Sheet open={open} onClose={onClose} title="✎ 自定义我的护照">
       <div className="stack">
+        <div className="section-title">身份资料</div>
+        <div className="card card--flat stack">
+          <AvatarEditor value={profile.avatar} onChange={(avatar) => setProfile((p) => ({ ...p, avatar }))} size={112} />
+          <div className="field">
+            <label className="label">昵称</label>
+            <input className="input" value={profile.name} maxLength={24} placeholder="你的显示名称"
+              onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} />
+          </div>
+          <div className="row" style={{ alignItems: 'flex-start' }}>
+            <div className="field grow">
+              <label className="label">姓</label>
+              <input className="input" value={profile.surname} maxLength={24}
+                onChange={(e) => setProfile((p) => ({ ...p, surname: e.target.value }))} />
+            </div>
+            <div className="field grow">
+              <label className="label">名</label>
+              <input className="input" value={profile.given} maxLength={24}
+                onChange={(e) => setProfile((p) => ({ ...p, given: e.target.value }))} />
+            </div>
+          </div>
+        </div>
+
+        <div className="section-title">护照外观</div>
         {/* 预览用的是护照自己那套算法，所见即所得 */}
         <div style={{
           ...themeVarsOf(draft), display: 'flex', gap: 8, padding: 10,

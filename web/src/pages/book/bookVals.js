@@ -487,15 +487,24 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
    * 返回 true 表示「这一下已经当翻页处理了」，调用方就该收手。
    */
   const EDGE_BAND = 0.12;
-  const edgeFlip = (e) => {
-    const box = e?.currentTarget?.getBoundingClientRect?.();
-    if (!box || !box.width || !box.height) return false;
+  // 方向切换时只重排这层屏幕坐标热区，不依赖横版纸张当前是否已经完成旋转。
+  // 用捕获阶段可以先识别真实按钮并放行，避免透明热区盖住排行榜、二维码等控件。
+  const screenEdgeTap = (e) => {
+    if (ui.overlay || ui.modal || e.target.closest('button, input, a, textarea, select')) return;
+    const box = e.currentTarget.getBoundingClientRect();
     const fy = (e.clientY - box.top) / box.height;
-    if (fy <= EDGE_BAND || fy >= 1 - EDGE_BAND) return false;
     const fx = (e.clientX - box.left) / box.width;
-    if (fx <= 0.25) { e.__flip = true; actions.move(-1); return true; }
-    if (fx >= 0.75) { e.__flip = true; actions.move(1); return true; }
-    return false;
+    if (ui.vpLandscape) {
+      // 画布仍是竖屏坐标，只是在物理横屏中侧向显示，所以左右热区映射为上下。
+      if (fx <= EDGE_BAND || fx >= 1 - EDGE_BAND) return;
+      const topDir = ui.orientationTurn < 0 ? 1 : -1;
+      if (fy <= 0.25) { e.__flip = true; actions.move(topDir); }
+      else if (fy >= 0.75) { e.__flip = true; actions.move(-topDir); }
+      return;
+    }
+    if (fy <= EDGE_BAND || fy >= 1 - EDGE_BAND) return;
+    if (fx <= 0.25) { e.__flip = true; actions.move(-1); }
+    else if (fx >= 0.75) { e.__flip = true; actions.move(1); }
   };
 
   // 向后翻时动的是克隆出来的旧页（PassportBook 直接改它的 style），
@@ -505,12 +514,31 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
   return {
     /* ---- 版式 ---- */
-    stageMax: landscape && ui.vpLandscape ? '100%' : '430px',
+    // 横版资料/签证页在手机竖屏时会旋转显示：舞台也必须占满屏宽，
+    // 否则 430px 的旧上限会在大屏手机/平板两侧留下不对称黑边。
+    stageMax: '430px',
+    // 设备视口缺口补偿：竖屏把底部系统区镜像到顶部，横屏把右侧系统区
+    // 镜像到左侧。舞台靠另一端放置，最终物理屏幕上的黑边才真正等宽。
+    // 横放时仍展示同一张竖屏画布，但缩到 92%，让四周明确露出黑色安全边，
+    // 不再像上一版那样由旋转后的长宽刚好把整块物理屏幕铺满。
+    stageWidth: ui.vpLandscape ? '92cqh' : '100%',
+    stageHeight: ui.vpLandscape ? '92cqw'
+      : (ui.screenGap?.y ? `calc(100% - ${ui.screenGap.y}px)` : '100%'),
+    stageTransform: ui.vpLandscape
+      ? `rotate(${(ui.orientationTurn || -1) * 90}deg)` : 'none',
+    screenAlign: ui.vpLandscape ? 'center' : (ui.screenGap?.y ? 'flex-end' : 'center'),
+    screenJustify: 'center',
+    // 横版纸没有铺到的区域属于屏幕留边，不属于护照封皮；统一用黑色，
+    // 避免横屏露出主题的酒红色而竖屏却是黑色。
+    stageBg: landscape ? '#000' : 'var(--pp-ink)',
     // 横竖屏都按同一张 1.9:1 的横版纸来放大到可用空间；不再直接拿
     // 视口宽高当页面宽高，否则旋转手机后整张签证的比例和字号都会变。
-    lsW: ui.vpLandscape ? 'min(100cqw, 190cqh)' : 'min(100cqh, 190cqw)',
-    lsH: ui.vpLandscape ? 'min(100cqh, 52.6316cqw)' : 'min(100cqw, 52.6316cqh)',
-    lsTransform: ui.vpLandscape ? 'translate(-50%,-50%)' : 'translate(-50%,-50%) rotate(90deg)',
+    // 不再用 min() 二次缩小：竖屏明确以屏宽为准，横屏明确以屏高为准。
+    // 这样竖屏左右必贴满、横屏上下必贴满；多出来的黑边只会出现在
+    // 另一条轴上，并由 left/top 50% 保证严格对称。
+    lsW: '190cqw',
+    lsH: '100cqw',
+    lsTransform: 'translate(-50%,-50%) rotate(90deg)',
     isPortrait: !landscape,
     isLandscape: landscape,
     isCover: kind === 'cover',
@@ -556,13 +584,12 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
 
     /* ---- 翻页（唯一保留的交互） ---- */
     next: () => actions.move(1),
-    edgeFlip,
+    screenEdgeTap,
     pageTap: (e) => {
       if (e.__flip) return;
       if (e.target.closest('button, input, a, textarea, select')) return;
       // 封面整页可点，不用去够某个按钮
       if (kind === 'cover') { e.__flip = true; actions.move(1); return; }
-      if (edgeFlip(e)) return;
       // 点在中间：如果这一场还没盖章，就主动查一次。
       // 页面上不放任何常驻标识，只在请求进行中给一个很轻的反馈。
       // 已经盖章的页面不发请求，防止反复戳。
@@ -705,7 +732,6 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 各写各的话，同一个位置在正文上和在页边上会有两种反应
     stampTap: (e) => {
       if (e && e.__flip) return;
-      if (edgeFlip(e)) return;
       if (!station) return;
       if (visaScore != null) return;      // 已盖章，不发请求
       actions.checkStamp();

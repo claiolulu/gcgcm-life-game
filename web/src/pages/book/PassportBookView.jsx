@@ -1,5 +1,5 @@
 import React from 'react';
-import VisaBlocks from './VisaBlocks.jsx';
+import VisaBlocks, { PassportMrz } from './VisaBlocks.jsx';
 
 /**
  * 护照册的视觉层 —— 由 Claude Design 的 `Life Passport v5 Classic.dc.html`
@@ -8,12 +8,12 @@ import VisaBlocks from './VisaBlocks.jsx';
  */
 export default function PassportBookView({ v }) {
   return (
-      <div style={{...v.themeVars, height: "100dvh", boxSizing: "border-box", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)", display: "flex", alignItems: "center", justifyContent: "center", background: "#000", fontFamily: "'Noto Serif SC','EB Garamond',serif"}}>
-        <div style={{width: "100%", maxWidth: v.stageMax, height: "100%", position: "relative", overflow: "hidden", background: "var(--pp-ink)", containerType: "size", perspective: "1500px"}}>
+      <div style={{...v.themeVars, position: "fixed", inset: "0", width: "100%", height: "auto", boxSizing: "border-box", display: "flex", alignItems: v.screenAlign, justifyContent: v.screenJustify, overflow: "hidden", background: "#000", fontFamily: "'Noto Serif SC','EB Garamond',serif"}}>
+        <div onClickCapture={v.screenEdgeTap} style={{width: v.stageWidth, maxWidth: v.stageMax, height: v.stageHeight, position: "relative", overflow: "hidden", background: v.stageBg, containerType: "size", perspective: "1500px", transform: v.stageTransform, transformOrigin: "center", transition: "none"}}>
           <div className="book-flip" style={{position: "absolute", inset: "0", animation: v.pageAnim}}>
           {v.isPortrait ? (
             <>
-              <div style={{position: "absolute", inset: "0", display: "flex", flexDirection: "column", animation: "pageIn .25s ease both"}}>
+              <div style={{position: "absolute", inset: "0", display: "flex", flexDirection: "column"}}>
                 {v.isCover ? (
                   <>
                     <div onClick={v.pageTap} style={{cursor: "pointer", flex: "1", minHeight: "0", position: "relative", background: v.coverBg, padding: "34px 30px 26px", display: "flex", flexDirection: "column", alignItems: "center"}}>
@@ -351,7 +351,7 @@ export default function PassportBookView({ v }) {
           ) : null}
           {v.isLandscape ? (
             <>
-              <div onClick={v.pageTap} style={{position: "absolute", left: "50%", top: "50%", width: v.lsW, height: v.lsH, transform: v.lsTransform, display: "flex", flexDirection: "column", background: v.paper, overflow: "hidden", containerType: "size", animation: "pageIn .25s ease both"}}>
+              <div className="book-landscape-sheet" onClick={v.pageTap} style={{position: "absolute", left: "50%", top: "50%", display: "flex", flexDirection: "column", background: v.paper, overflow: "hidden", containerType: "size"}}>
                 <button onClick={v.openQr} title="放大二维码" style={{position: "absolute", right: "10px", bottom: "10px", zIndex: 6, width: "30px", height: "30px", padding: "3px", background: "#fff", border: "1px solid rgba(var(--pp-ink-rgb),.4)", lineHeight: 0, boxShadow: "0 2px 8px rgba(60,40,30,.25)"}}>
                   <div style={{width: "100%", height: "100%"}}>{v.qrThumb}</div>
                 </button>
@@ -364,6 +364,9 @@ export default function PassportBookView({ v }) {
                       <path d="M8 4h8v5a4 4 0 01-8 0V4z" />
                       <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                     </svg>
+                  </button>
+                  <button onClick={v.openTheme} data-tour="theme" title="自定义姓名、头像和护照配色" style={{flex: "none", height: "30px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", fontFamily: "inherit", fontSize: "9px", fontWeight: "600", letterSpacing: ".08em", whiteSpace: "nowrap"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
+                    ✎ 自定义
                   </button>
                   <div style={{flex: "1", minWidth: "0", display: "flex", alignItems: "baseline", justifyContent: "center", gap: "12px"}}>
                     <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".18em", color: "var(--pp-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>
@@ -389,9 +392,6 @@ export default function PassportBookView({ v }) {
                 {v.isData ? (
                   <>
                     <div style={{position: "relative", zIndex: "4", flex: "1", minHeight: "0", display: "flex", gap: "18px", padding: "13px 20px 0"}}>
-                      <button onClick={v.openTheme} data-tour="theme" title="换个配色" style={{position: "absolute", right: "10px", top: "8px", zIndex: 7, height: "22px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".14em", whiteSpace: "nowrap"}}>
-                        ✎ 自定义
-                      </button>
                       <div style={{flex: "none", width: "126px", display: "flex", flexDirection: "column", gap: "10px"}}>
                         <div style={{position: "relative", padding: "5px", background: "#fff", border: "1px solid rgba(var(--pp-ink-rgb),.45)"}}>
                           <div style={{width: "100%", aspectRatio: ".78", background: "linear-gradient(170deg,#e9e3d6,#d8d0c0)", position: "relative", overflow: "hidden"}}>
@@ -406,19 +406,19 @@ export default function PassportBookView({ v }) {
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
                               SURNAME 姓
                             </div>
-                            <input value={v.surname} onChange={v.setSurname} placeholder="ZHANG" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.3)", fontFamily: "'Courier Prime',monospace", fontSize: "13px", letterSpacing: ".06em", color: "var(--pp-text)", outline: "none"}} />
+                            <div style={{width: "100%", minHeight: "25px", marginTop: "4px", padding: "3px 0", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.3)", fontFamily: "inherit", fontSize: "13px", fontWeight: "600", color: "var(--pp-text)"}}>{v.surname || '—'}</div>
                           </div>
                           <div>
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
                               GIVEN NAMES 名
                             </div>
-                            <input value={v.given} onChange={v.setGiven} placeholder="WEI" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.3)", fontFamily: "'Courier Prime',monospace", fontSize: "13px", letterSpacing: ".06em", color: "var(--pp-text)", outline: "none"}} />
+                            <div style={{width: "100%", minHeight: "25px", marginTop: "4px", padding: "3px 0", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.3)", fontFamily: "inherit", fontSize: "13px", fontWeight: "600", color: "var(--pp-text)"}}>{v.given || '—'}</div>
                           </div>
                           <div>
                             <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
                               NICKNAME 昵称
                             </div>
-                            <input value={v.name} onChange={v.setName} placeholder="\u8f93\u5165\u540d\u5b57" style={{width: "100%", marginTop: "4px", padding: "3px 0", background: "transparent", border: "none", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.3)", fontSize: "14px", color: "var(--pp-text)", outline: "none"}} />
+                            <div style={{width: "100%", minHeight: "25px", marginTop: "4px", padding: "3px 0", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.3)", fontFamily: "inherit", fontSize: "13px", fontWeight: "600", color: "var(--pp-text)"}}>{v.name || '—'}</div>
                           </div>
                         </div>
                         <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 18px"}}>
@@ -435,25 +435,14 @@ export default function PassportBookView({ v }) {
                             </React.Fragment>
                           ))}
                         </div>
-                        <div>
-                          <div style={{fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".14em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                            SIGNATURE 持照人签名
-                          </div>
-                          <div style={{marginTop: "14px", height: "1px", background: "rgba(var(--pp-text-rgb),.35)"}} />
-                        </div>
                       </div>
                     </div>
                     {v.mrzOn ? (
-                      <>
-                        <div className="passport-mrz passport-mrz--data">
-                          <div className="passport-mrz__line">
-                            {v.mrz1}
-                          </div>
-                          <div className="passport-mrz__line">
-                            {v.mrz2}
-                          </div>
-                        </div>
-                      </>
+                      <PassportMrz
+                        line1={v.mrz1}
+                        line2={v.mrz2}
+                        className="passport-mrz--data"
+                      />
                     ) : null}
                   </>
                 ) : null}

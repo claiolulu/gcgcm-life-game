@@ -64,6 +64,16 @@ const label = (t) => (
   }}>{t}</div>
 );
 
+/** 资料页和 VISA 页共用同一个机读区，避免两套 DOM 在手机上产生字形差异。 */
+export function PassportMrz({ line1, line2, className = '' }) {
+  return (
+    <div className={`passport-mrz${className ? ` ${className}` : ''}`}>
+      <div className="passport-mrz__line">{line1}</div>
+      <div className="passport-mrz__line">{line2}</div>
+    </div>
+  );
+}
+
 /** 一个块的内容，不含定位 —— 定位在外层，编辑器要在同一个盒子上挂拖拽 */
 export function BlockBody({ b, data, editing, inlineEditing = false, onTextChange }) {
   switch (b.kind) {
@@ -180,13 +190,7 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
       );
 
     case 'mrz':
-      return (
-        <div className="passport-mrz">
-          {[data.mrz1, data.mrz2].map((t, i) => (
-            <div className="passport-mrz__line" key={i}>{t}</div>
-          ))}
-        </div>
-      );
+      return <PassportMrz line1={data.mrz1} line2={data.mrz2} />;
 
     case 'image':
       // 别在这个样式对象里写 `background: undefined`：React 把 undefined 当成

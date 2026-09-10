@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import Avatar from '../../components/Avatar.jsx';
@@ -47,6 +47,20 @@ export default function PassportBook() {
     () => typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(orientation: landscape)').matches : false
   );
+  // iPhone 可以向左或向右横放。模拟竖屏锁定时按真实方向反向补偿，
+  // 否则其中一种横放方式会让整页倒置。
+  const readOrientationTurn = () => {
+    const raw = typeof window.orientation === 'number'
+      ? window.orientation : Number(window.screen?.orientation?.angle || 0);
+    if (raw === 90) return -1;
+    if (raw === -90 || raw === 270) return 1;
+    return 0;
+  };
+  const [orientationTurn, setOrientationTurn] = useState(readOrientationTurn);
+  // iOS 主屏幕 PWA 的 CSS 视口有时只覆盖物理屏幕的左上部分：
+  // 竖屏少掉的区域落在底部，横屏少掉的区域落在右侧。CSS 内部居中
+  // 仍会在最终截图里显得偏上/偏左，所以量出缺口并在相反一侧留出同宽黑边。
+  const [screenGap, setScreenGap] = useState({ x: 0, y: 0 });
 
   const stations = config?.activities || [];
   // 签证页的内容来源：一场活动一页
@@ -214,14 +228,40 @@ export default function PassportBook() {
     return () => document.documentElement.classList.remove('book-locked');
   }, []);
 
+  useLayoutEffect(() => {
+    const measure = () => {
+      const sw = Number(window.screen?.width) || window.innerWidth;
+      const sh = Number(window.screen?.height) || window.innerHeight;
+      const fullW = vpLandscape ? Math.max(sw, sh) : Math.min(sw, sh);
+      const fullH = vpLandscape ? Math.min(sw, sh) : Math.max(sw, sh);
+      setScreenGap({
+        x: Math.max(0, Math.min(160, fullW - window.innerWidth)),
+        y: Math.max(0, Math.min(160, fullH - window.innerHeight)),
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+    };
+  }, [vpLandscape]);
+
   useEffect(() => {
     if (!window.matchMedia) return;
     const mq = window.matchMedia('(orientation: landscape)');
-    const on = (e) => setVpLandscape(e.matches);
+    const on = () => {
+      setVpLandscape(mq.matches);
+      setOrientationTurn(readOrientationTurn());
+    };
     mq.addEventListener ? mq.addEventListener('change', on) : mq.addListener(on);
     setVpLandscape(mq.matches);
+    setOrientationTurn(readOrientationTurn());
+    window.addEventListener('orientationchange', on);
     return () => {
       mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on);
+      window.removeEventListener('orientationchange', on);
     };
   }, []);
 
@@ -336,8 +376,8 @@ export default function PassportBook() {
     return buildVals({
       me, rank, of, config, board,
       ui: {
-        page, overlay, modal, vpLandscape, flip,
-        qrThumb: qr.thumb, qrBigImg: qr.big, checking,
+        page, overlay, modal, vpLandscape, orientationTurn, flip,
+        qrThumb: qr.thumb, qrBigImg: qr.big, checking, screenGap,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
         // 让它铺满整个框（左右各裁掉一点，人物居中，不会切到脸）。
@@ -358,7 +398,7 @@ export default function PassportBook() {
         goBadge: () => nav('/badge', { state: { back: page } }),
       },
     });
-  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, flip, qr, checking,
+  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, orientationTurn, flip, qr, checking, screenGap,
       move, goto, checkStamp]);
 
   if (loading && !me) {
@@ -411,6 +451,7 @@ export default function PassportBook() {
         open={themeOpen}
         onClose={() => setThemeOpen(false)}
         token={session?.token}
+        me={me}
         theme={v.themeNow}
         presets={config?.themePresets || []}
       />

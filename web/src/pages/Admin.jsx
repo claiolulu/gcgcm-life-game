@@ -218,7 +218,7 @@ export default function Admin() {
 
   // stateMeta 没人用了：游戏状态那块搬到每场活动自己身上了
   return (
-    <div className="page page--wide">
+    <div className="page page--wide staff-page admin-page">
       <NetBar
         online={staff.online}
         syncing={staff.syncing}
@@ -226,40 +226,47 @@ export default function Admin() {
         lastSyncedAt={staff.lastSyncedAt}
       />
 
-      <div className="row-between" style={{ marginBottom: 14 }}>
-        <div>
-          <div className="eyebrow">Control Room</div>
-          <h1>总控台</h1>
+      <div className="row-between admin-header">
+        <div className="admin-header__title">
+          <div className="eyebrow">MINI LIFE · CONTROL ROOM</div>
+          <h1>活动总控台</h1>
+          <div className="small muted">在这里管理活动、选手与现场数据</div>
         </div>
-        <button className="btn btn--sm btn--ghost" onClick={() => { logout(); nav('/staff'); }}>退出</button>
+        <button className="btn btn--sm btn--ghost admin-logout" onClick={() => { logout(); nav('/staff'); }}>退出登录</button>
       </div>
 
       <div className="cols-2 cols-pair">
       {/* 概览 */}
-      <div className="card row-between col-full" style={{ marginBottom: 12 }}>
+      <div className="admin-stats col-full">
         {[
-          { label: '领了护照', value: players.length },
-          { label: '活动', value: activities.length },
-          { label: '盖过的章', value: players.reduce((s, p) => s + p.stationsDone, 0) },
-          { label: '待同步', value: staff.outbox.length },
+          { icon: '👥', label: '已领护照', value: players.length, tone: 'blue' },
+          { icon: '📅', label: '活动总数', value: activities.length, tone: 'purple' },
+          { icon: '🏅', label: '已盖印章', value: players.reduce((s, p) => s + p.stationsDone, 0), tone: 'gold' },
+          { icon: staff.outbox.length ? '⏳' : '✓', label: '待同步', value: staff.outbox.length, tone: staff.outbox.length ? 'orange' : 'green' },
         ].map((s) => (
-          <div key={s.label} className="center grow">
-            <div className="bold mono" style={{ fontSize: 21, color: 'var(--gold)' }}>{s.value}</div>
-            <div className="tiny dim">{s.label}</div>
+          <div key={s.label} className={`admin-stat admin-stat--${s.tone}`}>
+            <div className="admin-stat__icon">{s.icon}</div>
+            <div>
+              <div className="admin-stat__value">{s.value}</div>
+              <div className="admin-stat__label">{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
 
       {/* 活动清单 —— 只是一份索引，点进去才是这一场的全部 */}
       <div className="cell-stack">
-      <div className="card stack" style={{ marginBottom: 12 }}>
+      <div className="card stack admin-panel admin-panel--activities" style={{ marginBottom: 12 }}>
         <div className="row-between">
-          <div className="section-title" style={{ margin: 0 }}>🗓 活动清单</div>
+          <div>
+            <div className="admin-panel__title">🗓 活动清单</div>
+            <div className="tiny dim">创建活动并管理报名、盖章与页面设计</div>
+          </div>
           <button className="btn btn--sm btn--primary" disabled={busy === 'acts'} onClick={addAct}>
             {busy === 'acts' ? '新建中…' : '＋ 新增活动'}
           </button>
         </div>
-        <div className="tiny dim">
+        <div className="tiny dim admin-panel__hint">
           护照里一场活动一页签证，参加了就盖章。点进去填这一场的信息、
           配图、链接、报名码，再从那儿进画布排版式。改完立刻生效，
           同工端和所有人的护照都会跟着变，不用重启。
@@ -271,7 +278,7 @@ export default function Admin() {
             return (
               <button
                 key={a.id}
-                className="card card--tight row"
+                className="card card--tight row admin-activity"
                 style={{ textAlign: 'left', width: '100%', gap: 10, alignItems: 'center' }}
                 onClick={() => nav(`/staff/admin/a/${a.id}`)}
               >
@@ -305,6 +312,13 @@ export default function Admin() {
               </button>
             );
           })}
+          {activities.length === 0 && (
+            <div className="admin-empty">
+              <span>📅</span>
+              <strong>还没有活动</strong>
+              <small>点击右上角「新增活动」开始创建</small>
+            </div>
+          )}
         </div>
 
       </div>
@@ -349,12 +363,15 @@ export default function Admin() {
       )}
 
       {/* 花名册 */}
-      <div className="card stack">
+      <div className="card stack admin-panel admin-panel--players">
         <div className="row-between" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <div className="section-title" style={{ margin: 0 }}>👥 全部选手</div>
+          <div>
+            <div className="admin-panel__title">👥 全部选手</div>
+            <div className="tiny dim">查看成绩、管理数据与选手资料</div>
+          </div>
           {/* 排行榜开关和导出备份都收在这儿：它们讲的都是「这批人」的事，
               各自单开一张卡不值当 */}
-          <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
+          <div className="row admin-actions" style={{ gap: 6, flex: '0 0 auto' }}>
             <button
               className={`btn btn--sm ${settings.leaderboardPublic ? 'btn--primary' : 'btn--ghost'}`}
               disabled={busy === 'lb'}
@@ -374,7 +391,7 @@ export default function Admin() {
             而每一行右边空着两尺 */}
         <div className="stack-sm grid-cards list-cap">
           {board.map((p) => (
-            <button key={p.id} className="lb-row" onClick={() => setDetail(p.id)} style={{ width: '100%', textAlign: 'left' }}>
+            <button key={p.id} className="lb-row admin-player" onClick={() => setDetail(p.id)} style={{ width: '100%', textAlign: 'left' }}>
               <div className="lb-rank">{p.rank}</div>
               <Avatar config={p.avatar} size={34} />
               <div className="grow" style={{ minWidth: 0 }}>

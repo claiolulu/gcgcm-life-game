@@ -57,7 +57,7 @@ export default function StaffScan() {
   }, [players, query]);
 
   return (
-    <div className="page page--wide">
+    <div className="page page--wide staff-page staff-workspace">
       <NetBar
         online={staff.online}
         syncing={staff.syncing}

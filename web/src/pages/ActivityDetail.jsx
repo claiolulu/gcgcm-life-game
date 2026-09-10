@@ -102,10 +102,10 @@ export default function ActivityDetail() {
     return () => clearTimeout(t);
   }, [draft, dirty, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!config) return <div className="page"><NetBar /><div className="dim">正在载入…</div></div>;
+  if (!config) return <div className="page staff-page"><NetBar /><div className="dim">正在载入…</div></div>;
   if (!draft) {
     return (
-      <div className="page">
+      <div className="page staff-page">
         <NetBar />
         <div className="card stack">
           <div className="section-title">找不到这一场活动</div>
@@ -218,7 +218,7 @@ export default function ActivityDetail() {
   const meta = STATE_META[draft.state] || STATE_META.upcoming;
 
   return (
-    <div className="page page--wide">
+    <div className="page page--wide staff-page staff-workspace">
       <NetBar />
 
       {/* 窄屏上按钮换行到第二排：不换的话「返回 + 标题」会被三个按钮

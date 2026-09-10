@@ -503,6 +503,193 @@ h3 { font-size: 16px; }
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+/* ---------------------- Staff 控制台统一视觉系统 ---------------------- */
+
+.staff-page {
+  --admin-panel: rgba(20, 27, 43, .78);
+  --admin-panel-strong: rgba(24, 33, 52, .94);
+  --admin-border: rgba(148, 163, 184, .14);
+  position: relative;
+  isolation: isolate;
+  padding-top: calc(var(--safe-top) + 26px);
+}
+
+.staff-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 8% -5%, rgba(66, 133, 244, .18), transparent 34%),
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, .13), transparent 30%),
+    linear-gradient(145deg, #090d16 0%, #0c1220 46%, #0a0f1a 100%);
+}
+
+.staff-page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .24;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, .05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
+}
+
+.staff-page > .card,
+.staff-page .cell-stack > .card,
+.staff-page .design__side > .card {
+  border-color: var(--admin-border);
+  background: linear-gradient(155deg, var(--admin-panel-strong), var(--admin-panel));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .22), inset 0 1px rgba(255,255,255,.035);
+}
+
+.staff-page .input {
+  border-color: rgba(148, 163, 184, .18);
+  background: rgba(7, 12, 22, .68);
+}
+.staff-page .input:hover { border-color: rgba(148, 163, 184, .3); }
+.staff-page .input:focus {
+  border-color: #6f9fea;
+  box-shadow: 0 0 0 3px rgba(74, 155, 255, .11);
+}
+.staff-page .btn--ghost { background: rgba(15, 23, 42, .62); border-color: rgba(148,163,184,.16); }
+.staff-page .btn--ghost:hover { background: rgba(31, 45, 70, .82); border-color: rgba(126,166,229,.3); }
+.staff-page .section-title { color: #c3ccda; }
+.staff-page .eyebrow { color: #7faefc; }
+
+.staff-login {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 520px;
+}
+.staff-login__hero { position: relative; }
+.staff-login__hero::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  z-index: -1;
+  background: radial-gradient(circle, rgba(74,155,255,.16), transparent 68%);
+}
+.staff-login__hero h1 { font-size: 30px; letter-spacing: -.03em; }
+.staff-login__card { width: 100%; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.staff-workspace { padding-top: calc(var(--safe-top) + 22px); }
+.staff-workspace > .row-between:first-of-type h1,
+.staff-workspace > .row-between:first-of-type h2 { letter-spacing: -.025em; }
+.staff-design .design__bar {
+  border: 1px solid rgba(148,163,184,.12);
+  border-radius: 16px;
+  padding: 8px;
+  background: rgba(10, 16, 28, .88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.admin-page {
+  max-width: 1240px;
+}
+
+.admin-header { margin-bottom: 22px; align-items: flex-end; }
+.admin-header__title { display: grid; gap: 5px; }
+.admin-header h1 { font-size: clamp(27px, 4vw, 36px); letter-spacing: -.035em; }
+.admin-header .eyebrow { color: #7faefc; letter-spacing: .18em; }
+.admin-logout { color: var(--text-2); background: rgba(15, 23, 42, .55); }
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: 17px;
+  background: linear-gradient(145deg, rgba(30, 41, 59, .88), rgba(15, 23, 42, .82));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .2), inset 0 1px rgba(255,255,255,.035);
+}
+.admin-stat__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 12px;
+  background: rgba(74, 155, 255, .12);
+  font-size: 19px;
+}
+.admin-stat__value { font: 800 24px/1 var(--mono); color: #eef4ff; }
+.admin-stat__label { margin-top: 5px; color: #8895aa; font-size: 11.5px; white-space: nowrap; }
+.admin-stat--purple .admin-stat__icon { background: rgba(176,108,240,.13); }
+.admin-stat--gold .admin-stat__icon { background: rgba(232,197,106,.13); }
+.admin-stat--green .admin-stat__icon { background: rgba(62,201,138,.13); }
+.admin-stat--orange .admin-stat__icon { background: rgba(247,148,72,.14); }
+
+.admin-panel.card {
+  border-color: var(--admin-border);
+  background: linear-gradient(155deg, var(--admin-panel-strong), var(--admin-panel));
+  box-shadow: 0 20px 45px rgba(0, 0, 0, .22), inset 0 1px rgba(255,255,255,.035);
+}
+.admin-panel__title { font-size: 15px; font-weight: 750; color: #f5f7fb; }
+.admin-panel__hint {
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 164, 224, .12);
+  border-radius: 11px;
+  background: rgba(36, 56, 86, .25);
+  line-height: 1.65;
+}
+.admin-activity.card {
+  border-color: rgba(148,163,184,.12);
+  background: rgba(10, 16, 28, .52);
+  box-shadow: none;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+}
+.admin-activity:hover { transform: translateY(-1px); border-color: rgba(111,165,255,.35); background: rgba(27,40,63,.72); }
+.admin-player { background: rgba(10,16,28,.52); border-color: rgba(148,163,184,.1); }
+.admin-player:hover { border-color: rgba(111,165,255,.3); background: rgba(27,40,63,.68); }
+.admin-empty { display: grid; justify-items: center; gap: 5px; padding: 30px 16px; color: var(--text-2); }
+.admin-empty > span { font-size: 28px; filter: grayscale(.25); }
+.admin-empty > strong { font-size: 14px; color: var(--text); }
+.admin-empty > small { color: var(--text-3); }
+.admin-actions .btn { background: rgba(15,23,42,.72); border-color: rgba(148,163,184,.16); }
+.admin-actions .btn--primary { background: linear-gradient(150deg, #ebca73, #bc9945); border-color: transparent; }
+
+@media (max-width: 720px) {
+  .staff-page { padding-top: calc(var(--safe-top) + 18px); }
+  .staff-design { padding-top: calc(var(--safe-top) + 8px); }
+  .staff-design .design__bar { border-radius: 13px; padding: 6px; }
+  .admin-header { align-items: center; margin-bottom: 18px; }
+  .admin-header h1 { font-size: 28px; }
+  .admin-header .small { display: none; }
+  .admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .admin-stat { padding: 13px; gap: 10px; }
+  .admin-stat__icon { width: 36px; height: 36px; flex-basis: 36px; }
+  .admin-stat__value { font-size: 20px; }
+  .admin-actions { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .admin-actions .btn { padding: 0 7px; white-space: nowrap; }
+}
+
+@media (max-width: 430px) {
+  .admin-stat__icon { display: none; }
+  .admin-stat { justify-content: center; text-align: center; }
+  .admin-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* ---------------------- 护照册专用的页面锁 ---------------------- */
 /* 护照册是整屏翻页的，自己不该滚动。但这个锁只能在它打开时生效 ——
    设计稿原来把它写成全局规则，结果整个 app 都滚不动了。 */
@@ -795,6 +982,13 @@ kbd {
   transform-origin: left center;   /* 书脊 */
   backface-visibility: hidden;     /* 转过 90° 就别露出背面的镜像内容 */
   will-change: transform;
+}
+
+/* 护照始终沿用竖屏坐标；设备横放时由外层画布整体侧向展示。 */
+.book-landscape-sheet {
+  width: 190cqw;
+  height: 100cqw;
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
 /* 克隆出来的静态副本：不接受点击，边缘加一道阴影，压出纸张的厚度 */
