@@ -24,6 +24,16 @@ export function useConfig() {
   );
 }
 
+/** 参与者护照只装订其角色可见的活动；后台页面仍直接使用完整 activities。 */
+export function activitiesForRole(config, role = 'normal') {
+  const normalized = role === 'staff' ? 'staff' : 'normal';
+  return (config?.activities || []).filter((activity) => {
+    const audience = activity?.audience === 'staff' || activity?.audience === 'normal'
+      ? activity.audience : 'all';
+    return audience === 'all' || audience === normalized;
+  });
+}
+
 export async function loadConfig() {
   const cached = await kvGet('config');
   if (cached) {
@@ -42,4 +52,3 @@ export async function loadConfig() {
     return cached;
   }
 }
-

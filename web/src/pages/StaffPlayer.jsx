@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
 import { NetBar, Score, useToast, ago } from '../components/ui.jsx';
-import { useConfig } from '../lib/config.js';
+import { useConfig, activitiesForRole } from '../lib/config.js';
 import { useStaff, getPlayer, queueOp, leaderboardLocal } from '../lib/staff.js';
 
 export default function StaffPlayer() {
@@ -21,7 +21,7 @@ export default function StaffPlayer() {
 
   // 打卡本里同工盖的是「活动」，不是游戏关卡。
   // 两边共用同一张 events 表，所以后面的记分/盖章逻辑完全不用改
-  const stations = config?.activities || [];
+  const stations = activitiesForRole(config, player?.role);
 
   const myStationId = staff.session?.station;
   const [stationId, setStationId] = useState(

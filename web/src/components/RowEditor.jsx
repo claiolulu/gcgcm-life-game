@@ -1,4 +1,5 @@
 import React from 'react';
+import ImeInput from './ImeInput.jsx';
 
 /**
  * 签证页栏目表的编辑器。
@@ -13,9 +14,9 @@ export default function RowEditor({ rows, ops, sources, dense = false }) {
       {rows.map((r, i) => (
         <div key={r.key || i} className="card card--tight stack-sm" style={{ padding: dense ? 8 : undefined }}>
           <div className="row" style={{ gap: 6 }}>
-            <input
+            <ImeInput
               className="input grow" value={r.label} maxLength={40} placeholder="栏目标题，例如 VISA TYPE 类型"
-              onChange={(e) => ops.edit(i, { label: e.target.value })}
+              onValue={(value) => ops.edit(i, { label: value })}
             />
             <button className="btn btn--sm btn--ghost" disabled={i === 0}
               onClick={() => ops.move(i, -1)} title="上移">↑</button>
@@ -49,9 +50,9 @@ export default function RowEditor({ rows, ops, sources, dense = false }) {
             </label>
           </div>
           {r.src === 'text' ? (
-            <input
+            <ImeInput
               className="input" value={r.text || ''} maxLength={40} placeholder="印在这一栏的字"
-              onChange={(e) => ops.edit(i, { text: e.target.value })}
+              onValue={(value) => ops.edit(i, { text: value })}
             />
           ) : (
             <div className="tiny dim">

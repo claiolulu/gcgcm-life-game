@@ -217,7 +217,7 @@ export default function Register() {
             <div className="card card--flat">
               <div className="section-title">这是什么</div>
               <div className="small muted" style={{ lineHeight: 1.7 }}>
-                这是一本活动打卡护照。GCGCM 的每一场活动都是里面的一页签证，
+                这是一本活动打卡护照。GCGCM 的每一场活动都有自己的签证页，
                 报名活动后到现场出示护照二维码，同工会在对应页面盖一枚「已参加」的章。
                 <br /><br />
                 这本护照<span className="gold bold">属于你本人</span>，不属于某一场活动：

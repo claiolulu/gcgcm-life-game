@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
 import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
@@ -11,6 +11,12 @@ const ACT_STATE = {
   upcoming: { icon: '🗓', label: '还没到' },
   live:     { icon: '🎯', label: '进行中' },
   done:     { icon: '✅', label: '已办完' },
+};
+
+const ACT_AUDIENCE = {
+  all: { label: '所有人', className: '' },
+  normal: { label: '普通专属', className: 'admin-activity__audience--normal' },
+  staff: { label: '同工专属', className: 'admin-activity__audience--staff' },
 };
 
 export default function Admin() {
@@ -34,7 +40,18 @@ export default function Admin() {
   // 总控台只留一份索引，点进去才是这一场的全部（见 ActivityDetail）。
   // 所以这里只需要两件事：每场盖了多少章，以及新建一场。
 
-  const activities = config?.activities || [];
+  const configActivities = config?.activities || [];
+  const [activities, setActivities] = useState(configActivities);
+  const activitiesRef = useRef(activities);
+  const activityDragRef = useRef({ id: null, changed: false });
+  const [dragActivity, setDragActivity] = useState(null);
+  activitiesRef.current = activities;
+
+  useEffect(() => {
+    if (activityDragRef.current.id) return;
+    setActivities(configActivities);
+    activitiesRef.current = configActivities;
+  }, [configActivities]);
 
   // 报名数不在 /api/config 里 —— 那份是缓存住的静态配置，而报名随时在变
   const [signupCount, setSignupCount] = useState({});
@@ -73,7 +90,7 @@ export default function Admin() {
         body: {
           activities: [...activities, {
             id, icon: '📍', name: '新活动', en: '', date: '', tag: '', host: '',
-            desc: '', landmarkKey: '', photo: '', links: [], state: 'upcoming',
+            desc: '', landmarkKey: '', photo: '', links: [], state: 'upcoming', audience: 'all',
           }],
         },
         token,
@@ -88,6 +105,71 @@ export default function Admin() {
     } finally {
       setBusy(null);
     }
+  }
+
+  function reorderActivity(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const current = activitiesRef.current;
+    const from = current.findIndex((a) => a.id === sourceId);
+    const to = current.findIndex((a) => a.id === targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = [...current];
+    const [moving] = next.splice(from, 1);
+    next.splice(to, 0, moving);
+    activitiesRef.current = next;
+    activityDragRef.current.changed = true;
+    setActivities(next);
+  }
+
+  async function saveActivityOrder(next) {
+    setBusy('order');
+    try {
+      await api('/api/admin/activities', { method: 'POST', body: { activities: next }, token });
+      await loadConfig();
+      toast('活动顺序已更新，护照页面已同步排序', 'ok');
+    } catch (err) {
+      toast(err.message || '排序保存失败', 'err');
+      await loadConfig();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function startActivityDrag(e, id) {
+    if (busy) return;
+    e.preventDefault();
+    activityDragRef.current = { id, changed: false };
+    setDragActivity(id);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 浏览器会自行继续派发 */ }
+  }
+
+  function moveActivityDrag(e) {
+    const sourceId = activityDragRef.current.id;
+    if (!sourceId) return;
+    e.preventDefault();
+    const row = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-activity-row]');
+    if (row?.dataset.activityRow) reorderActivity(sourceId, row.dataset.activityRow);
+  }
+
+  function endActivityDrag(e) {
+    if (!activityDragRef.current.id) return;
+    const changed = activityDragRef.current.changed;
+    activityDragRef.current = { id: null, changed: false };
+    setDragActivity(null);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* 已自动释放 */ }
+    if (changed) saveActivityOrder(activitiesRef.current);
+  }
+
+  function moveActivityByKeyboard(id, direction) {
+    const current = activitiesRef.current;
+    const from = current.findIndex((a) => a.id === id);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= current.length || busy) return;
+    const next = [...current];
+    [next[from], next[to]] = [next[to], next[from]];
+    activitiesRef.current = next;
+    setActivities(next);
+    saveActivityOrder(next);
   }
 
   // 「签证页模版」这个全局选项去掉了：每一场的版式在它自己的画布编辑器里排
@@ -144,6 +226,43 @@ export default function Admin() {
       setPicked([]);
     } catch (err) {
       toast(err.message || '重置失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function changePlayerRole(player, role) {
+    if (!player || player.role === role) return;
+    setBusy(`role-${player.id}`);
+    try {
+      await api(`/api/admin/player/${player.id}/role`, { method: 'POST', body: { role }, token });
+      await flush({ full: true });
+      toast(`${player.name} 已设为${role === 'staff' ? '同工' : '普通用户'}`, 'ok');
+    } catch (err) {
+      toast(err.message || '角色更新失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deletePlayer(player) {
+    if (!player) return;
+    const ok = await ask({
+      title: `删除「${player.name}」？`,
+      danger: true,
+      confirmText: '确认删除',
+      body: `编号 ${player.code} 的护照、报名、印章和上传素材都会删除。系统会先自动备份，但本人之后无法再用原编号登录。`,
+    });
+    if (!ok) return;
+    setBusy(`delete-${player.id}`);
+    try {
+      await api(`/api/admin/player/${player.id}`, { method: 'DELETE', token });
+      setDetail(null);
+      setPicked((cur) => cur.filter((id) => id !== player.id));
+      await flush({ full: true });
+      toast(`${player.name} 已删除`, 'ok');
+    } catch (err) {
+      toast(err.message || '删除失败', 'err');
     } finally {
       setBusy(null);
     }
@@ -267,21 +386,38 @@ export default function Admin() {
           </button>
         </div>
         <div className="tiny dim admin-panel__hint">
-          护照里一场活动一页签证，参加了就盖章。点进去填这一场的信息、
+          护照里每场活动至少有一张信息页，还能增加照片页和总结页。点进去填这一场的信息、
           配图、链接、报名码，再从那儿进画布排版式。改完立刻生效，
-          同工端和所有人的护照都会跟着变，不用重启。
+          同工端和对应角色的护照都会跟着变。按住左侧拖动柄可以调整顺序。
         </div>
 
         <div className="stack-sm">
           {activities.map((a) => {
             const st = ACT_STATE[a.state] || ACT_STATE.upcoming;
+            const audience = ACT_AUDIENCE[a.audience] || ACT_AUDIENCE.all;
             return (
-              <button
-                key={a.id}
-                className="card card--tight row admin-activity"
-                style={{ textAlign: 'left', width: '100%', gap: 10, alignItems: 'center' }}
-                onClick={() => nav(`/staff/admin/a/${a.id}`)}
-              >
+              <div key={a.id} data-activity-row={a.id}
+                className={`admin-activity-sort-row ${dragActivity === a.id ? 'admin-activity-sort-row--dragging' : ''}`}>
+                <button className="admin-activity__drag" type="button"
+                  aria-label={`拖动调整${a.name}的顺序`} title="按住拖动排序"
+                  disabled={busy === 'order'}
+                  onPointerDown={(e) => startActivityDrag(e, a.id)}
+                  onPointerMove={moveActivityDrag}
+                  onPointerUp={endActivityDrag}
+                  onPointerCancel={endActivityDrag}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      moveActivityByKeyboard(a.id, e.key === 'ArrowUp' ? -1 : 1);
+                    }
+                  }}>
+                  <span aria-hidden="true">⠿</span>
+                </button>
+                <button
+                  className="card card--tight row admin-activity"
+                  style={{ textAlign: 'left', width: '100%', gap: 10, alignItems: 'center' }}
+                  onClick={() => nav(`/staff/admin/a/${a.id}`)}
+                >
                 {/* 有配图就用配图，没有就用那个图标 —— 一眼看出哪几场还没配图 */}
                 <div style={{
                   flex: '0 0 44px', height: 34, borderRadius: 3, overflow: 'hidden',
@@ -302,6 +438,9 @@ export default function Admin() {
                         {st.icon} {st.label}
                       </span>
                     )}
+                    {a.audience && a.audience !== 'all' && (
+                      <span className={`admin-activity__audience ${audience.className}`}>{audience.label}</span>
+                    )}
                   </div>
                   <div className="tiny dim">
                     {a.date || '日期待定'} · 报名 {signupCount[a.id] || 0} · 盖章 {stampCount[a.id] || 0}
@@ -309,7 +448,8 @@ export default function Admin() {
                   </div>
                 </div>
                 <span className="dim">›</span>
-              </button>
+                </button>
+              </div>
             );
           })}
           {activities.length === 0 && (
@@ -395,7 +535,10 @@ export default function Admin() {
               <div className="lb-rank">{p.rank}</div>
               <Avatar config={p.avatar} size={34} />
               <div className="grow" style={{ minWidth: 0 }}>
-                <div className="small bold">{p.name}</div>
+                <div className="small bold">
+                  {p.name}
+                  {p.role === 'staff' && <span className="admin-player__role">同工</span>}
+                </div>
                 <div className="tiny dim mono">
                   {p.code} 号 · {p.stationsDone}/{p.stationsTotal ?? activities.length}
                 </div>
@@ -427,6 +570,20 @@ export default function Admin() {
                   {detailPlayer.code} 号 · 参加过 {detailPlayer.stationsDone} 场
                   {detailPlayer.contact ? ` · ${detailPlayer.contact}` : ''}
                 </div>
+              </div>
+            </div>
+
+            <div className="card card--tight stack-sm admin-player-role">
+              <label className="label" htmlFor="admin-player-role">用户角色</label>
+              <select id="admin-player-role" className="input"
+                value={detailPlayer.role || 'normal'}
+                disabled={busy === `role-${detailPlayer.id}` || busy === `delete-${detailPlayer.id}`}
+                onChange={(e) => changePlayerRole(detailPlayer, e.target.value)}>
+                <option value="normal">普通</option>
+                <option value="staff">同工</option>
+              </select>
+              <div className="tiny dim">
+                角色只决定护照里能看到哪些活动；工作人员端登录权限仍由工作人员 PIN 控制。
               </div>
             </div>
 
@@ -466,6 +623,11 @@ export default function Admin() {
               盖过的章撤不掉 —— 那是一条写进记录的事实，不是一个可以来回拨的开关。
               标错了人只能去数据库改。
             </div>
+            <button className="btn btn--danger btn--full"
+              disabled={busy === `delete-${detailPlayer.id}`}
+              onClick={() => deletePlayer(detailPlayer)}>
+              {busy === `delete-${detailPlayer.id}` ? '删除中…' : '🗑 删除这个用户'}
+            </button>
             <button className="btn btn--full" onClick={() => setDetail(null)}>关掉</button>
           </div>
         )}

@@ -275,7 +275,7 @@ const GUIDE = [
   { n: 2, cn: '扫描活动海报', en: 'SIGN UP',
     body: '海报二维码打开的是那一场活动：显示“报名中”时可以报名；活动开始后会显示报名截止；办完后会显示活动已结束。' },
   { n: 3, cn: '翻到活动签证', en: 'YOUR VISA PAGES',
-    body: '每场活动对应一张签证页，上面有日期、负责人、活动介绍和你的报名状态。新活动会自动装订进来。' },
+    body: '每场活动至少有一张信息页，也可以继续装订照片页和总结页。页顶的“上传”可以把文字或照片交给活动同工。' },
   { n: 4, cn: '到场出示护照码', en: 'GET STAMPED',
     body: '现场打开护照二维码给同工扫描，同工会在对应活动页盖“已参加”章。每场只盖一次，盖完手机上立即更新。' },
   { n: 5, cn: '随时回来翻阅', en: 'KEEP THE JOURNEY',
@@ -283,17 +283,27 @@ const GUIDE = [
 ];
 
 
-/** 页码表：封面 → 欢迎 → 导航 → 资料页 → 每场活动一张签证 → 结语 */
+/** 页码表：每场活动至少一张信息页，后面可继续装订照片页和总结页。 */
 export function buildPages(stations) {
+  const visas = stations.flatMap((st, i) => {
+    const extras = Array.isArray(st?.extraPages) ? st.extraPages : [];
+    return [
+      {
+        kind: 'visa', i, subPage: 0, pageId: 'info', pageTitle: '活动信息',
+        label: `签证 ${String(i + 1).padStart(2, '0')} ${st.name} · 活动信息`,
+      },
+      ...extras.map((p, j) => ({
+        kind: 'visa', i, subPage: j + 1, pageId: p.id, pageTitle: p.title || `第 ${j + 2} 页`,
+        label: `签证 ${String(i + 1).padStart(2, '0')}.${j + 2} ${st.name} · ${p.title || '附加页'}`,
+      })),
+    ];
+  });
   return [
     { kind: 'cover',   label: 'COVER 封面' },
     { kind: 'inside',  label: '欢迎 WELCOME' },
     { kind: 'notes',   label: '导航 INDEX' },
     { kind: 'data',    label: '资料页 DATA PAGE' },
-    ...stations.map((st, i) => ({
-      kind: 'visa', i,
-      label: `签证 ${String(i + 1).padStart(2, '0')} ${st.name}`,
-    })),
+    ...visas,
     { kind: 'closing', label: '结语 CLOSING' },
   ];
 }
@@ -370,7 +380,7 @@ function visaMrzLine(n, { surname, given, visaNo, passportNo, code }) {
  */
 export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   /**
-   * 签证页现在一场活动一页 —— 迎新、查经、圣诞晚会……参加了就盖章。
+   * 签证页现在每场至少一张信息页，还可以继续装订照片和总结页。
    * 护照因此变成一本能一直用下去的打卡本，而不只是一晚上的游戏记录。
    *
    * 活动是按时间顺序装订的，不走关卡那套按忙闲排班的路线 ——
@@ -425,6 +435,10 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
   // 藏起来就没法让人期待下一场了。游戏版那套「开赛前留白」不适用。
   const visaBlank = false;
   const station = rawStation;
+  const visaSubPage = kind === 'visa' ? (cur.subPage || 0) : 0;
+  const visaExtraPage = station && visaSubPage > 0
+    ? (station.extraPages || [])[visaSubPage - 1] : null;
+  const visaPageCount = station ? 1 + (station.extraPages || []).length : 1;
   const visaScore = station ? done[station.id]?.points ?? null : null;
   const isCheckin = station ? done[station.id]?.meta?.checkin === true : false;
   const landscape = kind === 'data' || kind === 'visa';
@@ -433,7 +447,9 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     inside: 'WELCOME 欢迎', notes: 'INDEX 导航', data: 'IDENTIFICATION 身份资料',
     // 签证页的页眉写活动名 —— 每页都写「VISA 签证」等于什么都没说，
     // 而翻到哪一场才是这一页唯一会变的信息
-    visa: station ? `${station.icon || ''} ${station.name}`.trim() : 'VISA 签证',
+    visa: station
+      ? `${station.icon || ''} ${station.name}${visaSubPage ? ` · ${cur.pageTitle}` : ''}`.trim()
+      : 'VISA 签证',
     guide: 'HOW TO USE 使用说明',
     board: 'ATTENDANCE 参与记录', closing: 'CLOSING 结语',
   };
@@ -441,7 +457,9 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     inside: 'ROM 15:7', notes: passportNo, data: 'TYPE P / GCGCM',
     // 盖过章就直接写「已参加」，比一个序号有意义
     visa: station
-      ? (visaScore != null ? '已参加 ✓' : `NO.${String(cur.i + 1).padStart(2, '0')} 待参加`)
+      ? (visaSubPage
+        ? `PAGE ${visaSubPage + 1}/${visaPageCount}`
+        : (visaScore != null ? '已参加 ✓' : `NO.${String(cur.i + 1).padStart(2, '0')} 待参加`))
       : '',
     guide: 'GUIDE · 点问号返回', board: 'RECORDS · 点奖杯返回',
     closing: 'JOHN 15:12',
@@ -583,12 +601,13 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       // 点在中间：如果这一场还没盖章，就主动查一次。
       // 页面上不放任何常驻标识，只在请求进行中给一个很轻的反馈。
       // 已经盖章的页面不发请求，防止反复戳。
-      if (station && visaScore == null) actions.checkStamp();
+      if (station && visaSubPage === 0 && visaScore == null) actions.checkStamp();
     },
     stop: (e) => e.stopPropagation(),
 
     goBoard: () => actions.setOverlay(ui.overlay === 'board' ? null : 'board'),
     goBadge: () => actions.goBadge(),
+    openContribution: () => station && actions.openContribution(station),
     // ? 按钮直接启动新手引导：静态说明读完还是不知道哪个按钮是哪个，
     // 不如把界面元素圈出来一条条指给他看
     goGuide: () => actions.startTour(),
@@ -681,7 +700,11 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
      * 那是给写死的那份排版用的，已经没有人读，删掉了 —— 留着看起来像
      * 还在生效，下一个人会照着改。
      */
-    visaBlocks: station ? resolveBlocks(config?.visaTemplate, station, theme) : [],
+    visaBlocks: station
+      ? (visaSubPage === 0
+        ? resolveBlocks(config?.visaTemplate, station, theme)
+        : (Array.isArray(visaExtraPage?.blocks) ? visaExtraPage.blocks : []))
+      : [],
     visaBlockData: station ? blockData({
       station, me, theme, passportNo, surname, given,
       visaScore, isCheckin, doneCount,
@@ -690,7 +713,7 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
       stampTone: isCheckin ? (theme.stamp || '#2f6148') : (STAMP_TONE[visaScore] || 'var(--pp-text)'),
     }) : {},
 
-    visaStamped: station != null && visaScore != null,
+    visaStamped: station != null && visaScore != null && visaSubPage === 0,
     visaScore,
     // 章中间那个大字。打卡本盖的是「来过」，不是分数 —— 印一个「+0」
     // 反而像这场活动被判了零分
@@ -712,17 +735,17 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     // 但没盖章时点一下可以「查一次」—— 刚在关卡被记完分的人想立刻看到章。
     // 已经有章的页面直接返回，不发请求，避免站在那儿反复戳。
     checking: !!ui.checking,
-    canCheck: station != null && visaScore == null,
+    canCheck: station != null && visaSubPage === 0 && visaScore == null,
     // 提示框直接调这个：不做边缘翻页判断，只负责查一次
     checkStamp: () => {
-      if (!station || visaScore != null) return;
+      if (!station || visaSubPage !== 0 || visaScore != null) return;
       actions.checkStamp();
     },
     // 签证页正文上盖着一层透明的点击层。它和整页用同一份边缘判断 ——
     // 各写各的话，同一个位置在正文上和在页边上会有两种反应
     stampTap: (e) => {
       if (e && e.__flip) return;
-      if (!station) return;
+      if (!station || visaSubPage !== 0) return;
       if (visaScore != null) return;      // 已盖章，不发请求
       actions.checkStamp();
     },
@@ -732,21 +755,21 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
     /**
      * 导航页：讲清楚这本护照是什么、怎么盖章、活动在哪儿看。
      *
-     * 这里**不列**活动清单。清单就在后面的签证页上，一场一页，
+     * 这里**不列**活动清单。清单就在后面的签证页上，翻过去就是，
      * 翻过去就是；在导航页再抄一份，等于同一件事说两遍，而且那一份
      * 还会随着活动增删和后面对不上。这几张卡只讲不会变的东西。
      */
     intro: [
       { h: 'WHAT IS THIS 这是什么',
-        t: '这是一本活动打卡护照。GCGCM 的每一场活动都是里面的一页签证 —— ' +
-           '你去了，就在那一页盖一个章。' +
+        t: '这是一本活动打卡护照。GCGCM 的每一场活动都有自己的签证页 —— ' +
+           '你去了，就在信息页盖一个章。' +
            '一年下来翻开它，就是你在这里走过的路。' },
       { h: 'HOW TO GET STAMPED 怎么盖章',
         t: '到现场把二维码给同工扫一下就行。每一页右下角都有，点一下会放大。' +
            '章当场就盖上，你的手机上立刻看得到。一场活动只盖一次。' },
       { h: 'THE ACTIVITIES 活动在后面',
-        t: '往后翻，一场活动一页 —— 日期、类型、当天找哪位同工，' +
-           '都写在那一页上。没去过的那几页，章的位置还空着。' },
+        t: '往后翻，每场活动至少有一张信息页，也可以继续装订照片和总结。' +
+           '日期、类型、当天找哪位同工，都写在信息页上。' },
       { h: 'ONE MORE THING 还有一件事',
         t: '章盖满了会有惊喜，但那不是重点。' +
            '这本护照记的不是你参加了几场，是你在这里认识了谁、被谁记得。' },

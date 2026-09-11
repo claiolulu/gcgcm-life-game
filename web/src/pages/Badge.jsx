@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { AvatarContent } from '../components/Avatar.jsx';
 import { useToast, Empty } from '../components/ui.jsx';
 import { usePlayer } from '../lib/player.js';
-import { useConfig } from '../lib/config.js';
+import { useConfig, activitiesForRole } from '../lib/config.js';
 import { passportTheme } from './book/bookVals.js';
 
 /**
@@ -32,7 +32,7 @@ export default function Badge() {
   // 不想带的人可以关掉（比如只想发给已经有护照的朋友）
   const [withQr, setWithQr] = useState(true);
   const [qr, setQr] = useState(null);
-  const stations = config?.activities || [];
+  const stations = activitiesForRole(config, me?.role);
   const game = config?.game || {};
   // 徽章用这本护照自己的配色（含这个人改过的）。分享出去的图和护照
   // 长得不一样的话，收到的人不会把两者联系起来

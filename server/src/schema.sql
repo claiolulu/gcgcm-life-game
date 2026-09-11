@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS players (
   pin           TEXT NOT NULL DEFAULT '',
   token         TEXT NOT NULL,
   name          TEXT NOT NULL,
+  -- 参与者分组：normal 普通成员 | staff 同工。只用于活动可见范围，
+  -- 不授予工作人员端或总控台权限（后台权限仍由独立 PIN 控制）。
+  role          TEXT NOT NULL DEFAULT 'normal',
   -- 护照资料页印的姓 / 名。报名时选填，留空就按 name 猜（中文取首字为姓）
   surname       TEXT NOT NULL DEFAULT '',
   given         TEXT NOT NULL DEFAULT '',
@@ -72,3 +75,18 @@ CREATE TABLE IF NOT EXISTS signups (
   created_at  INTEGER NOT NULL,
   PRIMARY KEY (activity_id, player_id)
 );
+
+-- 参与者为某场活动提交的文字或图片素材。
+-- activity_id 对应的是 settings._activities 里的活动 id，不能做 SQLite 外键；
+-- player_id 可以做外键，删除护照时自动清掉其投稿。
+CREATE TABLE IF NOT EXISTS activity_materials (
+  id          TEXT PRIMARY KEY,
+  activity_id TEXT NOT NULL,
+  player_id   TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL,                         -- text | image
+  content     TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS materials_activity ON activity_materials(activity_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS materials_player   ON activity_materials(player_id, activity_id, created_at DESC);

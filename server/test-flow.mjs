@@ -137,6 +137,62 @@ check('普通工作人员不能调管理员接口', noAuth.status === 403);
 const badPin = await j('/api/staff/login', { method: 'POST', body: { pin: '0000' } });
 check('错误 PIN 被拒', badPin.status === 401);
 
+// 15b. 用户角色、活动可见范围与活动排序
+{
+  const playerH = { authorization: `Bearer ${playerToken}` };
+  const base = (await j('/api/config')).body.activities;
+  const target = base[0];
+  const restricted = base.map((a, i) => ({ ...a, audience: i === 0 ? 'staff' : 'all' }));
+  const savedAudience = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH, body: { activities: restricted },
+  });
+  check('活动能标成仅同工可见', savedAudience.status === 200
+    && savedAudience.body.activities[0].audience === 'staff');
+
+  const anonHidden = await j(`/api/activity/${target.id}`);
+  const normalHidden = await j(`/api/activity/${target.id}`, { headers: playerH });
+  check('同工专属活动对普通用户和匿名访问都隐藏', anonHidden.status === 404 && normalHidden.status === 404);
+
+  const roleDenied = await j(`/api/admin/player/${player.id}/role`, {
+    method: 'POST', headers: staffH, body: { role: 'staff' },
+  });
+  check('普通工作人员不能修改用户角色', roleDenied.status === 403);
+  const roleSet = await j(`/api/admin/player/${player.id}/role`, {
+    method: 'POST', headers: adminH, body: { role: 'staff' },
+  });
+  const staffVisible = await j(`/api/activity/${target.id}`, { headers: playerH });
+  check('管理员能把用户设为同工且同工能看到专属活动',
+    roleSet.body.player?.role === 'staff' && staffVisible.status === 200);
+
+  const reversed = [...restricted].reverse();
+  const sorted = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH, body: { activities: reversed },
+  });
+  const sortedConfig = await j('/api/config');
+  check('活动重排后配置与护照使用相同顺序', sorted.status === 200
+    && sortedConfig.body.activities.map((a) => a.id).join(',') === reversed.map((a) => a.id).join(','));
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+  await j(`/api/admin/player/${player.id}/role`, {
+    method: 'POST', headers: adminH, body: { role: 'normal' },
+  });
+
+  const disposable = await j('/api/register', {
+    method: 'POST', body: { name: '等待删除的用户', pin: '2468' },
+  });
+  const deleteDenied = await j(`/api/admin/player/${disposable.body.player.id}`, {
+    method: 'DELETE', headers: staffH,
+  });
+  const deleted = await j(`/api/admin/player/${disposable.body.player.id}`, {
+    method: 'DELETE', headers: adminH,
+  });
+  const deletedMe = await j('/api/me', {
+    headers: { authorization: `Bearer ${disposable.body.token}` },
+  });
+  check('普通工作人员不能删除用户', deleteDenied.status === 403);
+  check('管理员删除用户后其令牌立即失效', deleted.status === 200 && deletedMe.status === 401);
+}
+
 // 16. 护照配色（搬到每个人自己身上了，不再是总控台的全局设置）
 {
   const playerH = { authorization: `Bearer ${playerToken}` };
@@ -386,9 +442,11 @@ check('错误 PIN 被拒', badPin.status === 401);
     ...a,
     blocks: [
       { id: 'b1', kind: 'banner', x: 4, y: 12, w: 92, h: 11,
-        word: '打卡', brand: 'GCGCM 迎新', brandCn: '' },
+        word: '打卡', brand: 'GCGCM 迎新', brandCn: '',
+        size: 3.8, color: '#7a1823', font: 'serif', align: 'center', bold: true, lh: 1.3 },
       { id: 'b1', kind: 'fields', x: 4, y: 27, w: 52, h: 60, cols: 3,
-        rows: [{ key: 'a', label: '姓 SURNAME', src: 'surname' }] },
+        rows: [{ key: 'a', label: '姓 SURNAME', src: 'surname' }],
+        size: 2.2, color: '#232323', font: 'mono', align: 'right', bold: false, lh: 1.1 },
       { id: 'b3', kind: 'image', x: 200, y: -90, w: 40, h: 40, rot: 999,
         src: 'javascript:alert(1)', fit: 'squish', href: 'javascript:alert(1)' },
       { id: 'b4', kind: 'rm -rf', x: 5, y: 5, w: 10, h: 10, text: '未知类型退回文字' },
@@ -399,6 +457,10 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('版式存得下来', saved.status === 200 && b.length === 4, JSON.stringify(b).slice(0, 100));
   check('横框上那两行字能改', b[0]?.word === '打卡' && b[0].brand === 'GCGCM 迎新');
   check('栏目块能只留一栏', b[1]?.rows?.length === 1 && b[1].cols === 3);
+  check('模板块的字体样式能保存', b[0]?.size === 3.8 && b[0]?.color === '#7a1823'
+    && b[0]?.align === 'center' && b[0]?.bold === true && b[0]?.lh === 1.3
+    && b[1]?.size === 2.2 && b[1]?.align === 'right' && b[1]?.bold === false,
+    JSON.stringify([b[0], b[1]]));
 
   // 栏目条能绑「持照人」那一组的每一个来源
   const holder = ['player', 'code', 'passport', 'contact', 'visited', 'signed', 'stampDate'];
@@ -449,7 +511,95 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('没提供 blocks 就不写这个字段', back.body.activities[0].blocks === undefined);
 }
 
-// 22. 报名
+// 22. 活动附加页与参与者素材库
+{
+  const cfg = await j('/api/config');
+  const base = cfg.body.activities;
+  const activityId = base[0].id;
+  const pages = [
+    { id: 'photos', kind: 'photo', title: '活动照片', blocks: [
+      { id: 'photo-title', kind: 'text', x: 8, y: 14, w: 84, h: 10, text: '我们在一起' },
+    ] },
+    { id: 'photos', kind: 'summary', title: '活动总结', blocks: [
+      { id: 'summary', kind: 'text', x: 10, y: 25, w: 80, h: 50, text: '这一页是总结。' },
+    ] },
+  ];
+  const saved = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0 ? { ...a, extraPages: pages } : a)) },
+  });
+  const extras = saved.body.activities?.[0]?.extraPages || [];
+  check('一场活动能保存多张附加页', saved.status === 200 && extras.length === 2,
+    JSON.stringify(extras));
+  check('照片页和总结页类型被保留', extras[0]?.kind === 'photo' && extras[1]?.kind === 'summary');
+  check('重复的附加页 id 会自动错开', extras[0]?.id !== extras[1]?.id,
+    `${extras[0]?.id} / ${extras[1]?.id}`);
+  check('附加页里的画布块能保存', extras[1]?.blocks?.[0]?.text === '这一页是总结。');
+
+  const tooManyPages = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0 ? {
+      ...a, extraPages: Array.from({ length: 13 }, (_, n) => ({ id: `p${n}`, blocks: [] })),
+    } : a)) },
+  });
+  check('每场超过 12 张附加页会被拒', tooManyPages.status === 400,
+    `状态码 ${tooManyPages.status}`);
+
+  const playerH = { authorization: `Bearer ${playerToken}` };
+  const png1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+    + 'YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const upload = await j(`/api/activity/${activityId}/materials`, {
+    method: 'POST', headers: playerH,
+    body: { text: '这是参与者整理好的活动感想。', imageData: `data:image/png;base64,${png1x1}` },
+  });
+  check('参与者一次可以提交文字和照片', upload.status === 200
+    && upload.body.materials?.length === 2
+    && upload.body.materials.some((m) => m.kind === 'text')
+    && upload.body.materials.some((m) => m.kind === 'image'), JSON.stringify(upload.body));
+
+  const mine = await j(`/api/activity/${activityId}/materials/mine`, { headers: playerH });
+  check('参与者能看到自己的投稿', mine.status === 200 && mine.body.materials?.length === 2);
+  check('参与者自己的素材响应不泄露身份资料',
+    mine.body.materials.every((m) => m.player === undefined));
+
+  const contributor2 = await j('/api/register', {
+    method: 'POST', body: { name: '另一位投稿者', pin: '3579' },
+  });
+  const otherH = { authorization: `Bearer ${contributor2.body.token}` };
+  const otherMine = await j(`/api/activity/${activityId}/materials/mine`, { headers: otherH });
+  check('另一位参与者看不到别人的投稿', otherMine.status === 200 && otherMine.body.materials?.length === 0);
+
+  const adminMaterials = await j(`/api/admin/activity/${activityId}/materials`, { headers: adminH });
+  check('管理员素材库能看到投稿和投稿人', adminMaterials.status === 200
+    && adminMaterials.body.materials?.length === 2
+    && adminMaterials.body.materials.every((m) => m.player?.id === player.id));
+  const staffMaterials = await j(`/api/admin/activity/${activityId}/materials`, { headers: staffH });
+  check('普通工作人员不能浏览所有参与者素材', staffMaterials.status === 403);
+
+  const firstMaterial = mine.body.materials[0];
+  const stealDelete = await j(`/api/activity/${activityId}/materials/${firstMaterial.id}`, {
+    method: 'DELETE', headers: otherH,
+  });
+  check('参与者不能撤回别人的投稿', stealDelete.status === 404);
+  const ownDelete = await j(`/api/activity/${activityId}/materials/${firstMaterial.id}`, {
+    method: 'DELETE', headers: playerH,
+  });
+  check('参与者可以撤回自己的投稿', ownDelete.status === 200);
+
+  const empty = await j(`/api/activity/${activityId}/materials`, {
+    method: 'POST', headers: playerH, body: { text: '   ' },
+  });
+  check('空投稿被拒', empty.status === 400);
+  const fakeImage = await j(`/api/activity/${activityId}/materials`, {
+    method: 'POST', headers: playerH,
+    body: { imageData: 'data:image/png;base64,' + Buffer.from('not an image'.repeat(10)).toString('base64') },
+  });
+  check('参与者伪装成图片的文件也会被拒', fakeImage.status === 400);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
+// 23. 报名
 {
   const a0 = (await j('/api/config')).body.activities[0].id;
 
@@ -491,7 +641,7 @@ check('错误 PIN 被拒', badPin.status === 401);
 }
 
 
-// 23. 活动被删掉之后，指向它的章不能让任何地方出错
+// 24. 活动被删掉之后，指向它的章不能让任何地方出错
 //
 // 总控台可以随时删活动，但章是不可逆的历史 —— 删活动不该动到已经盖下去的章。
 // 于是「有一批章指向的活动已经不存在了」是这套系统的常态，而不是异常。

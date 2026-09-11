@@ -14,10 +14,19 @@ import { safeJSON, clamp, uid } from './util.js';
  * 两边共用同一张 events 表和那条「一站只能盖一次」的唯一索引：
  * 语义正好一致（一场活动也只盖一次章）。
  */
-function stationById(id) {
+export function normalizedPlayerRole(role) {
+  return role === 'staff' ? 'staff' : 'normal';
+}
+
+export function activityVisibleTo(activity, role) {
+  const audience = ['staff', 'normal'].includes(activity?.audience) ? activity.audience : 'all';
+  return audience === 'all' || audience === normalizedPlayerRole(role);
+}
+
+function stationById(id, role = null) {
   // 每次现查：总控台加了一场活动，同工立刻就能给它盖章，不用重启。
   // 活动就几条，这点开销可以忽略
-  return getActivities().find((x) => x.id === id) || null;
+  return getActivities().find((x) => x.id === id && (role == null || activityVisibleTo(x, role))) || null;
 }
 
 /**
@@ -28,8 +37,10 @@ function stationById(id) {
  * （哪天把同 id 的活动加回来，它们自己就回来了），但不再计入分数和场次：
  * 不这么做的话，分子数了已删活动、分母只数现存活动，会印出「参加 5/1 场」。
  */
-function liveStationIds() {
-  return new Set(getActivities().map((a) => a.id));
+function liveStationIds(role = null) {
+  return new Set(getActivities()
+    .filter((a) => role == null || activityVisibleTo(a, role))
+    .map((a) => a.id));
 }
 
 /* ------------------------- 派生状态（不落库，全靠算） ------------------------- */
@@ -42,7 +53,7 @@ export function totalFor(playerId) {
  * 把一个选手的事件流折叠成完整状态。
  * 所有"当前值"都是算出来的，因此乱序同步、重放、补录都能收敛到同一结果。
  */
-export function playerState(player, settings = getSettings(), live = liveStationIds()) {
+export function playerState(player, settings = getSettings(), live = liveStationIds(player.role)) {
   const events = stmts.eventsByPlayer.all(player.id);
   let total = 0;
   let done = 0;
@@ -73,6 +84,7 @@ export function playerState(player, settings = getSettings(), live = liveStation
     // 排行榜另建对象，不会带出去。
     pin: player.pin || '',
     name: player.name,
+    role: normalizedPlayerRole(player.role),
     // 报名时选填；留空前端按 name 猜
     surname: player.surname || '',
     given: player.given || '',
@@ -113,12 +125,9 @@ function shapeEvent(e) {
 /** 花名册：工作人员端离线缓存的全量数据（50 人量级，压缩后几 KB） */
 export function roster(since = 0) {
   const settings = getSettings();
-  // 整份花名册共用一次活动清单：getActivities() 会解析 JSON、补默认值，
-  // 必要时还会写回库，放进每人一次的循环里不合适
-  const live = liveStationIds();
   const players = since > 0 ? stmts.playersSince.all(since) : stmts.allPlayers.all();
   return players.map((p) => {
-    const s = playerState(p, settings, live);
+    const s = playerState(p, settings, liveStationIds(p.role));
     delete s.history; // 花名册不带完整历史，扫到人再单独拉
     return s;
   });
@@ -126,10 +135,9 @@ export function roster(since = 0) {
 
 export function leaderboard({ limit = 0 } = {}) {
   const settings = getSettings();
-  const live = liveStationIds();
   const players = stmts.allPlayers.all();
   const rows = players.map((p) => {
-    const s = playerState(p, settings, live);
+    const s = playerState(p, settings, liveStationIds(p.role));
     return {
       id: s.id,
       code: s.code,
@@ -137,6 +145,7 @@ export function leaderboard({ limit = 0 } = {}) {
       avatar: s.avatar,
       total: s.total,
       stationsDone: s.stationsDone,
+      stationsTotal: s.stationsTotal,
       updatedAt: s.updatedAt,
       createdAt: s.createdAt,
     };
@@ -214,8 +223,10 @@ const applyOpTx = db.transaction((op, settings) => {
 
   switch (op.type) {
     case 'score': {
-      const station = stationById(op.stationId);
-      if (!station) return { status: 'error', message: '未知活动' };
+      const existingStation = stationById(op.stationId);
+      if (!existingStation) return { status: 'error', message: '未知活动，可能已被删除' };
+      const station = stationById(op.stationId, player.role);
+      if (!station) return { status: 'error', message: '这场活动对该用户角色不可见' };
 
       const already = stmts.stationEvent.get(player.id, op.stationId);
       if (already) {

@@ -69,13 +69,14 @@ function rebuildIfLegacy() {
       CREATE TABLE players_new (
         id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, canon TEXT NOT NULL,
         pin TEXT NOT NULL DEFAULT '', token TEXT NOT NULL, name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'normal',
         surname TEXT NOT NULL DEFAULT '', given TEXT NOT NULL DEFAULT '',
         avatar TEXT NOT NULL DEFAULT '{}', contact TEXT NOT NULL DEFAULT '',
         theme TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
         created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
       );
       INSERT INTO players_new
-        SELECT id, code, canon, pin, token, name, surname, given, avatar, contact,
+        SELECT id, code, canon, pin, token, name, role, surname, given, avatar, contact,
                theme, notes, created_at, updated_at
           FROM players;
       DROP TABLE players;
@@ -132,12 +133,13 @@ function rebuildIfLegacy() {
 // 重建那一步才有东西可抄
 {
   const cols = db.prepare('PRAGMA table_info(players)').all().map((c) => c.name);
-  for (const col of ['pin', 'surname', 'given', 'theme']) {
+  for (const col of ['pin', 'surname', 'given', 'theme', 'role']) {
     if (!cols.includes(col)) {
       db.exec(`ALTER TABLE players ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
       console.log(`[db] 已为 players 表添加 ${col} 列`);
     }
   }
+  db.prepare("UPDATE players SET role = 'normal' WHERE role NOT IN ('normal', 'staff') OR role = ''").run();
 }
 rebuildIfLegacy();
 
@@ -200,6 +202,7 @@ export function getActivities() {
   const normalized = out.map((a) => ({
     ...a,
     state: a?.state || 'upcoming',
+    audience: ['normal', 'staff'].includes(a?.audience) ? a.audience : 'all',
     date: normalizeActivityDate(a?.date),
     // 已经保存过版式的活动，栏目标题也要从旧「控制号」迁移成「编号」。
     ...(Array.isArray(a?.blocks) ? {
@@ -329,6 +332,25 @@ export const stmts = {
   `),
   signupCounts: db.prepare('SELECT activity_id, COUNT(*) AS n FROM signups GROUP BY activity_id'),
   signupsOf: db.prepare('SELECT activity_id FROM signups WHERE player_id = ?'),
+  insertMaterial: db.prepare(`
+    INSERT INTO activity_materials
+      (id, activity_id, player_id, kind, content, created_at, updated_at)
+    VALUES (@id, @activity_id, @player_id, @kind, @content, @created_at, @updated_at)
+  `),
+  materialsForActivity: db.prepare(`
+    SELECT m.*, p.name AS player_name, p.code AS player_code
+      FROM activity_materials m JOIN players p ON p.id = m.player_id
+     WHERE m.activity_id = ? ORDER BY m.created_at DESC
+  `),
+  materialsForPlayer: db.prepare(`
+    SELECT * FROM activity_materials
+     WHERE activity_id = ? AND player_id = ? ORDER BY created_at DESC
+  `),
+  countMaterialsForPlayer: db.prepare(
+    'SELECT COUNT(*) AS n FROM activity_materials WHERE activity_id = ? AND player_id = ?'),
+  materialById: db.prepare('SELECT * FROM activity_materials WHERE id = ?'),
+  deleteMaterial: db.prepare('DELETE FROM activity_materials WHERE id = ? AND player_id = ?'),
+  allMaterials: db.prepare('SELECT * FROM activity_materials ORDER BY created_at ASC'),
   insertPlayer: db.prepare(`
     INSERT INTO players (id, code, canon, pin, token, name, surname, given, avatar, contact, created_at, updated_at)
     VALUES (@id, @code, @canon, @pin, @token, @name, @surname, @given, @avatar, @contact, @created_at, @updated_at)
@@ -336,6 +358,8 @@ export const stmts = {
   // 顺序编号：取当前最大号 +1。放在事务里分配，配合 code 的 UNIQUE 约束防并发撞号。
   maxCodeNum: db.prepare("SELECT COALESCE(MAX(CAST(code AS INTEGER)), 0) AS n FROM players"),
   setPin: db.prepare('UPDATE players SET pin = ?, updated_at = ? WHERE id = ?'),
+  setRole: db.prepare('UPDATE players SET role = ?, updated_at = ? WHERE id = ?'),
+  deletePlayer: db.prepare('DELETE FROM players WHERE id = ?'),
   playerById: db.prepare('SELECT * FROM players WHERE id = ?'),
   playerByToken: db.prepare('SELECT * FROM players WHERE token = ?'),
   playerByCode: db.prepare('SELECT * FROM players WHERE code = ?'),
@@ -391,6 +415,7 @@ export function snapshot() {
     settings: getSettings(),
     players: stmts.allPlayers.all(),
     events: stmts.allEvents.all(),
+    activityMaterials: stmts.allMaterials.all(),
   };
 }
 
@@ -409,6 +434,7 @@ export function resetAll({ keepPlayers = false } = {}) {
     // 纪元 +1：各端的增量同步靠 updated_at，删除是看不见的。
     // 纪元一变，客户端就知道自己手里的花名册作废了，必须整份重拉。
     setSetting('_epoch', (getSetting('_epoch', 0) || 0) + 1);
+    db.prepare('DELETE FROM activity_materials').run();
     db.prepare('DELETE FROM events').run();
     if (!keepPlayers) db.prepare('DELETE FROM players').run();
     setSetting('gameState', 'lobby');

@@ -119,7 +119,7 @@ check('重建前留了一份备份',
       'start_station', 'route', 'tokens_total', 'modifiers'].some((c) => pcols.includes(c)),
     pcols.join(' '));
   check('该留的列都在',
-    ['id', 'code', 'canon', 'pin', 'token', 'name', 'surname', 'given',
+    ['id', 'code', 'canon', 'pin', 'token', 'name', 'role', 'surname', 'given',
      'avatar', 'contact', 'theme', 'notes'].every((c) => pcols.includes(c)),
     pcols.join(' '));
   check('events 去掉了 card_id', !ecols.includes('card_id'), ecols.join(' '));
@@ -128,6 +128,7 @@ check('重建前留了一份备份',
 
   const p1 = db.prepare("SELECT * FROM players WHERE code = '01'").get();
   check('人一个没少', db.prepare('SELECT COUNT(*) n FROM players').get().n === 2);
+  check('老用户默认归为普通角色', p1.role === 'normal', p1.role);
   check('名字、姓名、头像、联系方式、备注都搬过来了',
     p1.name === '林小满' && p1.surname === '林' && p1.given === '小满'
     && p1.avatar === '{"skin":1}' && p1.contact === 'wx:xm' && p1.notes === '备注一',

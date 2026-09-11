@@ -6,7 +6,7 @@ import Avatar from '../../components/Avatar.jsx';
 import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages } from './bookVals.js';
 import { FLIP_MS, FLIP_EASE } from './bookVals.js';
-import { useConfig } from '../../lib/config.js';
+import { useConfig, activitiesForRole } from '../../lib/config.js';
 import { usePlayer, refreshMe } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
 import { kvGet, kvSet } from '../../lib/idb.js';
@@ -14,6 +14,7 @@ import { changesLeaderboard, onTick } from '../../lib/realtime.js';
 import { useLocalState } from '../../components/ui.jsx';
 import ThemeSheet from './ThemeSheet.jsx';
 import Tour from './Tour.jsx';
+import ActivityContributionSheet from './ActivityContributionSheet.jsx';
 
 /**
  * 选手护照册 —— 唯一的选手端界面。
@@ -34,6 +35,7 @@ export default function PassportBook() {
   const lastCheckRef = useRef(0);
   const lastBoardRequestRef = useRef(0);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [contributionActivity, setContributionActivity] = useState(null);
   // 抽到身份后自动弹一次队友面板 —— 这是选手最需要立刻知道的事
   const [tourOpen, setTourOpen] = useState(false);
   // 自动引导要等人先把封面翻开。否则新用户一进来就被拽到导航页，
@@ -64,9 +66,8 @@ export default function PassportBook() {
     setTourDone(true);
   }, [opened, tourDone, setTourDone]);
 
-  const stations = config?.activities || [];
-  // 签证页的内容来源：一场活动一页
-  const activities = useMemo(() => config?.activities || [], [config]);
+  // 签证页的内容来源：每场活动一张信息页，可再加照片/总结页
+  const activities = useMemo(() => activitiesForRole(config, me?.role), [config, me?.role]);
   // 签证页按活动装订，顺序就是配置里的先后（大致按时间）。
   // 游戏版那套「按各关忙闲排班」在这里用不上 —— 活动分散在几个月里，
   // 不存在开局全挤在一个门口的问题。
@@ -331,7 +332,7 @@ export default function PassportBook() {
   useEffect(() => {
     // 签证页现在按活动装订，水印要跟着活动的 landmarkKey 取 ——
     // 原来读的是 stations（游戏版的八个关卡），预取的是一批翻不到的图
-    const acts = config?.activities || [];
+    const acts = activities;
     const urls = acts.map((a) => (a.landmarkKey ? `/wm/${a.landmarkKey}.png` : null))
       .concat(['cathedral', 'university', 'wellington'].map((k) => `/wm/${k}.png`))
       // 活动配图也一起预取：它比水印更值得提前拿，那是页面上唯一的实照
@@ -353,7 +354,7 @@ export default function PassportBook() {
       cancelled = true;
       if (window.cancelIdleCallback) window.cancelIdleCallback(id); else clearTimeout(id);
     };
-  }, [config]);
+  }, [activities]);
 
   const checkStamp = useCallback(async () => {
     if (checking) return;
@@ -393,6 +394,7 @@ export default function PassportBook() {
         move, goto, setOverlay, setModal, checkStamp,
         // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
         openTheme: () => setThemeOpen(true),
+        openContribution: (activity) => setContributionActivity(activity),
         startTour: () => setTourOpen(true),
         // 徽章页在底部导航里，而底部导航在护照页上是不显示的（这一页
         // 是整屏翻页界面）—— 登录后又直接落在护照页，于是那一页原本
@@ -416,13 +418,14 @@ export default function PassportBook() {
   // page 表示这一步需要先翻到第几页（页码见 buildPages）。
   const notesPage = pages.findIndex((p) => p.kind === 'notes');
   const firstVisa = pages.findIndex((p) => p.kind === 'visa');
+  const visaPageCount = pages.filter((p) => p.kind === 'visa').length;
   const tourSteps = [
     { eyebrow: 'YOUR PASSPORT 你的护照', page: notesPage,
       title: '这是一本会一直陪着你的活动护照',
-      body: `它不属于某一晚或某一场游戏。资料页、${config?.activities?.length || 0} 张活动签证页和结语装订在一起；以后增加活动，也会自动多一页。点左右边缘即可翻页。` },
+      body: `它不属于某一晚或某一场游戏。资料页、${visaPageCount} 张活动内容页和结语装订在一起；以后增加活动或照片页，也会自动装订进来。点左右边缘即可翻页。` },
     { eyebrow: 'VISA PAGES 签证页', page: firstVisa,
-      title: '每场活动都有自己的一页',
-      body: '活动名称、日期、负责人和你的报名状态都在签证页上。参加活动后，同工会在对应页面盖一枚「已参加」的章；每场只盖一次。' },
+      title: '每场活动都有自己的页面',
+      body: '第一页是活动信息，后面还可以有照片和总结。页顶“上传”能把文字或照片交给同工；参加后，同工会在信息页盖一枚「已参加」的章。' },
     { eyebrow: 'IDENTIFICATION 资料页', page: pages.findIndex((p) => p.kind === 'data'),
       title: '现场出示的是“护照二维码”',
       body: '活动海报上的二维码用来报名；这本护照里的二维码用来让同工认出你并盖章。扫不出来时，直接报资料页上的个人编号即可。' },
@@ -456,6 +459,12 @@ export default function PassportBook() {
         me={me}
         theme={v.themeNow}
         presets={config?.themePresets || []}
+      />
+
+      <ActivityContributionSheet
+        activity={contributionActivity}
+        token={session?.token}
+        onClose={() => setContributionActivity(null)}
       />
 
 

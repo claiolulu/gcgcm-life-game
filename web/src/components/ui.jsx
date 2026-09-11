@@ -183,7 +183,7 @@ export { ago };
 
 /* ------------------------------- 底部弹层 ------------------------------- */
 
-export function Sheet({ open, onClose, children, title }) {
+export function Sheet({ open, onClose, children, title, className = '', backLabel = '' }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => e.key === 'Escape' && onClose?.();
@@ -201,9 +201,16 @@ export function Sheet({ open, onClose, children, title }) {
   // 弹层就会被关在页面里、被底部导航盖住。
   return createPortal(
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+      <div className={`sheet ${className}`.trim()} onClick={(e) => e.stopPropagation()}>
         <div className="sheet__grip" />
-        {title && <h2 style={{ marginBottom: 12 }}>{title}</h2>}
+        {title && (
+          <div className={`sheet__header${backLabel ? ' sheet__header--with-back' : ''}`}>
+            {backLabel ? (
+              <button type="button" className="sheet__back" onClick={onClose}>← {backLabel}</button>
+            ) : null}
+            <h2>{title}</h2>
+          </div>
+        )}
         {children}
       </div>
     </div>,

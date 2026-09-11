@@ -280,6 +280,18 @@ export default function ActivityDetail() {
           placeholder="日期 YYYY-MM-DD（可留空）"
           onChange={(date) => edit({ date })}
         />
+        <div className="field">
+          <label className="label" htmlFor="activity-audience">可见角色</label>
+          <select id="activity-audience" className="input" value={draft.audience || 'all'}
+            onChange={(e) => edit({ audience: e.target.value })}>
+            <option value="all">所有人</option>
+            <option value="normal">仅普通用户</option>
+            <option value="staff">仅同工</option>
+          </select>
+          <div className="tiny dim">
+            设为特定角色后，其他角色的护照不会显示这场活动，也不能通过链接报名。
+          </div>
+        </div>
         <div className="row" style={{ gap: 6 }}>
           <input className="input grow" value={draft.tag} maxLength={12} placeholder="类型"
             onChange={(e) => edit({ tag: e.target.value })} />

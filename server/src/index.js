@@ -18,7 +18,7 @@ import {
   getVisaTemplate,
 } from './db.js';
 import {
-  playerState, roster, leaderboard, rankOf, applyOp,
+  playerState, roster, leaderboard, rankOf, applyOp, activityVisibleTo, normalizedPlayerRole,
 } from './game.js';
 import {
   formatPlayerId, canonCode, extractCode, isValidPin, randomPin, uid, randomToken,
@@ -44,7 +44,8 @@ app.use(cors({ origin: true, credentials: true }));
 const jsonSmall = express.json({ limit: '512kb' });
 const jsonImage = express.json({ limit: '4mb' });
 app.use((req, res, next) => (
-  req.path === '/api/admin/upload' ? jsonImage : jsonSmall
+  req.path === '/api/admin/upload' || /^\/api\/activity\/[^/]+\/materials$/.test(req.path)
+    ? jsonImage : jsonSmall
 )(req, res, next));
 
 // 上传的图。放在 API 之前 —— 静态文件不该走那些鉴权中间件
@@ -98,6 +99,16 @@ function staffAuth(role = 'staff') {
     req.staff = payload;
     next();
   };
+}
+
+/** 活动可见范围使用参与者角色；后台 staff/admin 令牌统一按“同工”处理。 */
+function viewerRole(req) {
+  const token = (req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!token) return 'normal';
+  const player = stmts.playerByToken.get(token);
+  if (player) return normalizedPlayerRole(player.role);
+  const staff = verifyToken(token, secret());
+  return staff && ['staff', 'admin'].includes(staff.role) ? 'staff' : 'normal';
 }
 
 /* ------------------------------ 公共接口 ------------------------------ */
@@ -474,6 +485,31 @@ app.post('/api/admin/reset-pin', staffAuth('admin'), (req, res) => {
   res.json({ ok: true, pin: RESET_PIN, players: done, epoch: epoch(), serverTs: Date.now() });
 });
 
+/** 修改参与者分组。这个角色只控制活动可见范围，不授予后台登录权限。 */
+app.post('/api/admin/player/:id/role', staffAuth('admin'), (req, res) => {
+  const player = stmts.playerById.get(req.params.id);
+  if (!player) return res.status(404).json({ error: '找不到这个用户' });
+  const role = String(req.body?.role || '');
+  if (!['normal', 'staff'].includes(role)) {
+    return res.status(400).json({ error: '角色只能是普通或同工' });
+  }
+  stmts.setRole.run(role, Date.now(), player.id);
+  broadcast('profile');
+  res.json({ player: playerState(stmts.playerById.get(player.id)), serverTs: Date.now() });
+});
+
+/** 删除参与者前先落一份完整备份；外键会一并删除其报名、印章和投稿。 */
+app.delete('/api/admin/player/:id', staffAuth('admin'), (req, res) => {
+  const player = stmts.playerById.get(req.params.id);
+  if (!player) return res.status(404).json({ error: '找不到这个用户' });
+  writeSnapshot();
+  const info = stmts.deletePlayer.run(player.id);
+  if (!info.changes) return res.status(404).json({ error: '找不到这个用户' });
+  setSetting('_epoch', epoch() + 1);
+  broadcast('player-delete');
+  res.json({ ok: true, epoch: epoch(), serverTs: Date.now() });
+});
+
 
 /**
  * 改活动清单。总控台整份替换，不做增量 —— 排序、删除、改字段
@@ -501,10 +537,11 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
     const name = String(a?.name || '').trim().slice(0, 20);
     if (!name) return res.status(400).json({ error: '每个活动都要有名字' });
 
-    let links, blocks;
+    let links, blocks, extraPages;
     try {
       links = cleanLinks(a?.links, `「${name}」`);
       blocks = cleanBlocks(a?.blocks, `「${name}」`);
+      extraPages = cleanExtraPages(a?.extraPages, `「${name}」`);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
@@ -520,6 +557,7 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       en: String(a?.en || '').trim().slice(0, 40),
       date,
       tag: String(a?.tag || '').trim().slice(0, 12),
+      audience: ['normal', 'staff'].includes(a?.audience) ? a.audience : 'all',
       host: String(a?.host || '').trim().slice(0, 20),
       // 签发机构。留空就用护照模版上的那个（整本护照的签发方）
       issuer: String(a?.issuer || '').trim().slice(0, 24),
@@ -530,6 +568,7 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       state: ['upcoming', 'live', 'done'].includes(a?.state) ? a.state : 'upcoming',
       // 空数组是有意义的：那是「这一页我要留白」，不是「没设计过」
       ...(blocks !== undefined ? { blocks } : {}),
+      ...(extraPages !== undefined ? { extraPages } : {}),
     });
   }
 
@@ -670,16 +709,25 @@ function cleanBlocks(raw, where) {
     };
 
     const str = (v, max) => String(v ?? '').replace(/[\r\n]/g, ' ').trim().slice(0, max);
+    // 模板块也允许像文字块一样调整字体；没有调过的属性保持缺省，前端才能
+    // 继续使用每类块原来的视觉默认值（例如备注正文默认是 600 字重）。
+    const textStyle = {};
+    if (b?.size !== undefined) textStyle.size = num(b.size, 1, 24, 4);
+    if (b?.color !== undefined) textStyle.color = HEX.test(String(b.color)) ? String(b.color).toLowerCase() : '';
+    if (b?.font !== undefined && CANVAS_FONTS.has(b.font)) textStyle.font = b.font;
+    if (b?.align !== undefined && CANVAS_ALIGN.has(b.align)) textStyle.align = b.align;
+    if (b?.bold !== undefined) textStyle.bold = !!b.bold;
+    if (b?.lh !== undefined) textStyle.lh = num(b.lh, 0.9, 3, 1.5);
 
     switch (kind) {
       case 'banner':
-        return { ...base, word: str(b?.word, 16), brand: str(b?.brand, 24), brandCn: str(b?.brandCn, 16) };
+        return { ...base, word: str(b?.word, 16), brand: str(b?.brand, 24), brandCn: str(b?.brandCn, 16), ...textStyle };
       case 'fields':
         return { ...base, cols: Math.min(4, Math.max(1, Math.round(Number(b?.cols) || 2))),
-                 rows: cleanRows(b?.rows || [], where) };
+                 rows: cleanRows(b?.rows || [], where), ...textStyle };
       case 'station':
       case 'note':
-        return { ...base, label: str(b?.label, 30) };
+        return { ...base, label: str(b?.label, 30), ...textStyle };
       case 'photo':
         return { ...base, fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover' };
       case 'links':
@@ -702,6 +750,27 @@ function cleanBlocks(raw, where) {
   });
 }
 
+/**
+ * 每场活动的第 2 页起存在 extraPages。第 1 页继续沿用 activity.blocks，
+ * 这样已经排好的活动不用迁移，也不会因为升级多出一份重复数据。
+ */
+function cleanExtraPages(raw, where) {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) throw new Error(`${where}的附加页面要是一个数组`);
+  if (raw.length > 12) throw new Error(`${where}最多增加 12 页`);
+  const seen = new Set();
+  return raw.map((page, i) => {
+    let id = String(page?.id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24)
+      || `p${i + 2}`;
+    while (seen.has(id)) id += '_';
+    seen.add(id);
+    const title = String(page?.title || '').replace(/[\r\n]/g, ' ').trim().slice(0, 24)
+      || `第 ${i + 2} 页`;
+    const kind = ['photo', 'summary', 'custom'].includes(page?.kind) ? page.kind : 'custom';
+    return { id, title, kind, blocks: cleanBlocks(page?.blocks || [], `${where}「${title}」`) };
+  });
+}
+
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /**
@@ -713,15 +782,19 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
  *
  * 文件名用内容哈希：同一张图传几次都只存一份，也不用管重名。
  */
-app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
-  const raw = String(req.body?.data || '');
+function storeDataImage(data) {
+  const raw = String(data || '');
   const m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
-  if (!m) return res.status(400).json({ error: '只收 jpeg / png / webp 图片' });
+  if (!m) throw Object.assign(new Error('只收 jpeg / png / webp 图片'), { status: 400 });
 
   let buf;
-  try { buf = Buffer.from(m[2], 'base64'); } catch { return res.status(400).json({ error: '图片数据坏了' }); }
-  if (buf.length < 64) return res.status(400).json({ error: '图片数据坏了' });
-  if (buf.length > 2_000_000) return res.status(413).json({ error: '图片太大了（压缩后上限 2MB）' });
+  try { buf = Buffer.from(m[2], 'base64'); } catch {
+    throw Object.assign(new Error('图片数据坏了'), { status: 400 });
+  }
+  if (buf.length < 64) throw Object.assign(new Error('图片数据坏了'), { status: 400 });
+  if (buf.length > 2_000_000) {
+    throw Object.assign(new Error('图片太大了（压缩后上限 2MB）'), { status: 413 });
+  }
 
   // 认头几个字节，不认它自己声明的类型 —— 声明是客户端说了算的
   const ext =
@@ -730,13 +803,92 @@ app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
     : buf.subarray(0, 4).toString('latin1') === 'RIFF'
       && buf.subarray(8, 12).toString('latin1') === 'WEBP' ? 'webp'
     : null;
-  if (!ext) return res.status(400).json({ error: '这不是一张图片' });
+  if (!ext) throw Object.assign(new Error('这不是一张图片'), { status: 400 });
 
   const name = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16) + '.' + ext;
   const file = path.join(UPLOAD_DIR, name);
   if (!fs.existsSync(file)) fs.writeFileSync(file, buf);
 
-  res.json({ url: `/uploads/${name}`, bytes: buf.length });
+  return { url: `/uploads/${name}`, bytes: buf.length };
+}
+
+app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
+  try {
+    res.json(storeDataImage(req.body?.data));
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
+  }
+});
+
+const materialJson = (row, withOwner = false) => ({
+  id: row.id,
+  activityId: row.activity_id,
+  kind: row.kind,
+  content: row.content,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  ...(withOwner ? { player: { id: row.player_id, name: row.player_name, code: row.player_code } } : {}),
+});
+
+/** 参与者可以为一场活动提交文字和照片；每次请求两者可任选其一或同时提交。 */
+app.post('/api/activity/:id/materials', playerAuth, (req, res) => {
+  const activity = getActivities().find((a) => a.id === req.params.id);
+  if (!activity) return res.status(404).json({ error: '找不到这场活动' });
+  if (!activityVisibleTo(activity, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+
+  const text = String(req.body?.text || '').trim().slice(0, 1000);
+  const hasImage = !!String(req.body?.imageData || '').trim();
+  const addCount = (text ? 1 : 0) + (hasImage ? 1 : 0);
+  if (!addCount) return res.status(400).json({ error: '请写一段文字或选择一张图片' });
+  const count = stmts.countMaterialsForPlayer.get(activity.id, req.player.id).n;
+  if (count + addCount > 30) return res.status(409).json({ error: '这场活动最多提交 30 条素材' });
+
+  let image;
+  if (hasImage) {
+    try { image = storeDataImage(req.body.imageData); }
+    catch (err) { return res.status(err.status || 400).json({ error: err.message }); }
+  }
+
+  const now = Date.now();
+  const made = [];
+  const insert = (kind, content) => {
+    const row = { id: uid(), activity_id: activity.id, player_id: req.player.id,
+      kind, content, created_at: now, updated_at: now };
+    stmts.insertMaterial.run(row);
+    made.push(materialJson(row));
+  };
+  if (text) insert('text', text);
+  if (image) insert('image', image.url);
+  broadcast('materials');
+  res.json({ ok: true, materials: made });
+});
+
+/** 参与者只看自己的投稿，不能借活动 id 枚举别人上传的内容。 */
+app.get('/api/activity/:id/materials/mine', playerAuth, (req, res) => {
+  const activity = getActivities().find((a) => a.id === req.params.id);
+  if (!activity) return res.status(404).json({ error: '找不到这场活动' });
+  if (!activityVisibleTo(activity, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  res.json({ materials: stmts.materialsForPlayer.all(activity.id, req.player.id).map((r) => materialJson(r)) });
+});
+
+app.delete('/api/activity/:id/materials/:materialId', playerAuth, (req, res) => {
+  const activity = getActivities().find((a) => a.id === req.params.id);
+  if (!activity) return res.status(404).json({ error: '找不到这场活动' });
+  if (!activityVisibleTo(activity, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  const row = stmts.materialById.get(req.params.materialId);
+  if (!row || row.activity_id !== activity.id || row.player_id !== req.player.id) {
+    return res.status(404).json({ error: '找不到这条素材' });
+  }
+  stmts.deleteMaterial.run(row.id, req.player.id);
+  broadcast('materials');
+  res.json({ ok: true });
+});
+
+/** 管理员画布里的素材库。普通同工不能浏览所有参与者的投稿。 */
+app.get('/api/admin/activity/:id/materials', staffAuth('admin'), (req, res) => {
+  const activity = getActivities().find((a) => a.id === req.params.id);
+  if (!activity) return res.status(404).json({ error: '找不到这场活动' });
+  res.json({ materials: stmts.materialsForActivity.all(activity.id).map((r) => materialJson(r, true)) });
 });
 
 /* ------------------------------ 活动报名 ------------------------------ */
@@ -749,13 +901,13 @@ app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
  */
 app.get('/api/activity/:id', (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  if (!a || !activityVisibleTo(a, viewerRole(req))) return res.status(404).json({ error: '找不到这场活动' });
   const counts = new Map(stmts.signupCounts.all().map((r) => [r.activity_id, r.n]));
   res.json({
     activity: {
       id: a.id, icon: a.icon, name: a.name, en: a.en, date: a.date,
       tag: a.tag, host: a.host, desc: a.desc, photo: a.photo || '',
-      links: a.links || [], state: a.state || 'upcoming',
+      links: a.links || [], state: a.state || 'upcoming', audience: a.audience || 'all',
     },
     signupCount: counts.get(a.id) || 0,
     registration: activityRegistration(a),
@@ -792,7 +944,7 @@ function activityRegistration(a) {
 /** 报名。已经报过就当没事发生 —— 主键就是 (活动, 人)，天然幂等。 */
 app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  if (!a || !activityVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: registration.message, registration });
@@ -805,7 +957,7 @@ app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
 /** 取消报名。人会变卦，别让他只能来找同工改。 */
 app.delete('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  if (!a || !activityVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: '报名已经截止，不能再取消。如需变更请联系同工。', registration });

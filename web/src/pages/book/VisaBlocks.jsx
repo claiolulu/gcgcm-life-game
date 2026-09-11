@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 
 /**
  * 签证页的正文 —— 一张块的清单。
@@ -25,6 +25,57 @@ const FONTS = {
   mono: "'Courier Prime',monospace",
   sans: "'Noto Serif SC',system-ui,sans-serif",
 };
+
+function InlineValue({ as: Tag = 'span', value, field, blockId, onTextChange, style, maxLength = 1000, placeholder = '', multiline = false }) {
+  const ref = useRef(null);
+  const composing = useRef(false);
+  const initialValue = useRef(String(value || ''));
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || composing.current || document.activeElement === el) return;
+    const next = String(value || '');
+    if (el.innerText !== next) el.innerText = next;
+    initialValue.current = next;
+  }, [value]);
+
+  const commit = () => {
+    const el = ref.current;
+    if (!el) return;
+    const next = el.innerText.slice(0, maxLength);
+    if (el.innerText !== next) el.innerText = next;
+    if (next !== initialValue.current) {
+      initialValue.current = next;
+      onTextChange?.(field, next);
+    }
+  };
+
+  return (
+    <Tag
+      ref={ref}
+      className="visa-inline-input"
+      data-inline-editor={blockId}
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      aria-multiline={multiline ? 'true' : 'false'}
+      data-placeholder={placeholder}
+      aria-label={placeholder || '直接编辑文字'}
+      style={style}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onCompositionStart={() => { composing.current = true; }}
+      onCompositionEnd={() => { composing.current = false; }}
+      onKeyDown={(e) => {
+        if (!multiline && e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+      onBlur={commit}
+    >{String(value || '')}</Tag>
+  );
+}
 
 /** 可以放进「栏目」块的数据来源。和 server/src/config.js 的 VISA_ROW_SOURCES 对应。 */
 export function bindRow(row, data) {
@@ -87,19 +138,29 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
             flex: '0 0 38%', display: 'flex', alignItems: 'center', paddingLeft: '3.5cqh',
             fontFamily: "'EB Garamond',serif", fontSize: '4.6cqh', letterSpacing: '.3em',
             color: 'var(--pp-ink)', whiteSpace: 'nowrap',
-          }}>{b.word}</div>
+          }}>{inlineEditing ? (
+            <InlineValue value={b.word} field="word" blockId={b.id} maxLength={16}
+              placeholder="VISA" onTextChange={onTextChange} />
+          ) : b.word}</div>
           <div style={{
             flex: 1, minWidth: 0, background: 'var(--pp-ink)', display: 'flex',
-            flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center',
+            flexDirection: 'column', alignItems: b.align === 'left' ? 'flex-start' : b.align === 'center' ? 'center' : 'flex-end', justifyContent: 'center',
             paddingRight: '3.5cqh', clipPath: 'polygon(14% 0,100% 0,100% 100%,0 100%)',
           }}>
             <div style={{
-              fontFamily: "'EB Garamond',serif", fontSize: '2.9cqh', letterSpacing: '.2em',
-              color: 'var(--pp-gold)', whiteSpace: 'nowrap',
-            }}>{b.brand}</div>
-            {b.brandCn ? (
+              width: '76%', fontFamily: FONTS[b.font] || FONTS.serif, fontSize: `${b.size || 2.9}cqh`, letterSpacing: '.2em',
+              lineHeight: b.lh || 1.15, fontWeight: b.bold ? 700 : 400,
+              textAlign: b.align || 'right', color: b.color || 'var(--pp-gold)', whiteSpace: 'nowrap',
+            }}>{inlineEditing ? (
+              <InlineValue value={b.brand} field="brand" blockId={b.id} maxLength={24}
+                placeholder="活动标题" onTextChange={onTextChange} />
+            ) : b.brand}</div>
+            {b.brandCn || inlineEditing ? (
               <div style={{ marginTop: '0.4cqh', fontSize: '2.2cqh', letterSpacing: '.14em', color: 'rgba(var(--pp-gold-rgb),.78)', whiteSpace: 'nowrap' }}>
-                {b.brandCn}
+                {inlineEditing ? (
+                  <InlineValue value={b.brandCn} field="brandCn" blockId={b.id} maxLength={16}
+                    placeholder="中文副标题" onTextChange={onTextChange} />
+                ) : b.brandCn}
               </div>
             ) : null}
           </div>
@@ -113,17 +174,26 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
           gridTemplateColumns: `repeat(${b.cols || 2}, 1fr)`,
           gap: '1.8cqh 3.5cqh', alignContent: 'start', overflow: 'hidden',
         }}>
-          {(b.rows || []).map((r) => {
+          {(b.rows || []).map((r, rowIndex) => {
             const v = bindRow(r, data);
+            const editableValueField = r.src === 'post' ? 'issuer' : r.src === 'text' ? `row:${rowIndex}:text` : '';
             return (
               <div key={r.key} style={{ borderBottom: '1px solid rgba(var(--pp-ink-rgb),.18)', paddingBottom: '0.7cqh' }}>
-                {label(r.label)}
+                {inlineEditing ? (
+                  <InlineValue value={r.label} field={`row:${rowIndex}:label`} blockId={b.id}
+                    maxLength={40} placeholder="栏目标题" onTextChange={onTextChange}
+                    style={{ fontFamily: "'EB Garamond',serif", fontSize: '1.9cqh', letterSpacing: '.12em', color: 'rgba(var(--pp-text-rgb),.55)' }} />
+                ) : label(r.label)}
                 <div style={{
-                  marginTop: '0.6cqh', fontFamily: "'Courier Prime',monospace", fontWeight: 700,
-                  fontSize: '2.6cqh', letterSpacing: '.03em',
-                  color: v.fg || (r.accent ? 'var(--pp-ink)' : 'var(--pp-text)'),
+                  marginTop: '0.6cqh', fontFamily: FONTS[b.font] || FONTS.mono,
+                  fontWeight: (b.bold ?? true) ? 700 : 400,
+                  fontSize: `${b.size || 2.6}cqh`, lineHeight: b.lh || 1.2, letterSpacing: '.03em',
+                  textAlign: b.align || 'left', color: b.color || v.fg || (r.accent ? 'var(--pp-ink)' : 'var(--pp-text)'),
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>{v.value}</div>
+                }}>{inlineEditing && editableValueField ? (
+                  <InlineValue value={v.value} field={editableValueField} blockId={b.id}
+                    maxLength={80} placeholder={r.src === 'post' ? '签发机构' : '固定文字'} onTextChange={onTextChange} />
+                ) : v.value}</div>
               </div>
             );
           })}
@@ -133,13 +203,25 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
     case 'station':
       return (
         <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-          {b.label ? label(b.label) : null}
-          <div style={{ marginTop: '0.7cqh', fontSize: '4.4cqh', fontWeight: 700, lineHeight: 1.25, color: 'var(--pp-ink)' }}>
-            {data.name}
+          {inlineEditing ? (
+            <InlineValue value={b.label} field="label" blockId={b.id} maxLength={30}
+              placeholder="STATION 活动" onTextChange={onTextChange}
+              style={{ fontFamily: "'EB Garamond',serif", fontSize: '1.9cqh', letterSpacing: '.12em', color: 'rgba(var(--pp-text-rgb),.55)' }} />
+          ) : b.label ? label(b.label) : null}
+          <div style={{ marginTop: '0.7cqh', fontFamily: FONTS[b.font] || FONTS.sans,
+            fontSize: `${b.size || 4.4}cqh`, fontWeight: (b.bold ?? true) ? 700 : 400,
+            lineHeight: b.lh || 1.25, textAlign: b.align || 'left', color: b.color || 'var(--pp-ink)' }}>
+            {inlineEditing ? (
+              <InlineValue value={data.name} field="name" blockId={b.id} maxLength={20}
+                placeholder="活动名称" onTextChange={onTextChange} />
+            ) : data.name}
           </div>
-          {data.en ? (
+          {data.en || inlineEditing ? (
             <div style={{ marginTop: '0.6cqh', fontFamily: "'EB Garamond',serif", fontSize: '2.2cqh', letterSpacing: '.16em', color: 'rgba(var(--pp-text-rgb),.6)' }}>
-              {data.en}
+              {inlineEditing ? (
+                <InlineValue value={data.en} field="en" blockId={b.id} maxLength={40}
+                  placeholder="English title" onTextChange={onTextChange} />
+              ) : data.en}
             </div>
           ) : null}
         </div>
@@ -148,9 +230,18 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
     case 'note':
       return (
         <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-          {b.label ? label(b.label) : null}
-          <div style={{ marginTop: '0.8cqh', fontSize: '2.7cqh', fontWeight: 600, lineHeight: 1.75, color: 'var(--pp-text)', textWrap: 'pretty' }}>
-            {data.desc}
+          {inlineEditing ? (
+            <InlineValue value={b.label} field="label" blockId={b.id} maxLength={30}
+              placeholder="ANNOTATION 备注" onTextChange={onTextChange}
+              style={{ fontFamily: "'EB Garamond',serif", fontSize: '1.9cqh', letterSpacing: '.12em', color: 'rgba(var(--pp-text-rgb),.55)' }} />
+          ) : b.label ? label(b.label) : null}
+          <div style={{ marginTop: '0.8cqh', fontFamily: FONTS[b.font] || FONTS.sans,
+            fontSize: `${b.size || 2.7}cqh`, fontWeight: b.bold === undefined ? 600 : b.bold ? 700 : 400,
+            lineHeight: b.lh || 1.75, textAlign: b.align || 'left', color: b.color || 'var(--pp-text)', textWrap: 'pretty' }}>
+            {inlineEditing ? (
+              <InlineValue as="div" multiline value={data.desc} field="desc" blockId={b.id}
+                placeholder="直接输入备注" onTextChange={onTextChange} />
+            ) : data.desc}
           </div>
         </div>
       );
@@ -208,14 +299,7 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
     case 'text':
     default:
       return (
-        <div
-          contentEditable={editing && inlineEditing}
-          suppressContentEditableWarning
-          data-inline-editor={inlineEditing ? b.id : undefined}
-          onInput={inlineEditing && onTextChange
-            ? (e) => onTextChange(e.currentTarget.textContent || '') : undefined}
-          onPointerDown={inlineEditing ? (e) => e.stopPropagation() : undefined}
-          style={{
+        <div style={{
           width: '100%', height: '100%',
           fontFamily: FONTS[b.font] || FONTS.sans,
           fontSize: `${b.size || 4}cqh`,
@@ -223,10 +307,12 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
           fontWeight: b.bold ? 700 : 400,
           textAlign: b.align || 'left',
           color: b.color || 'var(--pp-text)',
-          outline: inlineEditing ? '1px dashed currentColor' : 'none',
-          cursor: inlineEditing ? 'text' : undefined,
+          outline: 'none', cursor: inlineEditing ? 'text' : undefined,
           whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
-        }}>{b.text}</div>
+        }}>{inlineEditing ? (
+          <InlineValue as="div" multiline value={b.text} field="text" blockId={b.id}
+            placeholder="直接输入文字" onTextChange={onTextChange} />
+        ) : b.text}</div>
       );
   }
 }

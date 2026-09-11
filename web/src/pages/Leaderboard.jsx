@@ -5,12 +5,12 @@ import { api } from '../lib/api.js';
 import { kvGet, kvSet } from '../lib/idb.js';
 import { changesLeaderboard, onTick } from '../lib/realtime.js';
 import { usePlayer } from '../lib/player.js';
-import { useConfig } from '../lib/config.js';
+import { useConfig, activitiesForRole } from '../lib/config.js';
 
 export default function Leaderboard() {
   const { me } = usePlayer();
   const { config } = useConfig();
-  const stationCount = (config?.activities || []).length;
+  const stationCount = activitiesForRole(config, me?.role).length;
 
   const [board, setBoard] = useState([]);
   const [state, setState] = useState({ online: navigator.onLine, at: 0, loading: true });
@@ -101,7 +101,7 @@ function Row({ row, isMe, stationCount }) {
         <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {row.name}{isMe && <span className="gold"> · 我</span>}
         </div>
-        <div className="tiny dim">参加过 {row.stationsDone}/{stationCount} 场</div>
+        <div className="tiny dim">参加过 {row.stationsDone}/{row.stationsTotal ?? stationCount} 场</div>
       </div>
       <div className="lb-score">{row.total}</div>
     </div>

@@ -27,11 +27,12 @@ export default function Join() {
 
   const load = useCallback(async () => {
     try {
-      setInfo(await api(`/api/activity/${id}`));
+      setErr(null);
+      setInfo(await api(`/api/activity/${id}`, { token: player.session?.token }));
     } catch (e) {
       setErr(e.message || '打不开这场活动');
     }
-  }, [id]);
+  }, [id, player.session?.token]);
 
   useEffect(() => { load(); }, [load]);
 

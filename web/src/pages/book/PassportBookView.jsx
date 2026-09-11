@@ -122,7 +122,7 @@ export default function PassportBookView({ v }) {
                               </div>
                             </div>
                             <div style={{fontSize: "13.5px", lineHeight: "2.05", color: "rgba(var(--pp-text-rgb),.75)", textWrap: "pretty"}}>
-                              本护照由 GCGCM 签发，有效期无尽无穷。每一场活动都是一页签证；你来过、参与过，同工就为你留下一枚章。
+                              本护照由 GCGCM 签发，有效期无尽无穷。每一场活动都有自己的签证页；你来过、参与过，同工就为你留下一枚章。
                             </div>
                             <div style={{marginTop: "auto", display: "flex", alignItems: "center", gap: "12px"}}>
                               <div style={{flex: "1", height: "1px", background: "rgba(var(--pp-ink-rgb),.35)"}} />
@@ -365,9 +365,16 @@ export default function PassportBookView({ v }) {
                       <path d="M8 5H5.5a2.5 2.5 0 000 5H8M16 5h2.5a2.5 2.5 0 010 5H16M12 13v4M9 20h6M10 20l.6-3h2.8l.6 3" />
                     </svg>
                   </button>
-                  <button onClick={v.openTheme} data-tour="theme" title="自定义姓名、头像和护照配色" style={{flex: "none", height: "30px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", fontFamily: "inherit", fontSize: "9px", fontWeight: "600", letterSpacing: ".08em", whiteSpace: "nowrap"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
-                    ✎ 自定义
-                  </button>
+                  {v.isData ? (
+                    <button onClick={v.openTheme} data-tour="theme" title="自定义姓名、头像和护照配色" style={{flex: "none", height: "30px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(var(--pp-ink-rgb),.05)", color: "var(--pp-ink)", fontFamily: "inherit", fontSize: "9px", fontWeight: "600", letterSpacing: ".08em", whiteSpace: "nowrap"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
+                      ✎ 自定义
+                    </button>
+                  ) : null}
+                  {v.isVisa ? (
+                    <button onClick={v.openContribution} title="上传活动文字或照片" aria-label="上传活动素材" style={{flex: "none", height: "30px", padding: "0 9px", border: "1px solid rgba(var(--pp-ink-rgb),.4)", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", background: "var(--pp-ink)", color: "var(--pp-gold)", fontFamily: "inherit", fontSize: "9px", fontWeight: "700", letterSpacing: ".08em", whiteSpace: "nowrap"}} style-active="opacity:.82">
+                      ↑ 上传
+                    </button>
+                  ) : null}
                   <div style={{flex: "1", minWidth: "0", display: "flex", alignItems: "baseline", justifyContent: "center", gap: "12px"}}>
                     <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".18em", color: "var(--pp-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>
                       {v.kicker}
