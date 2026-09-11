@@ -601,6 +601,46 @@ h3 { font-size: 16px; }
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+/* 人员和活动列表封个高度自己滚。
+   原来只有宽屏封顶（见下面的 .page--wide .list-cap），窄屏上人一多，
+   整块卡片被撑到好几屏高，卡片右上角那排按钮就被顶出视野了。 */
+.list-cap {
+  max-height: 52vh;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  /* 滚动条压在内容上会盖住分数，留一点道 */
+  padding-right: 2px;
+}
+
+/* ------------------------------ 人员搜索 ------------------------------ */
+
+.admin-search { position: relative; display: flex; align-items: center; }
+.admin-search__icon {
+  position: absolute;
+  left: 11px;
+  font-size: 13px;
+  opacity: .55;
+  pointer-events: none;
+}
+.admin-search__input { padding-left: 33px; padding-right: 34px; }
+/* Safari 自带的那个叉在深底上是个白圆点，很脏；用自己的 */
+.admin-search__input::-webkit-search-cancel-button { display: none; }
+.admin-search__clear {
+  position: absolute;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1;
+}
+.admin-search__clear:active { background: var(--ink-4); }
+
+/* 微信号、邮箱都可能很长，断行而不是把卡片撑宽 */
+.admin-contact { overflow-wrap: anywhere; }
+
 /* ---------------------- Staff 控制台统一视觉系统 ---------------------- */
 
 .staff-page {
@@ -891,7 +931,7 @@ html.book-locked body {
   /* 一行一个人 / 一行一场的长列表：给个高度让它自己滚。
      不封顶的话花名册一张卡就一千二百多像素高，整页要滚三屏，
      而真正要看的东西（活动、参数）全被推到看不见的地方 */
-  .page--wide .list-cap { max-height: 46vh; overflow-y: auto; }
+  .page--wide .list-cap { max-height: 46vh; }
 
   /* 活动清单横跨之后一行一场太旷，让里面的卡片自己再排成几列 */
   .page--wide .grid-cards {

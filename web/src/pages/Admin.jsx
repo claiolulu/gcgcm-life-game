@@ -274,6 +274,22 @@ export default function Admin() {
   const [signupMap, setSignupMap] = useState({});  // 活动 id → 报了名的人 id 集合
   const detailPlayer = detail ? players.find((x) => x.id === detail) : null;
 
+  /* ---------------------- 人员搜索 ---------------------- */
+
+  const [q, setQ] = useState('');
+  /**
+   * 名字、编号、联系方式都能搜。
+   *
+   * 编号那一栏用 includes 而不是等值：库里存的是补零的「01」，同工在现场
+   * 多半直接敲「1」。名字大小写无关，英文名不用管首字母有没有大写。
+   */
+  const shown = useMemo(() => {
+    const kw = q.trim().toLowerCase();
+    if (!kw) return board;
+    return board.filter((p) => [p.name, p.code, p.contact]
+      .some((v) => String(v || '').toLowerCase().includes(kw)));
+  }, [board, q]);
+
   // 报名名单要按人看，而接口是按活动给的，所以整份拉回来自己倒排一次。
   // 活动就几场，比给每个人单独发一次请求省事
   useEffect(() => {
@@ -506,8 +522,8 @@ export default function Admin() {
       <div className="card stack admin-panel admin-panel--players">
         <div className="row-between" style={{ gap: 8, flexWrap: 'wrap' }}>
           <div>
-            <div className="admin-panel__title">👥 全部选手</div>
-            <div className="tiny dim">查看成绩、管理数据与选手资料</div>
+            <div className="admin-panel__title">👥 用户</div>
+            <div className="tiny dim">查看成绩、管理数据与用户资料</div>
           </div>
           {/* 排行榜开关和导出备份都收在这儿：它们讲的都是「这批人」的事，
               各自单开一张卡不值当 */}
@@ -527,10 +543,30 @@ export default function Admin() {
             <button className="btn btn--sm btn--ghost" onClick={() => flush({ full: true })} title="重新拉取花名册">↻</button>
           </div>
         </div>
+        <div className="admin-search">
+          <span className="admin-search__icon" aria-hidden="true">🔎</span>
+          <input
+            className="input admin-search__input"
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="搜名字、编号或联系方式"
+            aria-label="搜索用户"
+          />
+          {q && (
+            <button className="admin-search__clear" onClick={() => setQ('')} aria-label="清空搜索">✕</button>
+          )}
+        </div>
+        {q && (
+          <div className="tiny dim">
+            {shown.length ? `找到 ${shown.length} 人` : '没有匹配的用户'}
+          </div>
+        )}
+
         {/* 宽屏上排成几列：一千多像素宽里一行一个人，十八个人要滚半天，
             而每一行右边空着两尺 */}
         <div className="stack-sm grid-cards list-cap">
-          {board.map((p) => (
+          {shown.map((p) => (
             <button key={p.id} className="lb-row admin-player" onClick={() => setDetail(p.id)} style={{ width: '100%', textAlign: 'left' }}>
               <div className="lb-rank">{p.rank}</div>
               <Avatar config={p.avatar} size={34} />
@@ -547,6 +583,9 @@ export default function Admin() {
             </button>
           ))}
           {board.length === 0 && <div className="center small dim" style={{ padding: 20 }}>还没有人报名</div>}
+          {board.length > 0 && shown.length === 0 && (
+            <div className="center small dim" style={{ padding: 20 }}>没有匹配「{q}」的用户</div>
+          )}
         </div>
       </div>
       </div>
@@ -568,10 +607,28 @@ export default function Admin() {
                 <div className="small bold">{detailPlayer.name}</div>
                 <div className="tiny dim mono">
                   {detailPlayer.code} 号 · 参加过 {detailPlayer.stationsDone} 场
-                  {detailPlayer.contact ? ` · ${detailPlayer.contact}` : ''}
                 </div>
               </div>
             </div>
+
+            {/* 联系方式原来挤在上面那行小字的末尾，和编号、场次混成一串，
+                真要找人的时候反而看不见。报名时是选填的，没填就整块不出现 */}
+            {(detailPlayer.contact || detailPlayer.notes) && (
+              <div className="card card--tight stack-sm">
+                {detailPlayer.contact && (
+                  <div>
+                    <div className="label">联系方式</div>
+                    <div className="small mono admin-contact">{detailPlayer.contact}</div>
+                  </div>
+                )}
+                {detailPlayer.notes && (
+                  <div>
+                    <div className="label">备注</div>
+                    <div className="small" style={{ whiteSpace: 'pre-wrap' }}>{detailPlayer.notes}</div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="card card--tight stack-sm admin-player-role">
               <label className="label" htmlFor="admin-player-role">用户角色</label>
