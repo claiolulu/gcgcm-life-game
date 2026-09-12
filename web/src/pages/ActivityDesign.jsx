@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import ImeInput from '../components/ImeInput.jsx';
 import { useToast, useConfirm } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
+import IconPicker from '../components/IconPicker.jsx';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { useStaff } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
@@ -34,6 +35,9 @@ const PALETTE = [
   { kind: 'note',    name: '备注',     make: (t) => ({ x: 60, y: 47, w: 36, h: 30, label: t.annotationLabel }) },
   { kind: 'photo',   name: '配图',     make: () => ({ x: 60, y: 27, w: 36, h: 21, fit: 'cover' }) },
   { kind: 'links',   name: '页面链接', make: () => ({ x: 4.5, y: 80, w: 52, h: 8 }) },
+  // 单独一个图标，想放哪放哪。和别的块一样能配链接、能拖大小 ——
+  // 「页面链接」那个块是一排固定在一起的，这个是散装的
+  { kind: 'icon',    name: '图标',     make: () => ({ x: 46, y: 45, w: 10, h: 10, icon: '📍', href: '' }) },
 ];
 
 const KIND_NAME = Object.fromEntries(PALETTE.map((p) => [p.kind, p.name]));
@@ -232,7 +236,21 @@ export default function ActivityDesign() {
   useEffect(() => {
     if (!inlineText) return;
     const editor = document.querySelector(`[data-inline-editor="${inlineText}"]`);
-    editor?.focus({ preventScroll: true });
+    if (!editor) return;
+    editor.focus({ preventScroll: true });
+
+    // 光标收到文末。
+    //
+    // contentEditable 被**程序**聚焦时，光标默认停在最前面 —— 于是选中一块
+    // 文字开始打字，字全插到开头去了。用手指点进去的那种不会走这里
+    // （那是浏览器自己的聚焦，点哪儿光标就在哪儿），所以不影响改中间。
+    const sel = window.getSelection?.();
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);   // false = 收到末尾
+    sel.removeAllRanges();
+    sel.addRange(range);
   }, [inlineText]);
 
   useEffect(() => {
@@ -1290,6 +1308,17 @@ export default function ActivityDesign() {
 
 /** 每种块自己那几项 */
 function Inspector({ b, patch, sources, busy, onPickImage }) {
+  if (b.kind === 'icon') {
+    return (
+      <>
+        <div className="tiny dim">挑一个图标，拖角上的把手调大小；链接在下面填。</div>
+        {/* IconPicker 选中时会顺手回一个建议名字（那是给「页面链接」用的），
+            这里只取 icon，多出来的字段丢掉就行 */}
+        <IconPicker value={b.icon || '📍'} onChange={(v) => patch({ icon: v.icon })} />
+      </>
+    );
+  }
+
   if (b.kind === 'banner') {
     return (
       <>

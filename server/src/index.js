@@ -691,7 +691,7 @@ function num(v, min, max, fallback) {
 }
 
 const BLOCK_KINDS = new Set([
-  'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image',
+  'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image', 'icon',
 ]);
 
 function cleanBlocks(raw, where) {
@@ -735,6 +735,10 @@ function cleanBlocks(raw, where) {
     switch (kind) {
       case 'banner':
         return { ...base, word: str(b?.word, 16), brand: str(b?.brand, 24), brandCn: str(b?.brandCn, 16), ...textStyle };
+      // 单独一个图标。存的就是那几个字符（emoji 可能是好几个码点，
+      // 所以不是 1 而是 8），链接、大小、旋转都走 base 那份
+      case 'icon':
+        return { ...base, icon: str(b?.icon, 8) || '📍' };
       case 'fields':
         return { ...base, cols: Math.min(4, Math.max(1, Math.round(Number(b?.cols) || 2))),
                  rows: cleanRows(b?.rows || [], where), ...textStyle };

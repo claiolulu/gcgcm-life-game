@@ -296,6 +296,24 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
         }} />
       );
 
+    case 'icon':
+      // 字号跟着块高走，把手拖大图标就跟着变大。
+      //
+      // 关键是外面这层 containerType: 'size' —— cqh 是按**最近的容器**算的，
+      // 不加的话最近的容器是整张签证页（见横版页那个 containerType），
+      // 88cqh 就成了「页高的 88%」，一个图标糊满半张纸。
+      // 留一点余量：emoji 的实际字形普遍比字号小一圈，撑满反而贴边。
+      return (
+        <div style={{
+          width: '100%', height: '100%', containerType: 'size',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: '82cqh', lineHeight: 1, userSelect: 'none' }}>
+            {b.icon || '📍'}
+          </span>
+        </div>
+      );
+
     case 'text':
     default:
       return (
