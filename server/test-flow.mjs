@@ -745,5 +745,43 @@ check('错误 PIN 被拒', badPin.status === 401);
 
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: before } });
 }
+// 24. 改活动之后，各端手里的花名册必须作废重拉
+//
+// 分数和场次是算出来的，算的时候要看活动清单；而花名册是按 updated_at
+// 增量同步的。改一次活动，所有人的数字都可能变，却没有任何一行 players
+// 被动过 —— 不靠纪元的话，增量同步一个人都不返回，同工端会一直显示改之前
+// 的旧分数，刷新也没用。
+{
+  const base = (await j('/api/config')).body.activities;
+  const first = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH, body: { ops: [], since: 0, epoch: 0 },
+  });
+  const epoch0 = first.body.epoch;
+  const at0 = first.body.serverTs;
+  check('先做一次全量同步拿到纪元', first.status === 200 && epoch0 > 0 && first.body.full === true);
+
+  // 什么都没改的时候，增量同步应该老老实实什么都不回
+  const idle = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH, body: { ops: [], since: at0, epoch: epoch0 },
+  });
+  check('没有任何改动时，增量同步不必重拉',
+    idle.body.full === false && idle.body.epoch === epoch0, JSON.stringify(idle.body.epoch));
+
+  // 改一场活动的可见范围：一行 players 都不会被动到
+  await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0 ? { ...a, audience: 'staff' } : a)) },
+  });
+
+  const after = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH, body: { ops: [], since: at0, epoch: epoch0 },
+  });
+  check('改完活动，纪元跟着变', after.body.epoch !== epoch0, `${epoch0} → ${after.body.epoch}`);
+  check('于是这一次同步是全量，旧花名册作废', after.body.full === true, JSON.stringify(after.body.full));
+  check('全量里带着重新算过的每个人', (after.body.players || []).length > 0);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);
