@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
 import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
@@ -18,6 +18,63 @@ const ACT_AUDIENCE = {
   normal: { label: '普通专属', className: 'admin-activity__audience--normal' },
   staff: { label: '同工专属', className: 'admin-activity__audience--staff' },
 };
+
+/**
+ * 列表右边那根滑杆。
+ *
+ * 只负责「告诉你还能滑」和「滑到哪了」，不接受拖拽 —— 滚动仍然靠手指和
+ * 滚轮。原生滚动条在手机上根本不显示（iOS、微信 WebView 都是滚动时才
+ * 短暂出现），而这个列表是封了高的，不给个东西指着，没人知道下面还有人。
+ *
+ * 内容没超出时整根隐藏：一根永远填满的滑杆等于没说。
+ */
+function ScrollRail({ targetRef, deps }) {
+  const [rail, setRail] = useState(null);   // null = 不用显示
+
+  useEffect(() => {
+    const el = targetRef.current;
+    if (!el) return undefined;
+
+    const measure = () => {
+      const { scrollHeight, clientHeight, scrollTop } = el;
+      // 高度为 0 说明这会儿量不准（标签页在后台、父容器还没排版完），
+      // 这时候算出来的比例是错的，宁可先不显示，等下一次再量
+      if (!clientHeight) return;
+      const over = scrollHeight - clientHeight;
+      if (over <= 2) { setRail(null); return; }
+      // 滑块长度按「看得见的比例」算，和真滚动条一个道理
+      const ratio = clientHeight / scrollHeight;
+      setRail({
+        size: Math.max(ratio * 100, 12),          // 百分比，太短了不好看
+        // 剩下的轨道长度按已滚比例分配，滚到底时滑块正好贴底
+        pos: (scrollTop / over) * (100 - Math.max(ratio * 100, 12)),
+        end: scrollTop >= over - 2,
+      });
+    };
+
+    measure();
+    // 首帧常常还没排好版（尤其是刚从后台切回来），再补量一次
+    const raf = requestAnimationFrame(measure);
+    el.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    // 列表本身高度固定，内容变高不会触发它的 resize，所以连内容一起观察
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+      ro.disconnect();
+    };
+  }, [targetRef, deps]);
+
+  return (
+    <div className={`list-rail ${rail ? 'list-rail--on' : ''} ${rail?.end ? 'list-rail--end' : ''}`} aria-hidden="true">
+      {rail && <div className="list-rail__thumb" style={{ height: `${rail.size}%`, top: `${rail.pos}%` }} />}
+    </div>
+  );
+}
 
 export default function Admin() {
   const nav = useNavigate();
@@ -107,6 +164,72 @@ export default function Admin() {
     }
   }
 
+  /**
+   * 换位动画（FLIP）。
+   *
+   * 重排就是把数组里的元素挪个位置，React 一渲染，行就直接出现在新地方 ——
+   * 中间没有过程，看着像画面闪了一下。这里在改数组**之前**把每一行当前的
+   * 屏幕坐标记下来，渲染之后算出位移，先用 transform 把它们摁回旧位置，
+   * 再下一帧放开，于是眼睛看到的是滑过去的。
+   *
+   * 只记 top：这个列表是竖着排的，横向不会动。
+   */
+  const flipRef = useRef(null);
+  const flipGenRef = useRef(0);
+
+  function captureRowTops() {
+    const map = new Map();
+    document.querySelectorAll('[data-activity-row]').forEach((el) => {
+      map.set(el.dataset.activityRow, el.getBoundingClientRect().top);
+    });
+    flipRef.current = map;
+  }
+
+  useLayoutEffect(() => {
+    const prev = flipRef.current;
+    flipRef.current = null;
+    if (!prev || !prev.size) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+
+    const moved = [];
+    document.querySelectorAll('[data-activity-row]').forEach((el) => {
+      const before = prev.get(el.dataset.activityRow);
+      if (before == null) return;
+      const dy = before - el.getBoundingClientRect().top;
+      if (!dy) return;
+      // 先摁回旧位置，这一步不能有过渡，否则它会从新位置慢慢滑到旧位置
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${dy}px)`;
+      moved.push(el);
+    });
+    if (!moved.length) return;
+
+    // 隔一帧再放开：同一帧里改回去，浏览器会把两次赋值合并成一次，没有动画。
+    //
+    // 这里**不能**在 cleanup 里 cancelAnimationFrame：换完顺序马上要存盘，
+    // saveActivityOrder 一改 busy 就又渲染一次，cleanup 跟着跑，那一帧被取消，
+    // 位移就永远留在行上了（行会一直歪着）。改成用代次号作废旧的那一帧 ——
+    // 拖得飞快、连着换好几次时，只有最后一次说了算。
+    const gen = ++flipGenRef.current;
+    const release = () => {
+      if (flipGenRef.current !== gen) return;
+      flipGenRef.current++;      // 让另一条路径不再重复执行
+      moved.forEach((el) => {
+        // 清成空串而不是写死过渡，让它回到 CSS 里那条（见 .admin-activity-sort-row）
+        el.style.transition = '';
+        el.style.transform = '';
+      });
+    };
+    requestAnimationFrame(release);
+    // rAF 在后台标签页里根本不跑（document.hidden 时浏览器直接不调）。
+    // 光靠它的话，拖到一半切走 app 再回来，那几行就一直歪着。加个超时兜底，
+    // 谁先到算谁的 —— 正常情况下永远是 rAF 先。
+    // 不在 cleanup 里清掉它：换完顺序马上要存盘，saveActivityOrder 一改 busy
+    // 就又渲染一次，cleanup 跟着跑 —— 真清了的话位移就永远留在行上。
+    // 代次号已经保证它不会重复执行，多留一个待触发的定时器无害。
+    setTimeout(release, 80);
+  }, [activities]);
+
   function reorderActivity(sourceId, targetId) {
     if (!sourceId || !targetId || sourceId === targetId) return;
     const current = activitiesRef.current;
@@ -116,6 +239,7 @@ export default function Admin() {
     const next = [...current];
     const [moving] = next.splice(from, 1);
     next.splice(to, 0, moving);
+    captureRowTops();
     activitiesRef.current = next;
     activityDragRef.current.changed = true;
     setActivities(next);
@@ -167,6 +291,7 @@ export default function Admin() {
     if (from < 0 || to < 0 || to >= current.length || busy) return;
     const next = [...current];
     [next[from], next[to]] = [next[to], next[from]];
+    captureRowTops();
     activitiesRef.current = next;
     setActivities(next);
     saveActivityOrder(next);
@@ -277,6 +402,7 @@ export default function Admin() {
   /* ---------------------- 人员搜索 ---------------------- */
 
   const [q, setQ] = useState('');
+  const listRef = useRef(null);
   /**
    * 名字、编号、联系方式都能搜。
    *
@@ -565,7 +691,9 @@ export default function Admin() {
 
         {/* 宽屏上排成几列：一千多像素宽里一行一个人，十八个人要滚半天，
             而每一行右边空着两尺 */}
-        <div className="stack-sm grid-cards list-cap">
+        <div className="list-scroll">
+        <ScrollRail targetRef={listRef} deps={shown.length} />
+        <div className="stack-sm grid-cards list-cap" ref={listRef}>
           {shown.map((p) => (
             <button key={p.id} className="lb-row admin-player" onClick={() => setDetail(p.id)} style={{ width: '100%', textAlign: 'left' }}>
               <div className="lb-rank">{p.rank}</div>
@@ -586,6 +714,7 @@ export default function Admin() {
           {board.length > 0 && shown.length === 0 && (
             <div className="center small dim" style={{ padding: 20 }}>没有匹配「{q}」的用户</div>
           )}
+        </div>
         </div>
       </div>
       </div>
@@ -713,6 +842,7 @@ export default function Admin() {
  */
 function PlayerSheet({ open, onClose, players, picked, togglePick, onResetPin, busy, resetPin }) {
   const [q, setQ] = useState('');
+  const listRef = useRef(null);
 
   const list = useMemo(() => {
     const kw = q.trim().toLowerCase();

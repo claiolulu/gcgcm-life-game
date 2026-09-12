@@ -609,8 +609,51 @@ h3 { font-size: 16px; }
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  /* 滚动条压在内容上会盖住分数，留一点道 */
-  padding-right: 2px;
+  /* 给右边那根滚动条让出位置，别压在分数上 */
+  padding-right: 8px;
+}
+
+/* 右边那根滑杆是自己画的（见 Admin.jsx 的 ScrollRail），这里把原生的藏掉，
+   免得两根并排。
+   为什么不用原生的：macOS 默认是「滚动时才显示」的悬浮条，iOS 和微信
+   WebView 更是全程不显示 —— 而这个列表封了高，不给个东西指着，没人知道
+   下面还有人。::-webkit-scrollbar 在这个内嵌 WebView 里也没能让它常驻
+   （实测 offsetWidth - clientWidth 仍然是 0）。 */
+.list-cap::-webkit-scrollbar { width: 0; height: 0; }
+
+.list-scroll { position: relative; }
+
+.list-rail {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  bottom: 2px;
+  width: 5px;
+  border-radius: 999px;
+  /* 用半透明白而不是 --ink-4：那个色（#1f1f22）压在总控台的深色面板上
+     几乎看不见，而这根东西存在的唯一理由就是要被看见 */
+  background: rgba(255, 255, 255, .08);
+  /* 纯指示，不参与操作 —— 滚动照样用手指或滚轮 */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.list-rail--on { opacity: 1; }
+
+.list-rail__thumb {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  min-height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .3);
+  transition: background .2s ease;
+}
+/* 滑到底了就把滑块调亮一点，算是「到头了」的回执 */
+.list-rail--end .list-rail__thumb { background: rgba(232, 197, 106, .5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .list-rail, .list-rail__thumb { transition: none; }
 }
 
 /* ------------------------------ 人员搜索 ------------------------------ */
@@ -804,11 +847,34 @@ h3 { font-size: 16px; }
   align-items: stretch;
   gap: 5px;
   border-radius: 12px;
-  transition: opacity .14s ease, background .14s ease;
+  /* transform 那条是换位动画用的（见 Admin.jsx 的 FLIP）。
+     曲线尾巴收得慢一点，像滑到位而不是弹到位 */
+  transition:
+    box-shadow .16s ease,
+    background .16s ease,
+    transform .24s cubic-bezier(.2, .8, .25, 1);
 }
+
+/* 正被拖的那一行：抬起来。
+   原来只是把整行调淡到 .7 —— 淡下去像「这一行没了」，而不是「我正捏着
+   这一行」。现在改成不透明、描一圈金边、加投影和一点点放大，其余行相对
+   就退到后面去了。 */
 .admin-activity-sort-row--dragging {
-  opacity: .7;
-  background: rgba(232,197,106,.1);
+  position: relative;
+  z-index: 2;
+  background: rgba(232, 197, 106, .12);
+  box-shadow:
+    0 0 0 1px rgba(232, 197, 106, .55),
+    0 10px 24px rgba(0, 0, 0, .45);
+}
+/* 抬起的缩放单独写：它和 FLIP 的 translateY 会互相覆盖，所以放在内层 */
+.admin-activity-sort-row--dragging > .admin-activity { transform: scale(1.012); }
+.admin-activity { transition: transform .16s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-activity-sort-row,
+  .admin-activity { transition: none; }
+  .admin-activity-sort-row--dragging > .admin-activity { transform: none; }
 }
 .admin-activity__drag {
   width: 30px;
