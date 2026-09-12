@@ -100,12 +100,15 @@ export default function Admin() {
   const configActivities = config?.activities || [];
   const [activities, setActivities] = useState(configActivities);
   const activitiesRef = useRef(activities);
-  const activityDragRef = useRef({ id: null, changed: false });
+  // 拖拽过程中的全部状态。放 ref 不放 state：指针每动一下都 setState
+  // 会把整张卡片重渲一遍，那正是卡顿的来源（详见下面的 paintDrag）
+  const dragRef = useRef(null);   // { id, from, to, pointerStart, slots }
   const [dragActivity, setDragActivity] = useState(null);
   activitiesRef.current = activities;
 
   useEffect(() => {
-    if (activityDragRef.current.id) return;
+    // 正拖着的时候别让服务端那份把本地顺序盖回去
+    if (dragRef.current) return;
     setActivities(configActivities);
     activitiesRef.current = configActivities;
   }, [configActivities]);
@@ -230,19 +233,116 @@ export default function Admin() {
     setTimeout(release, 80);
   }, [activities]);
 
-  function reorderActivity(sourceId, targetId) {
-    if (!sourceId || !targetId || sourceId === targetId) return;
-    const current = activitiesRef.current;
-    const from = current.findIndex((a) => a.id === sourceId);
-    const to = current.findIndex((a) => a.id === targetId);
-    if (from < 0 || to < 0 || from === to) return;
-    const next = [...current];
-    const [moving] = next.splice(from, 1);
-    next.splice(to, 0, moving);
-    captureRowTops();
-    activitiesRef.current = next;
-    activityDragRef.current.changed = true;
-    setActivities(next);
+  /* ---------------------- 活动排序：拖拽 ---------------------- */
+  //
+  // 整个拖拽过程**不动数组**，只改 transform，松手才提交一次。
+  //
+  // 上一版是「指针一碰到下一行就 setState 换位」，有两个毛病：
+  //   换完位，那一行跑到了指针底下，于是可能立刻又换回去 —— 手停着不动，
+  //   两行来回抖；而且被拖的行不跟手，移动半格什么都没有，过了界猛地跳一格。
+  // 现在改成：被拖的行跟着手指走，其余行按需要让开，越过邻居的**中线**才
+  // 算换位（中线是个天然的滞回，不会在边界上反复横跳）。
+
+  /**
+   * 把当前这一帧画出来。
+   *
+   * 直接写 DOM 而不是走 state：指针移动一秒能来几十次，每次都 setState
+   * 重渲染整张卡片，卡顿就是这么来的。这里只碰几个 transform。
+   */
+  function paintDrag(dy) {
+    const d = dragRef.current;
+    if (!d) return;
+    const { slots, from, to } = d;
+    slots.forEach((s, i) => {
+      if (i === from) {
+        // 跟手的那一行不要过渡，否则永远慢半拍
+        s.el.style.transition = 'none';
+        s.el.style.transform = `translateY(${dy}px)`;
+        return;
+      }
+      // 让开一格。用相邻两格的实际间距，而不是「行高 + gap」——
+      // 行高不一定相等（活动名换行的时候就不等）
+      let shift = 0;
+      if (to > from && i > from && i <= to) shift = slots[i - 1].top - slots[i].top;
+      if (to < from && i >= to && i < from) shift = slots[i + 1].top - slots[i].top;
+      s.el.style.transition = '';   // 用 CSS 里那条，滑过去
+      s.el.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
+  }
+
+  function startActivityDrag(e, id) {
+    if (busy) return;
+    e.preventDefault();
+    const slots = [...document.querySelectorAll('[data-activity-row]')].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { id: el.dataset.activityRow, el, top: r.top, h: r.height };
+    });
+    const from = slots.findIndex((s) => s.id === id);
+    if (from < 0) return;
+    dragRef.current = { id, from, to: from, pointerStart: e.clientY, slots };
+    setDragActivity(id);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 浏览器会自行继续派发 */ }
+  }
+
+  function moveActivityDrag(e) {
+    const d = dragRef.current;
+    if (!d) return;
+    e.preventDefault();
+    const dy = e.clientY - d.pointerStart;
+    const { slots, from } = d;
+    // 被拖那一行现在的中线（按起拖时的版面算，不读实时 rect —— 那上面
+    // 已经带着我们自己写的 transform，会自己喂自己）
+    const center = slots[from].top + slots[from].h / 2 + dy;
+    // 中线落进哪一格，就归哪一格 —— 大约拖过半行就换位，跟手。
+    //
+    // 试过「越过邻居中线才换」，那要整整拖满一行才动，半路上什么反应都没有，
+    // 和原来那版一样迟钝。也不能用「碰到就换」：换完那一行跑到指针底下，
+    // 立刻又满足条件换回去，手停着不动两行都在抖。
+    //
+    // 这里的门槛全部按**起拖时**的版面算，所以 dy → to 是个单调阶梯函数，
+    // 同一个 dy 永远得到同一个结果，不存在来回横跳。
+    let to = 0;
+    for (let i = 0; i < slots.length; i += 1) {
+      if (center >= slots[i].top) to = i;
+    }
+    d.to = to;
+    paintDrag(dy);
+  }
+
+  function endActivityDrag(e) {
+    const d = dragRef.current;
+    if (!d) return;
+    dragRef.current = null;
+    setDragActivity(null);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* 已自动释放 */ }
+
+    const { slots, from, to } = d;
+
+    const commit = () => {
+      // 先记下此刻眼睛看到的位置（getBoundingClientRect 含 transform），
+      // 再清 transform + 换数组。两者画面一致，FLIP 量出来的位移是 0，
+      // 于是没有任何跳动；万一差了一点，它会自己补一段动画圆回来。
+      captureRowTops();
+      slots.forEach((s) => { s.el.style.transition = 'none'; s.el.style.transform = ''; });
+      if (to !== from) {
+        const next = [...activitiesRef.current];
+        const [moving] = next.splice(from, 1);
+        next.splice(to, 0, moving);
+        activitiesRef.current = next;
+        setActivities(next);
+        saveActivityOrder(next);
+      }
+      // 下一帧把过渡还回去，否则后面的动画会被 none 挡住
+      setTimeout(() => slots.forEach((s) => { s.el.style.transition = ''; }), 0);
+    };
+
+    if (to === from) { commit(); return; }
+
+    // 松手之后让它滑进格子，而不是啪一下归位
+    const settle = slots[to].top - slots[from].top;
+    slots[from].el.style.transition = '';
+    slots[from].el.style.transform = `translateY(${settle}px)`;
+    setTimeout(commit, 190);   // 比 CSS 里那条 .24s 略短，视觉上刚好接上
   }
 
   async function saveActivityOrder(next) {
@@ -257,31 +357,6 @@ export default function Admin() {
     } finally {
       setBusy(null);
     }
-  }
-
-  function startActivityDrag(e, id) {
-    if (busy) return;
-    e.preventDefault();
-    activityDragRef.current = { id, changed: false };
-    setDragActivity(id);
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 浏览器会自行继续派发 */ }
-  }
-
-  function moveActivityDrag(e) {
-    const sourceId = activityDragRef.current.id;
-    if (!sourceId) return;
-    e.preventDefault();
-    const row = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-activity-row]');
-    if (row?.dataset.activityRow) reorderActivity(sourceId, row.dataset.activityRow);
-  }
-
-  function endActivityDrag(e) {
-    if (!activityDragRef.current.id) return;
-    const changed = activityDragRef.current.changed;
-    activityDragRef.current = { id: null, changed: false };
-    setDragActivity(null);
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* 已自动释放 */ }
-    if (changed) saveActivityOrder(activitiesRef.current);
   }
 
   function moveActivityByKeyboard(id, direction) {

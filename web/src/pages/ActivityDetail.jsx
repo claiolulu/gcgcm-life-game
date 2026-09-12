@@ -432,7 +432,10 @@ export default function ActivityDetail() {
                     <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {p.name}
                     </div>
-                    <div className="tiny dim">{p.code}{p.contact ? ` · ${p.contact}` : ''}</div>
+                    <div className="tiny dim">{p.code}</div>
+                    {/* 联系方式单独一行：接在编号后面挤成一串的话，真要联系人
+                        的时候根本挑不出来。报名时是选填的，没填就不占行 */}
+                    {p.contact && <div className="tiny signup-contact">{p.contact}</div>}
                   </div>
                   <span className="tiny" style={{ flex: '0 0 auto', color: came ? 'var(--green)' : 'var(--text-3)' }}>
                     {came ? '来了 ✓' : '待到场'}
@@ -471,6 +474,7 @@ export default function ActivityDetail() {
                     {p.code} · {ago(p.stamp.at)}
                     {p.stamp.operator ? ` · ${p.stamp.operator} 盖的` : ''}
                   </div>
+                  {p.contact && <div className="tiny signup-contact">{p.contact}</div>}
                 </div>
               </div>
             ))}

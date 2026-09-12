@@ -684,6 +684,14 @@ h3 { font-size: 16px; }
 /* 微信号、邮箱都可能很长，断行而不是把卡片撑宽 */
 .admin-contact { overflow-wrap: anywhere; }
 
+/* 名单里的联系方式：比编号亮一点，因为这是要照着抄下来去找人的那一行 */
+.signup-contact {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  /* 微信号里 l/1、O/0 分不清，等宽字体能救 */
+  font-family: var(--mono);
+}
+
 /* ---------------------- Staff 控制台统一视觉系统 ---------------------- */
 
 .staff-page {
