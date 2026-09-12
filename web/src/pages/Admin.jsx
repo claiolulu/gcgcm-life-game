@@ -4,9 +4,9 @@ import Avatar from '../components/Avatar.jsx';
 import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText } from '../lib/clipboard.js';
-import { useConfig, loadConfig } from '../lib/config.js';
+import { useConfig, loadConfig, activityVisibleTo } from '../lib/config.js';
 import { onTick } from '../lib/realtime.js';
-import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp } from '../lib/staff.js';
+import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp, issueFor } from '../lib/staff.js';
 
 const ACT_STATE = {
   upcoming: { icon: '🗓', label: '还没到' },
@@ -520,7 +520,20 @@ export default function Admin() {
   async function markDone(playerId, stationId, name) {
     setBusy(`done-${stationId}`);
     try {
-      await queueOp({ type: 'score', playerId, stationId, points: 1, checkin: true, note: '总控台补录' });
+      const op = await queueOp({
+        type: 'score', playerId, stationId, points: 1, checkin: true, note: '总控台补录',
+      });
+      // queueOp 只保证「进了队列」。服务端认不认要等这一趟同步回来 ——
+      // 原来这儿直接弹「已标记为参加」，于是被拒的操作（比如这一场对该
+      // 用户角色不可见）界面上照样显示成功，而那一行永远不会变。
+      try {
+        await flush();
+      } catch {
+        toast('网络不通，已记下，联网后自动上传', 'warn');
+        return;
+      }
+      const bad = issueFor(op.opId);
+      if (bad) { toast(bad.message || '服务端没有接受这次标记', 'err'); return; }
       toast(`${name} 已标记为参加`, 'ok');
     } catch (err) {
       toast(err.message || '标记失败', 'err');
@@ -887,6 +900,12 @@ export default function Admin() {
                     </div>
                     {done ? (
                       <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已参加 ✓</span>
+                    ) : !activityVisibleTo(a, detailPlayer.role || 'normal') ? (
+                      /* 这一场对这个人的角色不可见，服务端不会收这一章。
+                         与其让人点了没反应，不如把按钮收起来说明白 */
+                      <span className="tiny dim" style={{ flex: '0 0 auto' }}>
+                        {a.audience === 'staff' ? '同工专属' : '普通专属'}
+                      </span>
                     ) : (
                       <button
                         className="btn btn--sm btn--ghost" style={{ flex: '0 0 auto' }}

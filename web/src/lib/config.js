@@ -24,14 +24,23 @@ export function useConfig() {
   );
 }
 
+/**
+ * 这一场活动对某个角色可见吗。
+ *
+ * 和服务端 game.js 的 stationById(id, role) 是同一条规则 —— 不可见的活动
+ * 连盖章都会被拒（「这场活动对该用户角色不可见」）。总控台据此把盖不上的
+ * 按钮收起来，而不是让人点了才发现。
+ */
+export function activityVisibleTo(activity, role = 'normal') {
+  const normalized = role === 'staff' ? 'staff' : 'normal';
+  const audience = activity?.audience === 'staff' || activity?.audience === 'normal'
+    ? activity.audience : 'all';
+  return audience === 'all' || audience === normalized;
+}
+
 /** 参与者护照只装订其角色可见的活动；后台页面仍直接使用完整 activities。 */
 export function activitiesForRole(config, role = 'normal') {
-  const normalized = role === 'staff' ? 'staff' : 'normal';
-  return (config?.activities || []).filter((activity) => {
-    const audience = activity?.audience === 'staff' || activity?.audience === 'normal'
-      ? activity.audience : 'all';
-    return audience === 'all' || audience === normalized;
-  });
+  return (config?.activities || []).filter((a) => activityVisibleTo(a, role));
 }
 
 export async function loadConfig() {

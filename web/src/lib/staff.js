@@ -185,6 +185,16 @@ export async function queueOp(op) {
   return full;
 }
 
+/**
+ * 某个操作最终的结论。
+ *
+ * queueOp 只保证「进了队列」，服务端认不认要等 flush 回来 —— 结论落在
+ * state.issues 里（见 flush）。没有对应的 issue 就说明服务端收下了。
+ */
+export function issueFor(opId) {
+  return state.issues.find((i) => i.opId === opId) || null;
+}
+
 export async function retryAll() {
   state.issues = [];
   notify();
