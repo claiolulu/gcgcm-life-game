@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
 import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
+import { copyText } from '../lib/clipboard.js';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { onTick } from '../lib/realtime.js';
 import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp } from '../lib/staff.js';
@@ -528,6 +529,11 @@ export default function Admin() {
     }
   }
 
+  async function copyContact(v) {
+    const ok = await copyText(v);
+    toast(ok ? '联系方式已复制' : '复制不了，长按自己选', ok ? 'ok' : 'warn');
+  }
+
   const togglePick = (id) =>
     setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
@@ -832,7 +838,12 @@ export default function Admin() {
                 {detailPlayer.contact && (
                   <div>
                     <div className="label">联系方式</div>
-                    <div className="small mono admin-contact">{detailPlayer.contact}</div>
+                    {/* 点一下就复制 —— 这一行存在的意义就是被抄到微信里去找人，
+                        手抄一串 gmail 地址太容易错一个字母 */}
+                    <button type="button" className="small mono admin-contact copy-text"
+                      title="点一下复制" onClick={() => copyContact(detailPlayer.contact)}>
+                      {detailPlayer.contact}
+                    </button>
                   </div>
                 )}
                 {detailPlayer.notes && (

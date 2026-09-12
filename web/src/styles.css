@@ -684,6 +684,21 @@ h3 { font-size: 16px; }
 /* 微信号、邮箱都可能很长，断行而不是把卡片撑宽 */
 .admin-contact { overflow-wrap: anywhere; }
 
+/* 可点复制的那种文字。做成 button 是为了键盘和读屏能用到，但看着仍是
+   一行字 —— 画成按钮的样子会把名单撑得满是方框。下面那道虚线是唯一的
+   提示：它在说「这行是可以点的」。 */
+.copy-text {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  border-bottom: 1px dashed currentColor;
+  cursor: pointer;
+}
+.copy-text:active { opacity: .6; }
+.copy-text:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
 /* 名单里的联系方式：比编号亮一点，因为这是要照着抄下来去找人的那一行 */
 .signup-contact {
   color: var(--text-2);

@@ -5,6 +5,7 @@ import IconPicker from '../components/IconPicker.jsx';
 import DateField from '../components/DateField.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
+import { copyText } from '../lib/clipboard.js';
 import { useConfig, loadConfig } from '../lib/config.js';
 import { useStaff, allPlayers } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
@@ -33,6 +34,12 @@ export default function ActivityDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
+
+  async function copyContact(v) {
+    const ok = await copyText(v);
+    toast(ok ? '联系方式已复制' : '复制不了，长按自己选', ok ? 'ok' : 'warn');
+  }
+
   const ask = useConfirm();
   const { config } = useConfig();
   const staff = useStaff();
@@ -407,10 +414,11 @@ export default function ActivityDetail() {
             <input className="input" readOnly value={joinUrl} onFocus={(e) => e.target.select()} />
             <button
               className="btn btn--sm btn--ghost"
-              onClick={() => {
-                navigator.clipboard?.writeText(joinUrl)
-                  .then(() => toast('链接已复制', 'ok'))
-                  .catch(() => toast('复制不了，长按上面那行自己选', 'warn'));
+              onClick={async () => {
+                // 原来直接 navigator.clipboard?.writeText(...).then(...)：
+                // 没有 clipboard 时 ?. 返回 undefined，再 .then 就抛 TypeError
+                const ok = await copyText(joinUrl);
+                toast(ok ? '链接已复制' : '复制不了，长按上面那行自己选', ok ? 'ok' : 'warn');
               }}
             >
               复制链接
@@ -435,7 +443,12 @@ export default function ActivityDetail() {
                     <div className="tiny dim">{p.code}</div>
                     {/* 联系方式单独一行：接在编号后面挤成一串的话，真要联系人
                         的时候根本挑不出来。报名时是选填的，没填就不占行 */}
-                    {p.contact && <div className="tiny signup-contact">{p.contact}</div>}
+                    {p.contact && (
+                      <button type="button" className="tiny signup-contact copy-text"
+                        title="点一下复制" onClick={() => copyContact(p.contact)}>
+                        {p.contact}
+                      </button>
+                    )}
                   </div>
                   <span className="tiny" style={{ flex: '0 0 auto', color: came ? 'var(--green)' : 'var(--text-3)' }}>
                     {came ? '来了 ✓' : '待到场'}
@@ -474,7 +487,12 @@ export default function ActivityDetail() {
                     {p.code} · {ago(p.stamp.at)}
                     {p.stamp.operator ? ` · ${p.stamp.operator} 盖的` : ''}
                   </div>
-                  {p.contact && <div className="tiny signup-contact">{p.contact}</div>}
+                  {p.contact && (
+                    <button type="button" className="tiny signup-contact copy-text"
+                      title="点一下复制" onClick={() => copyContact(p.contact)}>
+                      {p.contact}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
