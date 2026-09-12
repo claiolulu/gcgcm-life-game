@@ -802,6 +802,7 @@ export default function Admin() {
         open={!!detail}
         onClose={() => setDetail(null)}
         title={detailPlayer ? `${detailPlayer.name} · ${detailPlayer.code} 号` : ''}
+        backLabel="返回"
       >
         {detailPlayer && (
           <div className="stack">
@@ -815,10 +816,19 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* 联系方式原来挤在上面那行小字的末尾，和编号、场次混成一串，
-                真要找人的时候反而看不见。报名时是选填的，没填就整块不出现 */}
-            {(detailPlayer.contact || detailPlayer.notes) && (
+            {/* 姓名和联系方式都是报名时选填的，填了才显示。
+                联系方式原来挤在上面那行小字的末尾，和编号、场次混成一串，
+                真要找人的时候反而看不见 */}
+            {(detailPlayer.surname || detailPlayer.given || detailPlayer.contact || detailPlayer.notes) && (
               <div className="card card--tight stack-sm">
+                {(detailPlayer.surname || detailPlayer.given) && (
+                  <div>
+                    <div className="label">护照上的姓名</div>
+                    <div className="small">
+                      {[detailPlayer.surname, detailPlayer.given].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                )}
                 {detailPlayer.contact && (
                   <div>
                     <div className="label">联系方式</div>
@@ -889,7 +899,6 @@ export default function Admin() {
               onClick={() => deletePlayer(detailPlayer)}>
               {busy === `delete-${detailPlayer.id}` ? '删除中…' : '🗑 删除这个用户'}
             </button>
-            <button className="btn btn--full" onClick={() => setDetail(null)}>关掉</button>
           </div>
         )}
       </Sheet>
