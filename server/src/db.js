@@ -202,7 +202,7 @@ export function getActivities() {
   const normalized = out.map((a) => ({
     ...a,
     state: a?.state || 'upcoming',
-    audience: ['normal', 'staff'].includes(a?.audience) ? a.audience : 'all',
+    audience: ['normal', 'staff', 'signed'].includes(a?.audience) ? a.audience : 'all',
     date: normalizeActivityDate(a?.date),
     // 已经保存过版式的活动，栏目标题也要从旧「控制号」迁移成「编号」。
     ...(Array.isArray(a?.blocks) ? {
@@ -332,6 +332,9 @@ export const stmts = {
   `),
   signupCounts: db.prepare('SELECT activity_id, COUNT(*) AS n FROM signups GROUP BY activity_id'),
   signupsOf: db.prepare('SELECT activity_id FROM signups WHERE player_id = ?'),
+  // 花名册和排行榜要给每个人算一遍可见活动，逐人查报名会是 N 次往返；
+  // 一次拉全再在内存里按人分组
+  allSignups: db.prepare('SELECT activity_id, player_id FROM signups'),
   insertMaterial: db.prepare(`
     INSERT INTO activity_materials
       (id, activity_id, player_id, kind, content, created_at, updated_at)

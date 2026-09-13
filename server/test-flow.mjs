@@ -783,5 +783,76 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
+// 25. 「仅报名的人可见」这一档
+{
+  const playerH = { authorization: `Bearer ${playerToken}` };
+  const base = (await j('/api/config')).body.activities;
+  const TARGET = 'easter';   // 全程没被盖过章，也没被报名过
+
+  // 先清干净，免得受前面小节影响
+  await j(`/api/activity/${TARGET}/signup`, { method: 'DELETE', headers: playerH });
+
+  const saved = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a) => (a.id === TARGET
+      ? { ...a, audience: 'signed', state: 'upcoming' } : a)) },
+  });
+  const savedOne = (saved.body.activities || []).find((a) => a.id === TARGET);
+  check('活动能标成「仅报名的人可见」', saved.status === 200 && savedOne?.audience === 'signed',
+    JSON.stringify(savedOne?.audience));
+
+  // 防死锁第一条：扫码落地页不能被这一档挡住，否则没人报得进来
+  const landing = await j(`/api/activity/${TARGET}`);
+  check('没报名（连匿名）也能打开落地页，否则报名无门', landing.status === 200, `实际 ${landing.status}`);
+
+  const before = await j('/api/me', { headers: playerH });
+  check('确认这一场还没报名', !(before.body.player.signups || []).includes(TARGET));
+
+  // 没报名时：不进分母
+  const totalBefore = before.body.player.stationsTotal;
+  // 按配置自己算一遍普通用户该看到几场：audience 为 signed 的这一场不算在内
+  const visibleNow = (saved.body.activities || [])
+    .filter((a) => !a.audience || a.audience === 'all' || a.audience === 'normal').length;
+  check('没报名时这一场不计入他的场次分母', totalBefore === visibleNow,
+    `分母 ${totalBefore}，按配置该是 ${visibleNow}`);
+
+  // 没报名时盖章要被拒，而且理由得说清是「没报名」而不是「角色不符」
+  const blocked = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH,
+    body: { ops: [{ opId: 'op-signed-001', type: 'score', playerId: player.id,
+                    stationId: TARGET, points: 1, checkin: true }], since: 0 },
+  });
+  check('没报名的人盖不上这一章', blocked.body.results[0].status === 'error',
+    JSON.stringify(blocked.body.results[0]));
+  check('拒绝理由说的是没报名，不是角色不符',
+    String(blocked.body.results[0].message || '').includes('报名'),
+    blocked.body.results[0].message);
+
+  // 防死锁第二条：报名接口本身也不能被拦
+  const signup = await j(`/api/activity/${TARGET}/signup`, { method: 'POST', headers: playerH });
+  check('没报名的人能报上这一场（这一档不锁死报名）', signup.status === 200, JSON.stringify(signup.body));
+
+  const after = await j('/api/me', { headers: playerH });
+  check('报名后这一场进入他的场次分母',
+    after.body.player.stationsTotal === totalBefore + 1,
+    `${totalBefore} → ${after.body.player.stationsTotal}`);
+
+  // 报名之后才盖得上
+  const ok = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH,
+    body: { ops: [{ opId: 'op-signed-002', type: 'score', playerId: player.id,
+                    stationId: TARGET, points: 1, checkin: true }], since: 0 },
+  });
+  check('报名之后就能盖章了', ok.body.results[0].status === 'ok', JSON.stringify(ok.body.results[0]));
+
+  const scored = await j('/api/me', { headers: playerH });
+  check('这一章算进了总分', scored.body.player.total === after.body.player.total + 1,
+    `${after.body.player.total} → ${scored.body.player.total}`);
+
+  // 还原
+  await j(`/api/activity/${TARGET}/signup`, { method: 'DELETE', headers: playerH });
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

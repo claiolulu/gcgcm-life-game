@@ -378,7 +378,7 @@ function visaMrzLine(n, { surname, given, visaNo, passportNo, code }) {
  *  ui         { page, overlay, modal, vpLandscape, qrThumb, qrBigImg }
  *  actions    { move, goto, setOverlay, setModal, share }
  */
-export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
+export function buildVals({ me, rank, of, config, activities, board = [], ui, actions }) {
   /**
    * 签证页现在每场至少一张信息页，还可以继续装订照片和总结页。
    * 护照因此变成一本能一直用下去的打卡本，而不只是一晚上的游戏记录。
@@ -393,7 +393,11 @@ export function buildVals({ me, rank, of, config, board = [], ui, actions }) {
    * 最后一层是他在资料页点「自定义」改的，只影响他自己那一本。
    */
   const theme = passportTheme(config, me);
-  const stations = config?.activities || [];
+  // **必须**用调用方按可见范围过滤过的那份列表，不能在这儿重新取
+  // config.activities。否则装订用的页表和导航用的页表不是同一份：
+  // 一旦有活动设了可见范围（同工专属 / 报名可见），页码就会错位指到别的页，
+  // 分母也会把看不见的那几场算进去。
+  const stations = activities || config?.activities || [];
   const pages = buildPages(stations);
   const cur = pages[ui.page] || pages[0];
   const kind = ui.overlay || cur.kind;

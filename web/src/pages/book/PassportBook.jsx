@@ -67,7 +67,15 @@ export default function PassportBook() {
   }, [opened, tourDone, setTourDone]);
 
   // 签证页的内容来源：每场活动一张信息页，可再加照片/总结页
-  const activities = useMemo(() => activitiesForRole(config, me?.role), [config, me?.role]);
+  //
+  // me.signups 是数组，每轮同步都是新的引用，直接当依赖会让整本书的版式
+  // 每次同步重算一遍。拼成字符串当键，内容真变了才重算
+  const signedKey = (me?.signups || []).join(',');
+  const activities = useMemo(
+    () => activitiesForRole(config, me?.role, me?.signups),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signedKey 代表 me.signups
+    [config, me?.role, signedKey],
+  );
   // 签证页按活动装订，顺序就是配置里的先后（大致按时间）。
   // 游戏版那套「按各关忙闲排班」在这里用不上 —— 活动分散在几个月里，
   // 不存在开局全挤在一个门口的问题。
@@ -377,7 +385,7 @@ export default function PassportBook() {
   const v = useMemo(() => {
     if (!me || !config) return null;
     return buildVals({
-      me, rank, of, config, board,
+      me, rank, of, config, activities, board,
       ui: {
         page, overlay, modal, vpLandscape, flip,
         qrThumb: qr.thumb, qrBigImg: qr.big, checking, screenGap,
@@ -402,7 +410,7 @@ export default function PassportBook() {
         goBadge: () => nav('/badge', { state: { back: page } }),
       },
     });
-  }, [me, rank, of, config, board, page, overlay, modal, vpLandscape, flip, qr, checking, screenGap,
+  }, [me, rank, of, config, activities, board, page, overlay, modal, vpLandscape, flip, qr, checking, screenGap,
       move, goto, checkStamp]);
 
   if (loading && !me) {

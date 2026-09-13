@@ -10,7 +10,7 @@ import { useConfig, activitiesForRole } from '../lib/config.js';
 export default function Leaderboard() {
   const { me } = usePlayer();
   const { config } = useConfig();
-  const stationCount = activitiesForRole(config, me?.role).length;
+  const stationCount = activitiesForRole(config, me?.role, me?.signups).length;
 
   const [board, setBoard] = useState([]);
   const [state, setState] = useState({ online: navigator.onLine, at: 0, loading: true });

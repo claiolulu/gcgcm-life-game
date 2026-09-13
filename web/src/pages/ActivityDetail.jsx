@@ -288,16 +288,26 @@ export default function ActivityDetail() {
           onChange={(date) => edit({ date })}
         />
         <div className="field">
-          <label className="label" htmlFor="activity-audience">可见角色</label>
+          <label className="label" htmlFor="activity-audience">可见范围</label>
           <select id="activity-audience" className="input" value={draft.audience || 'all'}
             onChange={(e) => edit({ audience: e.target.value })}>
             <option value="all">所有人</option>
             <option value="normal">仅普通用户</option>
             <option value="staff">仅同工</option>
+            <option value="signed">仅报名的人</option>
           </select>
           <div className="tiny dim">
             设为特定角色后，其他角色的护照不会显示这场活动，也不能通过链接报名。
           </div>
+          {draft.audience === 'signed' && (
+            <div className="tiny dim">
+              「仅报名的人」不看角色，看有没有报名：报名后这一页才出现在他的护照里，
+              也才计入他的场次；没报名的人看不到，但<b>扫码落地页和报名按钮照常可用</b>
+              （否则谁都报不进来）。同工一律可见。
+              盖章也跟着这条走 —— 没报名的人在总控台<b>标不了「已参加」</b>，
+              先让他报名，或把可见范围改回所有人。
+            </div>
+          )}
         </div>
         <div className="row" style={{ gap: 6 }}>
           <input className="input grow" value={draft.tag} maxLength={12} placeholder="类型"

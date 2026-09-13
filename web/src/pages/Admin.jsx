@@ -19,6 +19,7 @@ const ACT_AUDIENCE = {
   all: { label: '所有人', className: '' },
   normal: { label: '普通专属', className: 'admin-activity__audience--normal' },
   staff: { label: '同工专属', className: 'admin-activity__audience--staff' },
+  signed: { label: '报名可见', className: 'admin-activity__audience--signed' },
 };
 
 export default function Admin() {
@@ -844,11 +845,13 @@ export default function Admin() {
                     </div>
                     {done ? (
                       <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已参加 ✓</span>
-                    ) : !activityVisibleTo(a, detailPlayer.role || 'normal') ? (
-                      /* 这一场对这个人的角色不可见，服务端不会收这一章。
-                         与其让人点了没反应，不如把按钮收起来说明白 */
-                      <span className="tiny dim" style={{ flex: '0 0 auto' }}>
-                        {a.audience === 'staff' ? '同工专属' : '普通专属'}
+                    ) : !activityVisibleTo(a, detailPlayer.role || 'normal', signed ? [a.id] : []) ? (
+                      /* 这一场对这个人不可见，服务端不会收这一章。
+                         与其让人点了没反应，不如把按钮收起来说明白 —— 而且
+                         「报名可见」的处理办法和角色不符不一样，要分开讲 */
+                      <span className="tiny dim" style={{ flex: '0 0 auto', textAlign: 'right' }}>
+                        {a.audience === 'signed' ? '未报名 · 报名后才能标记'
+                          : a.audience === 'staff' ? '同工专属' : '普通专属'}
                       </span>
                     ) : (
                       <button

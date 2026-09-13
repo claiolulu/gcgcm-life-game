@@ -18,7 +18,8 @@ import {
   getVisaTemplate,
 } from './db.js';
 import {
-  playerState, roster, leaderboard, rankOf, applyOp, activityVisibleTo, normalizedPlayerRole,
+  playerState, roster, leaderboard, rankOf, applyOp, activityVisibleTo, activityRoleVisibleTo,
+  signupSetOf, normalizedPlayerRole,
 } from './game.js';
 import {
   formatPlayerId, canonCode, extractCode, isValidPin, randomPin, uid, randomToken,
@@ -557,7 +558,7 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       en: String(a?.en || '').trim().slice(0, 40),
       date,
       tag: String(a?.tag || '').trim().slice(0, 12),
-      audience: ['normal', 'staff'].includes(a?.audience) ? a.audience : 'all',
+      audience: ['normal', 'staff', 'signed'].includes(a?.audience) ? a.audience : 'all',
       host: String(a?.host || '').trim().slice(0, 20),
       // 签发机构。留空就用护照模版上的那个（整本护照的签发方）
       issuer: String(a?.issuer || '').trim().slice(0, 24),
@@ -851,7 +852,9 @@ const materialJson = (row, withOwner = false) => ({
 app.post('/api/activity/:id/materials', playerAuth, (req, res) => {
   const activity = getActivities().find((a) => a.id === req.params.id);
   if (!activity) return res.status(404).json({ error: '找不到这场活动' });
-  if (!activityVisibleTo(activity, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  if (!activityVisibleTo(activity, req.player.role, signupSetOf(req.player.id))) {
+    return res.status(404).json({ error: '找不到这场活动' });
+  }
 
   const text = String(req.body?.text || '').trim().slice(0, 1000);
   const hasImage = !!String(req.body?.imageData || '').trim();
@@ -884,14 +887,18 @@ app.post('/api/activity/:id/materials', playerAuth, (req, res) => {
 app.get('/api/activity/:id/materials/mine', playerAuth, (req, res) => {
   const activity = getActivities().find((a) => a.id === req.params.id);
   if (!activity) return res.status(404).json({ error: '找不到这场活动' });
-  if (!activityVisibleTo(activity, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  if (!activityVisibleTo(activity, req.player.role, signupSetOf(req.player.id))) {
+    return res.status(404).json({ error: '找不到这场活动' });
+  }
   res.json({ materials: stmts.materialsForPlayer.all(activity.id, req.player.id).map((r) => materialJson(r)) });
 });
 
 app.delete('/api/activity/:id/materials/:materialId', playerAuth, (req, res) => {
   const activity = getActivities().find((a) => a.id === req.params.id);
   if (!activity) return res.status(404).json({ error: '找不到这场活动' });
-  if (!activityVisibleTo(activity, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  if (!activityVisibleTo(activity, req.player.role, signupSetOf(req.player.id))) {
+    return res.status(404).json({ error: '找不到这场活动' });
+  }
   const row = stmts.materialById.get(req.params.materialId);
   if (!row || row.activity_id !== activity.id || row.player_id !== req.player.id) {
     return res.status(404).json({ error: '找不到这条素材' });
@@ -918,7 +925,9 @@ app.get('/api/admin/activity/:id/materials', staffAuth('admin'), (req, res) => {
  */
 app.get('/api/activity/:id', (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  if (!a || !activityVisibleTo(a, viewerRole(req))) return res.status(404).json({ error: '找不到这场活动' });
+  // 这里用只看角色的那条规则：扫码落地页是报名的入口，
+  // 「报名可见」不能把还没报名的人挡在门外（见 game.js 的说明）
+  if (!a || !activityRoleVisibleTo(a, viewerRole(req))) return res.status(404).json({ error: '找不到这场活动' });
   const counts = new Map(stmts.signupCounts.all().map((r) => [r.activity_id, r.n]));
   res.json({
     activity: {
@@ -961,7 +970,8 @@ function activityRegistration(a) {
 /** 报名。已经报过就当没事发生 —— 主键就是 (活动, 人)，天然幂等。 */
 app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  if (!a || !activityVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  // 同上：报名本身不受「报名可见」限制，否则这一档谁都报不进来
+  if (!a || !activityRoleVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: registration.message, registration });
@@ -974,7 +984,8 @@ app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
 /** 取消报名。人会变卦，别让他只能来找同工改。 */
 app.delete('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  if (!a || !activityVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  // 同上：报名本身不受「报名可见」限制，否则这一档谁都报不进来
+  if (!a || !activityRoleVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: '报名已经截止，不能再取消。如需变更请联系同工。', registration });

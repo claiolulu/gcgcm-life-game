@@ -21,7 +21,7 @@ export default function StaffPlayer() {
 
   // 打卡本里同工盖的是「活动」，不是游戏关卡。
   // 两边共用同一张 events 表，所以后面的记分/盖章逻辑完全不用改
-  const stations = activitiesForRole(config, player?.role);
+  const stations = activitiesForRole(config, player?.role, player?.signups);
 
   const myStationId = staff.session?.station;
   const [stationId, setStationId] = useState(

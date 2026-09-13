@@ -956,6 +956,11 @@ h3 { font-size: 16px; }
   border-color: rgba(232,197,106,.35);
   color: var(--gold);
 }
+/* 报名可见：和角色那两档不是一类（按人不按角色），给个不同的色好分辨 */
+.admin-activity__audience--signed {
+  border-color: rgba(126,217,163,.35);
+  color: #7ed9a3;
+}
 .admin-player__role {
   display: inline-block;
   margin-left: 5px;
