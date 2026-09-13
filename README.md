@@ -1,5 +1,7 @@
 # Mini Life Game · 人生护照系统
 
+> 开发交接与当前实现请先读 [PROJECT_MEMORY.md](PROJECT_MEMORY.md)；Claude Code 的项目规则在 [CLAUDE.md](CLAUDE.md)。本文部分现场玩法与演示数据说明仍属于旧迎新游戏版本，当前已转为长期活动打卡护照，不能据此恢复旧功能或向真实数据运行 seed。
+
 GCGCM 迎新大型互动游戏的电子护照系统，替代纸质护照与人工计分。
 
 - **选手端**：一本可翻页的电子护照册（封面 → 欢迎 → 导航 → 资料页 → 八张签证页 → 恩典站 → 结语），外加实时排行与玩法两个浮层。视觉由 Claude Design 的 `Life Passport v5 Classic` 设计稿 1:1 移植，数据实时同步。**全程只读**，写不进任何东西。
