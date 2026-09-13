@@ -70,61 +70,107 @@ export function ScrollRail({ targetRef, deps, className = '', onOverflow }) {
  * switch 里生成内容的地方（比如签证页的块），没法在分支里挂 hook。
  */
 /**
- * 竖屏看签证页时，整页是 rotate(90deg) 的。浏览器会把手势映射回元素自己的
- * 坐标系 —— 于是「往下读」在屏幕上要**横着划**，手指竖着划一点反应都没有。
- * 文字本来就是侧躺的，谁也猜不到要横划。
+ * 竖屏看签证页时，整页是 rotate(90deg) 的（签证页本来就是横版）。
+ * 浏览器会把手势映射回元素自己的坐标系 —— 于是块内的「往下读」在屏幕上变成
+ * 横向，手指竖着划一点反应都没有。文字本来就是侧躺的，谁也猜不到要横划。
  *
- * 这里补一条：块被转了 90° 时，屏幕上的竖向拖动也能滚。原生那条（沿文字
- * 方向横划）不动，两种都收。把手机转过来看时页面不旋转，走的是原生路径，
- * 这段逻辑整个不参与。
+ * 这里在**旋转时**把手势整个接管过来，两个方向都当成滚动。
+ *
+ * 关键是那句 touch-action: none：不写的话，浏览器在 touchstart 时就自己决定
+ * 这一下归它平移，然后发一个 pointercancel 把 pointermove 掐断 —— 处理器看着
+ * 是挂上了，真手指下永远走不到。合成事件测不出这一层，因为它绕过了手势仲裁。
+ *
+ * 没旋转时完全不插手：原生滚动有惯性和回弹，自己实现只会更差。
  */
 function useCrossAxisScroll(ref) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
+    let rotated = false;
     let active = null;
 
-    const rotated = () => {
+    /** 这个块自己的「向下」，在屏幕上指向哪 —— 从累计变换里取 */
+    const downVec = () => {
+      let n = el;
+      let m = new DOMMatrix();
+      while (n && n !== document.body) {
+        const tr = getComputedStyle(n).transform;
+        if (tr && tr !== 'none') m = new DOMMatrix(tr).multiply(m);
+        n = n.parentElement;
+      }
+      // 本地 (0,1) 经过变换后落在 (c, d)
+      return { c: m.c, d: m.d };
+    };
+
+    const sync = () => {
       const r = el.getBoundingClientRect();
       // 布局的宽高和屏幕上的宽高对调了，就是转了 90°
-      return Math.abs(r.width - el.offsetHeight) < 3 && Math.abs(r.height - el.offsetWidth) < 3;
+      rotated = Math.abs(r.width - el.offsetHeight) < 3 && Math.abs(r.height - el.offsetWidth) < 3
+        && el.offsetWidth !== el.offsetHeight;
+      // 只有接管的时候才拦手势。没转就还给浏览器，保住惯性滚动
+      el.style.touchAction = rotated ? 'none' : '';
     };
+
+    // 转屏之后要重算。注意**不能只靠 ResizeObserver**：这个块的布局尺寸
+    // 在两种朝向下完全一样（页面恒为 1.9:1，变的只是 transform），RO 永远
+    // 不会触发。而 resize 事件到达时 React 往往还没把新的 transform 渲上去，
+    // 所以再补一帧和一次延时。
+    const syncSoon = () => { sync(); requestAnimationFrame(sync); setTimeout(sync, 250); };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    window.addEventListener('resize', syncSoon);
+    window.addEventListener('orientationchange', syncSoon);
 
     const down = (e) => {
       if (e.pointerType === 'mouse') return;          // 鼠标有滚轮，不抢
+      sync();                                          // 以按下这一刻为准，别信缓存
+      if (!rotated) return;
       if (el.scrollHeight <= el.clientHeight + 2) return;
-      if (!rotated()) return;                          // 没转就交给浏览器自己
-      active = { y: e.clientY, top: el.scrollTop, moved: false };
+      const v = downVec();
+      active = { x: e.clientX, y: e.clientY, top: el.scrollTop, moved: false, v };
+      try { el.setPointerCapture(e.pointerId); } catch { /* 捕获不到就靠冒泡 */ }
     };
 
     const move = (e) => {
       if (!active) return;
+      const dx = e.clientX - active.x;
       const dy = e.clientY - active.y;
-      if (!active.moved && Math.abs(dy) < 4) return;   // 4px 以内当抖动，别把点击吃掉
+      if (!active.moved && Math.hypot(dx, dy) < 4) return;   // 4px 内当抖动，别吃掉点击
       active.moved = true;
-      // 手指往上 = 往下读，和普通列表一致
-      el.scrollTop = active.top - dy;
+      e.preventDefault();
+      // 沿文字方向划（浏览器原来支持的那条），和屏幕竖向划（竖着拿手机时的
+      // 本能动作），哪个位移大听哪个。没转的话两者相等，公式自然退化
+      const along = -(dx * active.v.c + dy * active.v.d);
+      const cross = -dy;
+      const delta = Math.abs(along) >= Math.abs(cross) ? along : cross;
+      el.scrollTop = active.top + delta;
     };
 
-    const up = () => {
-      // 真滑动过就吞掉随后那次 click —— 否则翻页逻辑会把这一下当成点击
+    const up = (e) => {
       if (active?.moved) {
+        // 真滑动过就吞掉随后那次 click，否则翻页逻辑会把这一下当成点击
         const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
         el.addEventListener('click', eat, { capture: true, once: true });
         setTimeout(() => el.removeEventListener('click', eat, { capture: true }), 350);
       }
+      try { el.releasePointerCapture(e.pointerId); } catch { /* 已自动释放 */ }
       active = null;
     };
 
     el.addEventListener('pointerdown', down);
-    el.addEventListener('pointermove', move);
+    el.addEventListener('pointermove', move, { passive: false });
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
     return () => {
+      ro.disconnect();
       el.removeEventListener('pointerdown', down);
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', up);
+      el.style.touchAction = '';
+      window.removeEventListener('resize', syncSoon);
+      window.removeEventListener('orientationchange', syncSoon);
     };
   }, [ref]);
 }
