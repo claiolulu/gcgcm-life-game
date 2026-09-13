@@ -7,7 +7,7 @@ import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText, copyImageBlob } from '../lib/clipboard.js';
 import { useConfig, loadConfig, allTags } from '../lib/config.js';
-import { useStaff, allPlayers } from '../lib/staff.js';
+import { useStaff, allPlayers, queueOp, settleOps, issueFor } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import { onTick } from '../lib/realtime.js';
 import QRCode from 'qrcode';
@@ -73,6 +73,88 @@ export default function ActivityDetail() {
 
   const [signups, setSignups] = useState([]);
   const qrRef = React.useRef(null);   // 复制二维码要拿到 canvas
+  const [checking, setChecking] = useState(null);   // 正在签到的人 id，或 'all'
+
+  /**
+   * 签到 = 盖章。
+   *
+   * 走的是同工端那条盖章通道（queueOp），所以离线也排得住、重复点也只算一次
+   * （服务端那条「一场只盖一次」的唯一索引挡着）。给 1 分是为了让总分等于
+   * 参加过几场，章上写的是「已参加」。
+   *
+   * queueOp 只保证「进了队列」，服务端认不认要等这一趟同步回来 —— 必须
+   * flush 之后用 issueFor 查，否则被拒的操作（比如这一场的可见范围不含他的
+   * 标签）界面上照样显示成功，而那一行永远不会变。
+   */
+  async function checkIn(p) {
+    setChecking(p.id);
+    try {
+      const op = await queueOp({
+        type: 'score', playerId: p.id, stationId: id, points: 1, checkin: true, note: '活动页签到',
+      });
+      // 等这一笔真的有结论（不能只 await 一次 flush，见 settleOps 的说明）
+      if ((await settleOps([op.opId])).length) {
+        toast('网络不通，已记下，联网后自动上传', 'warn');
+        return;
+      }
+      const bad = issueFor(op.opId);
+      if (bad) { toast(bad.message || '服务端没有接受这次签到', 'err'); return; }
+      toast(`${p.name} 已签到`, 'ok');
+    } catch (err) {
+      toast(err.message || '签到失败', 'err');
+    } finally {
+      setChecking(null);
+    }
+  }
+
+  /** 还没签到的报名者 */
+  const pendingCheckIn = useMemo(
+    () => signups.filter((p) => !players.find((x) => x.id === p.id)?.stations?.[id]),
+    [signups, players, id],
+  );
+
+  /**
+   * 一键全签到。
+   *
+   * 逐个排队再一次 flush，而不是一个个等 —— 门口二三十人，一个个来太慢。
+   * 结果要逐条查：可能只有一部分被拒（标签不符），笼统报一句「已全部签到」
+   * 是在撒谎。
+   */
+  async function checkInAll() {
+    if (!pendingCheckIn.length) return;
+    const ok = await ask({
+      title: `给还没签到的 ${pendingCheckIn.length} 人全部签到？`,
+      body: '章盖下去就撤不掉了 —— 那是一条写进记录的事实，不是可以来回拨的开关。'
+        + '只会给还没签到的人盖，已经签到的不动。',
+    });
+    if (!ok) return;
+    setChecking('all');
+    try {
+      const ops = [];
+      for (const p of pendingCheckIn) {
+        ops.push({ p, op: await queueOp({
+          type: 'score', playerId: p.id, stationId: id, points: 1, checkin: true, note: '活动页一键签到',
+        }) });
+      }
+      const unsettled = await settleOps(ops.map(({ op }) => op.opId));
+      if (unsettled.length) {
+        toast(`网络不通，${unsettled.length} 个章还没上传，联网后自动补上`, 'warn');
+        return;
+      }
+      const failed = ops.map(({ p, op }) => ({ p, bad: issueFor(op.opId) })).filter((x) => x.bad);
+      const done = ops.length - failed.length;
+      if (!failed.length) { toast(`${done} 人已全部签到`, 'ok'); return; }
+      // 说清楚是谁、为什么 —— 只报个数字的话，同工不知道该去补谁
+      toast(`${done} 人签到成功，${failed.length} 人没成：`
+        + failed.slice(0, 3).map((x) => x.p.name).join('、')
+        + (failed.length > 3 ? ' 等' : '')
+        + `（${failed[0].bad.message || '服务端拒绝'}）`, 'err');
+    } catch (err) {
+      toast(err.message || '批量签到失败', 'err');
+    } finally {
+      setChecking(null);
+    }
+  }
   // 二维码要给参与者扫，所以用服务端下发的分享域名（同工端在 staff. 子域上，
   // 印着那个域名的码会把人领到同工端入口）。本地开发时服务端给空串，退回自己的 origin
   const joinUrl = `${config?.shareOrigin || window.location.origin}/join/${id}`;
@@ -492,6 +574,22 @@ export default function ActivityDetail() {
         </div>
 
         {signups.length > 0 && (
+          <>
+          <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="tiny dim grow">
+              签到就是盖章 —— 和同工扫码盖的是同一个章，一场只盖一次。
+            </div>
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              style={{ flex: '0 0 auto' }}
+              disabled={!!checking || pendingCheckIn.length === 0}
+              onClick={checkInAll}
+            >
+              {checking === 'all' ? '签到中…'
+                : pendingCheckIn.length ? `一键全签到（${pendingCheckIn.length}）` : '都签到了'}
+            </button>
+          </div>
           <div className="stack-sm">
             {signups.map((p) => {
               const came = !!attended.find((x) => x.id === p.id);
@@ -512,17 +610,29 @@ export default function ActivityDetail() {
                       </button>
                     )}
                   </div>
-                  <span className="tiny" style={{ flex: '0 0 auto', color: came ? 'var(--green)' : 'var(--text-3)' }}>
-                    {came ? '来了 ✓' : '待到场'}
-                  </span>
+                  {came ? (
+                    <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已签到 ✓</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn--sm"
+                      style={{ flex: '0 0 auto' }}
+                      disabled={!!checking}
+                      onClick={() => checkIn(p)}
+                    >
+                      {checking === p.id ? '…' : '签到'}
+                    </button>
+                  )}
                 </div>
               );
             })}
             {/* 报了名没来的人，是活动结束之后最该被问一句的那批 */}
             <div className="tiny dim">
-              报名 {signups.length} 人，到场 {signups.filter((p) => attended.find((x) => x.id === p.id)).length} 人。
+              报名 {signups.length} 人，已签到 {signups.length - pendingCheckIn.length} 人。
+              没报名就来的人，在「👥 用户」里找到他、或者直接扫他的码盖章。
             </div>
           </div>
+          </>
         )}
       </div>
       </div>

@@ -7,7 +7,7 @@ import { copyText } from '../lib/clipboard.js';
 import { ScrollRail } from '../components/ScrollRail.jsx';
 import { useConfig, loadConfig, activityVisibleTo, allTags, playerTags } from '../lib/config.js';
 import { onTick } from '../lib/realtime.js';
-import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp, issueFor } from '../lib/staff.js';
+import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp, settleOps, issueFor } from '../lib/staff.js';
 
 const ACT_STATE = {
   upcoming: { icon: '🗓', label: '还没到' },
@@ -561,9 +561,9 @@ export default function Admin() {
       // queueOp 只保证「进了队列」。服务端认不认要等这一趟同步回来 ——
       // 原来这儿直接弹「已标记为参加」，于是被拒的操作（比如这一场对该
       // 用户角色不可见）界面上照样显示成功，而那一行永远不会变。
-      try {
-        await flush();
-      } catch {
+      // 同 ActivityDetail：只 await 一次 flush 会搭上正在飞的那一次，
+      // 那一次可能还没带上这一笔，于是被误报成功（见 settleOps）
+      if ((await settleOps([op.opId])).length) {
         toast('网络不通，已记下，联网后自动上传', 'warn');
         return;
       }

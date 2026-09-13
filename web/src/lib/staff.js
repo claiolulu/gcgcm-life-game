@@ -195,6 +195,30 @@ export function issueFor(opId) {
   return state.issues.find((i) => i.opId === opId) || null;
 }
 
+/**
+ * 等这些操作真的有了结论，返回其中还没有结论的那些 opId。
+ *
+ * **不能只 await 一次 flush。** queueOp 自己会触发一次后台同步，而 flush
+ * 碰到已有一次在飞时是直接搭车返回的（见下面的并发保护）—— 那一次的 outbox
+ * 快照可能还不包含后排队的操作，于是 await 回来时它其实还没发出去，
+ * issueFor 查不到任何问题，调用方就会把它当成「成功」报出去。批量签到时
+ * 这会变成「3 人签到成功」而实际上一个都没成。
+ *
+ * 所以要循环：只要这些 op 还躺在待发队列里，就再同步一次，直到都拿到结论
+ * 或者试够次数（网络不通时就是这种情况，交给调用方去说）。
+ */
+export async function settleOps(opIds, { tries = 6 } = {}) {
+  const want = new Set(opIds);
+  if (!want.size) return [];
+  for (let i = 0; i < tries; i++) {
+    await flush().catch(() => {});
+    const left = (await outboxAll()).filter((o) => want.has(o.opId));
+    if (!left.length) return [];
+    if (i === tries - 1) return left.map((o) => o.opId);
+  }
+  return [];
+}
+
 export async function retryAll() {
   state.issues = [];
   notify();
