@@ -69,8 +69,69 @@ export function ScrollRail({ targetRef, deps, className = '', onOverflow }) {
  * 把 ref、相对定位和滑杆打包好，调用方只管往里塞内容 —— 尤其是那些在
  * switch 里生成内容的地方（比如签证页的块），没法在分支里挂 hook。
  */
+/**
+ * 竖屏看签证页时，整页是 rotate(90deg) 的。浏览器会把手势映射回元素自己的
+ * 坐标系 —— 于是「往下读」在屏幕上要**横着划**，手指竖着划一点反应都没有。
+ * 文字本来就是侧躺的，谁也猜不到要横划。
+ *
+ * 这里补一条：块被转了 90° 时，屏幕上的竖向拖动也能滚。原生那条（沿文字
+ * 方向横划）不动，两种都收。把手机转过来看时页面不旋转，走的是原生路径，
+ * 这段逻辑整个不参与。
+ */
+function useCrossAxisScroll(ref) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    let active = null;
+
+    const rotated = () => {
+      const r = el.getBoundingClientRect();
+      // 布局的宽高和屏幕上的宽高对调了，就是转了 90°
+      return Math.abs(r.width - el.offsetHeight) < 3 && Math.abs(r.height - el.offsetWidth) < 3;
+    };
+
+    const down = (e) => {
+      if (e.pointerType === 'mouse') return;          // 鼠标有滚轮，不抢
+      if (el.scrollHeight <= el.clientHeight + 2) return;
+      if (!rotated()) return;                          // 没转就交给浏览器自己
+      active = { y: e.clientY, top: el.scrollTop, moved: false };
+    };
+
+    const move = (e) => {
+      if (!active) return;
+      const dy = e.clientY - active.y;
+      if (!active.moved && Math.abs(dy) < 4) return;   // 4px 以内当抖动，别把点击吃掉
+      active.moved = true;
+      // 手指往上 = 往下读，和普通列表一致
+      el.scrollTop = active.top - dy;
+    };
+
+    const up = () => {
+      // 真滑动过就吞掉随后那次 click —— 否则翻页逻辑会把这一下当成点击
+      if (active?.moved) {
+        const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+        el.addEventListener('click', eat, { capture: true, once: true });
+        setTimeout(() => el.removeEventListener('click', eat, { capture: true }), 350);
+      }
+      active = null;
+    };
+
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    return () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+  }, [ref]);
+}
+
 export default function ScrollBox({ children, style, className = '', railClassName = '', deps }) {
   const ref = useRef(null);
+  useCrossAxisScroll(ref);
   // 只有真的装不下时才给滑杆让出那几个像素。
   //
   // 全局是 border-box，常驻的 padding-right 会把**每一个**文字块都收窄，
