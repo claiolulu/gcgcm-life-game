@@ -965,43 +965,60 @@ export default function Admin() {
               </div>
             )}
 
+            {/*
+              一个人的全部归属放在同一处。
+
+              「普通成员 / 同工」和自建标签在活动那边是同一套词汇（都能被勾成可见范围），
+              所以这里也放在一起 —— 原来角色是下拉、标签是另一张卡，看起来就像新标签
+              进不了角色。
+
+              唯一的区别是前两个**二选一**：它们存在 players.role 那一列上（不是标签表），
+              那一列还被导出和花名册用着。想让一个人同时吃到两边的活动，就在活动的可见
+              范围里把两个都勾上。
+            */}
             <div className="card card--tight stack-sm admin-player-role">
-              <label className="label" htmlFor="admin-player-role">用户角色</label>
-              <select id="admin-player-role" className="input"
-                value={detailPlayer.role || 'normal'}
-                disabled={busy === `role-${detailPlayer.id}` || busy === `delete-${detailPlayer.id}`}
-                onChange={(e) => changePlayerRole(detailPlayer, e.target.value)}>
-                <option value="normal">普通</option>
-                <option value="staff">同工</option>
-              </select>
+              <div className="label" style={{ margin: 0 }}>身份与标签</div>
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                {[{ id: 'normal', name: '普通成员' }, { id: 'staff', name: '同工' }].map((tg) => {
+                  const on = (detailPlayer.role || 'normal') === tg.id;
+                  return (
+                    <button
+                      key={tg.id}
+                      type="button"
+                      className={`admin-tag-pick admin-tag-pick--role ${on ? 'admin-tag-pick--on' : ''}`}
+                      aria-pressed={on}
+                      disabled={busy === `role-${detailPlayer.id}` || busy === `delete-${detailPlayer.id}`}
+                      onClick={() => changePlayerRole(detailPlayer, tg.id)}
+                    >
+                      {on ? '✓ ' : ''}{tg.name}
+                    </button>
+                  );
+                })}
+                <span className="admin-tag-sep" aria-hidden="true" />
+                {customTags.map((tg) => {
+                  const on = (detailPlayer.tags || []).includes(tg.id);
+                  return (
+                    <button
+                      key={tg.id}
+                      type="button"
+                      className={`admin-tag-pick ${on ? 'admin-tag-pick--on' : ''}`}
+                      aria-pressed={on}
+                      disabled={busy === `tag-${tg.id}`}
+                      onClick={() => togglePlayerTag(detailPlayer, tg.id)}
+                    >
+                      {on ? '✓ ' : ''}{tg.name}
+                    </button>
+                  );
+                })}
+                {customTags.length === 0 && (
+                  <span className="tiny dim">还没有自建标签，上面那张卡里可以加。</span>
+                )}
+              </div>
               <div className="tiny dim">
-                角色只决定护照里能看到哪些活动；工作人员端登录权限仍由工作人员 PIN 控制。
+                前两个是内置身份，<b>二选一</b>；后面的自建标签可以同时挂任意多个。
+                这些只决定护照里能看到哪些活动 —— 工作人员端的登录权限仍由工作人员 PIN 控制。
               </div>
             </div>
-
-            {customTags.length > 0 && (
-              <div className="card card--tight stack-sm">
-                <div className="label" style={{ margin: 0 }}>标签</div>
-                <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                  {customTags.map((tg) => {
-                    const on = (detailPlayer.tags || []).includes(tg.id);
-                    return (
-                      <button
-                        key={tg.id}
-                        type="button"
-                        className={`admin-tag-pick ${on ? 'admin-tag-pick--on' : ''}`}
-                        aria-pressed={on}
-                        disabled={busy === `tag-${tg.id}`}
-                        onClick={() => togglePlayerTag(detailPlayer, tg.id)}
-                      >
-                        {on ? '✓ ' : ''}{tg.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="tiny dim">点一下切换。可以同时挂多个。</div>
-              </div>
-            )}
             <div className="stack-sm">
               {activities.map((a) => {
                 const done = !!detailPlayer.stations?.[a.id];

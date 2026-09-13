@@ -93,9 +93,21 @@ export function activitiesForPlayer(config, me) {
   return (config?.activities || []).filter((a) => activityVisibleTo(a, tags, signed));
 }
 
-/** 标签清单（内置 + 自建），服务端随 config 一起下发 */
+/**
+ * 标签清单（内置 + 自建），服务端随 config 一起下发。
+ *
+ * 服务端没下发时（比如前端已经更新、服务端还没重启）也要把内置那两个兜出来 ——
+ * 否则活动的可见范围里连「普通成员 / 同工」都选不了，看起来像功能坏了，
+ * 而真正的原因只是服务端旧。
+ */
+const BUILTIN = [
+  { id: 'normal', name: '普通成员', builtin: true },
+  { id: 'staff', name: '同工', builtin: true },
+];
+
 export function allTags(config) {
-  return Array.isArray(config?.tags) ? config.tags : [];
+  const list = Array.isArray(config?.tags) ? config.tags : [];
+  return list.length ? list : BUILTIN;
 }
 
 export function tagName(config, id) {

@@ -1000,6 +1000,19 @@ h3 { font-size: 16px; }
 .admin-tag-pick:hover:not(:disabled) { border-color: rgba(197,165,232,.45); color: var(--text); }
 .admin-tag-pick:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 .admin-tag-pick:disabled { opacity: .45; cursor: default; }
+.admin-tag-pick--role {
+  /* 内置身份是二选一，用方角和实心底跟可多选的圆角标签区分开 */
+  border-radius: 7px;
+}
+/* 二选一的那两个和可多选的标签之间画一道竖线，说明它们不是一类 */
+.admin-tag-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  align-self: stretch;
+  min-height: 20px;
+  margin: 0 3px;
+  background: rgba(148,163,184,.22);
+}
 .admin-tag-pick--on {
   border-color: rgba(197,165,232,.6);
   background: rgba(197,165,232,.14);
