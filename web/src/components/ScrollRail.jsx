@@ -76,18 +76,25 @@ export function ScrollRail({ targetRef, deps, className = '', onOverflow }) {
  *
  * 这里在**旋转时**把手势整个接管过来，两个方向都当成滚动。
  *
- * 关键是那句 touch-action: none：不写的话，浏览器在 touchstart 时就自己决定
- * 这一下归它平移，然后发一个 pointercancel 把 pointermove 掐断 —— 处理器看着
- * 是挂上了，真手指下永远走不到。合成事件测不出这一层，因为它绕过了手势仲裁。
+ * 用的是 touch 事件而不是 pointer 事件，这一点是踩出来的：pointer 那条路要求
+ * `touch-action: none` 在 touchstart **之前**就已经挂在元素上，否则浏览器在
+ * touchstart 当场就把这一下判给自己平移，随后发 pointercancel 把 pointermove
+ * 掐断。而首屏 sync() 有可能赶在旋转 transform 渲上去之前跑（此时判定为没转，
+ * 不挂 touch-action），偏偏这个块的布局尺寸两种朝向下完全一样，ResizeObserver
+ * 永远不触发，于是一直纠不回来 —— 在 pointerdown 里补 sync() 也来不及，仲裁
+ * 早于它。非被动 touchmove 里 preventDefault() 不吃这一套：不管 touch-action
+ * 有没有及时挂上，都能把浏览器的平移取消掉。touch-action 仍然照设，属于双保险。
  *
- * 没旋转时完全不插手：原生滚动有惯性和回弹，自己实现只会更差。
+ * 没旋转时完全不插手：原生滚动有惯性和回弹，自己实现只会更差。旋转时原生的被
+ * 我们关掉了，所以补一段简单的惯性 —— 否则手指一松就死住，很别扭。
  */
 function useCrossAxisScroll(ref) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
     let rotated = false;
-    let active = null;
+    let g = null;     // 当前手势
+    let glide = 0;    // 惯性动画
 
     /** 这个块自己的「向下」，在屏幕上指向哪 —— 从累计变换里取 */
     const downVec = () => {
@@ -117,57 +124,83 @@ function useCrossAxisScroll(ref) {
     // 所以再补一帧和一次延时。
     const syncSoon = () => { sync(); requestAnimationFrame(sync); setTimeout(sync, 250); };
     sync();
+    requestAnimationFrame(sync);   // 首屏：transform 可能比 effect 晚一帧
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     window.addEventListener('resize', syncSoon);
     window.addEventListener('orientationchange', syncSoon);
 
-    const down = (e) => {
-      if (e.pointerType === 'mouse') return;          // 鼠标有滚轮，不抢
-      sync();                                          // 以按下这一刻为准，别信缓存
+    const start = (e) => {
+      cancelAnimationFrame(glide);
+      g = null;
+      sync();                                     // 以按下这一刻为准，别信缓存
       if (!rotated) return;
       if (el.scrollHeight <= el.clientHeight + 2) return;
-      const v = downVec();
-      active = { x: e.clientX, y: e.clientY, top: el.scrollTop, moved: false, v };
-      try { el.setPointerCapture(e.pointerId); } catch { /* 捕获不到就靠冒泡 */ }
+      if (e.touches.length !== 1) return;         // 双指留给缩放
+      const t = e.touches[0];
+      g = { x: t.clientX, y: t.clientY, top: el.scrollTop, moved: false,
+            v: downVec(), ts: e.timeStamp, last: el.scrollTop, vel: 0 };
     };
 
     const move = (e) => {
-      if (!active) return;
-      const dx = e.clientX - active.x;
-      const dy = e.clientY - active.y;
-      if (!active.moved && Math.hypot(dx, dy) < 4) return;   // 4px 内当抖动，别吃掉点击
-      active.moved = true;
-      e.preventDefault();
+      if (!g) return;
+      if (e.touches.length !== 1) { g = null; return; }
+      // 第一下就得拦。等过了抖动阈值再拦就晚了 —— 浏览器可能已经开始平移
+      if (e.cancelable) e.preventDefault();
+      const t = e.touches[0];
+      const dx = t.clientX - g.x;
+      const dy = t.clientY - g.y;
+      if (!g.moved && Math.hypot(dx, dy) < 4) return;   // 4px 内当抖动，别吃掉点击
+      g.moved = true;
       // 沿文字方向划（浏览器原来支持的那条），和屏幕竖向划（竖着拿手机时的
       // 本能动作），哪个位移大听哪个。没转的话两者相等，公式自然退化
-      const along = -(dx * active.v.c + dy * active.v.d);
+      const along = -(dx * g.v.c + dy * g.v.d);
       const cross = -dy;
       const delta = Math.abs(along) >= Math.abs(cross) ? along : cross;
-      el.scrollTop = active.top + delta;
+      const max = el.scrollHeight - el.clientHeight;
+      const next = Math.max(0, Math.min(max, g.top + delta));
+      const dt = e.timeStamp - g.ts;
+      if (dt > 0) g.vel = (next - g.last) / dt;         // px/ms，给惯性用
+      g.ts = e.timeStamp;
+      g.last = next;
+      el.scrollTop = next;
     };
 
-    const up = (e) => {
-      if (active?.moved) {
-        // 真滑动过就吞掉随后那次 click，否则翻页逻辑会把这一下当成点击
-        const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
-        el.addEventListener('click', eat, { capture: true, once: true });
-        setTimeout(() => el.removeEventListener('click', eat, { capture: true }), 350);
-      }
-      try { el.releasePointerCapture(e.pointerId); } catch { /* 已自动释放 */ }
-      active = null;
+    const end = () => {
+      if (!g) return;
+      const { moved, vel } = g;
+      g = null;
+      if (!moved) return;
+      // 真滑动过就吞掉随后那次 click，否则翻页逻辑会把这一下当成点击
+      const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      el.addEventListener('click', eat, { capture: true, once: true });
+      setTimeout(() => el.removeEventListener('click', eat, { capture: true }), 350);
+      // 甩一下要接着滑一段。原生惯性被 preventDefault 关掉了，得自己补
+      let v = vel;
+      if (Math.abs(v) < 0.05) return;
+      const max = el.scrollHeight - el.clientHeight;
+      const step = () => {
+        v *= 0.94;
+        if (Math.abs(v) < 0.02) return;
+        const next = Math.max(0, Math.min(max, el.scrollTop + v * 16));
+        if (next === el.scrollTop) return;              // 到头了就停，不做回弹
+        el.scrollTop = next;
+        glide = requestAnimationFrame(step);
+      };
+      glide = requestAnimationFrame(step);
     };
 
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointermove', move, { passive: false });
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
+    el.addEventListener('touchstart', start, { passive: false });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end);
+    el.addEventListener('touchcancel', end);
     return () => {
+      cancelAnimationFrame(glide);
       ro.disconnect();
-      el.removeEventListener('pointerdown', down);
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
+      el.removeEventListener('touchstart', start);
+      el.removeEventListener('touchmove', move);
+      el.removeEventListener('touchend', end);
+      el.removeEventListener('touchcancel', end);
       el.style.touchAction = '';
       window.removeEventListener('resize', syncSoon);
       window.removeEventListener('orientationchange', syncSoon);

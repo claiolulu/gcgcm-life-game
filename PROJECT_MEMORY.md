@@ -135,7 +135,9 @@ npm start
 9. 新增块类型必须**前后端一起改**：`BLOCK_KINDS` 不认识的 kind 会被静默降级成 `'text'`。前端先上线、服务端没重启时，新块一保存就变成空文字块，且编辑器是自动保存的，没有任何报错。
 10. `ScrollBox` 的让道内边距只在真的溢出时加。全局 `box-sizing: border-box`，常驻 padding 会把每一个文字块收窄并重新折行，等于改动所有现成护照页的排版。
 11. **竖屏下签证页整页是 `rotate(90deg)`**，浏览器会把手势映射回元素自己的坐标系：块内滚动在屏幕上变成横向，手指竖划毫无反应。`ScrollBox` 里的 `useCrossAxisScroll` 在旋转时接管手势（两个方向都当滚动），并吞掉随后那次 click 以免被当成翻页；没旋转时完全不插手，把惯性和回弹留给原生滚动。三个坑连在一起：
-    - 必须写 `touch-action: none`，否则浏览器在 touchstart 就判定这一下归它平移，随即发 `pointercancel` 掐断 `pointermove`。**合成事件测不出这一层**（它绕过手势仲裁），只看脚本测试会误判成通过。
+    - **用 touch 事件，不要用 pointer 事件。** pointer 那条路要求 `touch-action: none` 在 touchstart **之前**就已经挂在元素上，否则浏览器当场把这一下判给自己平移并发 `pointercancel` 掐断 `pointermove`；在 `pointerdown` 里补 `sync()` 来不及，手势仲裁早于它。非被动 `touchmove` 里 `preventDefault()` 不吃这一套。`touch-action` 仍然照设，属双保险。
+    - 拦要拦在**第一下** `touchmove`，等过了抖动阈值再拦就晚了。
+    - 旋转时原生惯性被 `preventDefault` 关掉了，得自己补一段（0.94 衰减，到头即停不回弹），否则手指一松就死住。
     - 转屏后必须重算，而且**不能只靠 ResizeObserver**：这个块的布局尺寸在两种朝向下完全一样（页面恒为 1.9:1，变的只是 transform），RO 永远不触发。靠 `resize`/`orientationchange`，且要补一帧加一次延时等 React 把新 transform 渲上去。
     - `pointerdown` 里再 `sync()` 一次，以按下那一刻为准，别信缓存的判定。
 12. 翻页热区是按**元素自己的盒子**算左右四分之一，而各类页面的盒子宽度不同（横屏下身份页那类 `book-flip` 是全屏 812 宽，欢迎页那类只有居中 430 宽）。换算成屏幕坐标时别想当然。横屏下窄页两侧各有约 190px 点了没反应，是已知的体验缺口，尚未处理。
@@ -168,6 +170,12 @@ npm start
   - 补上之后横屏回归：`touch-action` 留在 `none` 不撤，处理器照样插手，原生惯性滚动被废。原因是转屏时 `sync()` 没机会重跑。改为 `resize`/`orientationchange` 各触发一轮（当场 + 下一帧 + 250ms），并在 `pointerdown` 里重算。
   - 验证（隔离端口 3210，线上库副本，同一个未重挂载的 DOM 节点上来回转屏）：竖屏 `touch-action: none`、判定已旋转，`scrollTop` 60 起，竖划上推 40 → 100、下拉 40 → 20、横划右推 40 → 100、左推 40 → 20（两轴对称）；转横屏后内联 `touch-action` 自动清空、计算值回到 `auto`、处理器不再插手；转回竖屏又恢复接管。轻点仍能穿透去翻页（1 次 click），滑动后那次 click 被吞（0 次）。`npm test` 215/215 通过，`vite build` 通过。
   - 顺带查明：翻页热区按元素自身盒子算，横屏下窄页两侧约 190px 是死区（记为注意点 12，未处理）。
+- 再追加（同日，第三轮）：用户反馈真机仍然滚不动。排查顺序：本地 dist 重建后哈希不变（是新的）→ 线上 `index.html` 引用的 bundle 与本地字节一致、且能在压缩产物里读到这次的改动 → 排除部署与 SW 缓存（`registerType: 'autoUpdate'`）→ 确认没有别的全局手势处理器抢。结论是机制本身依赖了一个真机上不成立的前提（见注意点 11 第一条）。改用非被动 `touchstart`/`touchmove` + `preventDefault()`，并补惯性。
+  - **这一轮暴露了验证方法的缺口**：Browser 面板即使按手机尺寸模拟，注入的仍是鼠标事件，而处理器第一行就跳过 `pointerType === 'mouse'`，所以真触屏那条路一次都没被测到过，前两轮的「通过」是假的。之后测触屏交互必须自己构造 `TouchEvent` + `new Touch(...)`，并检查 `defaultPrevented` 确认平移真被拦下。
+  - 另一个坑：Browser 面板整体隐藏时 `document.visibilityState === 'hidden'`，`requestAnimationFrame` **一次都不触发**，任何 rAF 驱动的动画都测不出来（看着像没实现）。验惯性时临时用 `setTimeout` 垫片顶掉 rAF。
+  - 验证（端口 3210，线上库副本，合成 TouchEvent）：竖屏两轴对称，60 起，竖划上推 40 → 100、下拉 40 → 20、横划同样，四次 `defaultPrevented` 均为 true；惯性 132 →164→191→213.5→231.5→ 到底 232.5 停住不回弹；轻点仍穿透去翻页（1 次 click），滑动后那次 click 被吞（0 次）；双指不接管（`scrollTop` 不变、不拦）；转横屏后同一未重挂载的节点上 `touch-action` 自动清空、计算值回到 `auto`、不拦平移也不改 `scrollTop`。`npm test` 215/215，`vite build` 通过。
+  - 部署：前端**已生效**（`express.static` 从磁盘读 `web/dist`，`vite build` 完线上即换新 bundle，无需重启；上一条记录里「线上还没部署」的说法是错的）。服务端未改，未重启。
+  - 真机仍需用户确认 —— 本环境无法注入真实触摸输入，手势仲裁那一层只能在真手机上验。
 - 下一步：
   - 线上总控台若仍显示旧分数，需重新登录或保存一次活动来触发全量同步（纪元修复只管以后）。
   - 用户提出的测试账号清理尚未执行 —— 等用户确认具体删哪几个，删除不可逆。
