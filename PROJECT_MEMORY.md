@@ -212,6 +212,11 @@ npm start
   - 用户详情里两者**合成一张「身份与标签」卡**：前两个内置身份做成二选一的方角片（写 `players.role`），后面自建标签是可多选的圆角片，中间一道竖线分开，文案写明「前两个二选一」。原来的角色下拉去掉了。想让一个人同时吃到两边的活动，就在活动可见范围里把两个标签都勾上。
   - `allTags()` 加兜底：服务端没下发清单时至少返回内置那两个 —— 否则「前端已更新、服务端还没重启」时活动里连普通/同工都选不了，看起来像功能坏了。
   - 验证：隔离实例（3212，空库）上把王五设成 同工 + 学生 + 诗班（一个内置 + 两个自建同时挂上），活动可见范围里内置与自建混选并存成 `tags ["staff","tag-…"]`。`npm test` 242/242。
+- **部署：已执行（2026-09-13 20:05）。** 线上 node 于 20:05 重启到新代码；重启前用 `.backup()` 备份到 `server/data/pre-tags-2026-09-13T20-04-10.db`。数据对账一致：用户 14 / 事件 21 / 报名 2 / 素材 8，四场活动的可见范围都仍是 `all`（没有被误改）。`/api/config` 已下发 `tags`，`/api/admin/tags` 从 404 变 401。
+  - **重启姿势（下次照这个来）**：不要跑 `./scripts/tunnel.sh` —— 它用的是 `cloudflared tunnel --url` 快速隧道（随机域名），会把 `game.claiolulu.com` 换掉。线上跑的是**具名隧道**：`cloudflared tunnel --no-autoupdate --edge-ip-version 4 run --url http://localhost:3000 gcgcm-life-game`。
+  - **踩到的坑**：原来 node 和 cloudflared 都是 `tunnel.sh` 的子进程，`kill` 掉 node，父脚本连带把 cloudflared 也收了，域名 530（error 1033）约一分钟。现在两者是各自独立的 detached 进程（`start_new_session=True`），停一个不会带走另一个。日志在 scratchpad 的 `live-server.log` / `cloudflared.log`。
+  - PIN 全程没有被打印或落盘：从旧进程的环境里原样取出再传给新进程。
+- **教训：冒烟测试模块时必须显式带隔离的 `MLG_DATA_DIR`。** 这次为了验模块能加载跑了 `node -e "import('./server/src/db.js')"`，而 `db.js` 默认数据目录就是 `server/data` —— 线上库。它 import 时会执行 `schema.sql`，于是在生产库上建了 `tags` / `player_tags` 两张空表。这次是纯增量 DDL、没有数据损伤（事件 21→21，用户 13→14 那一个是同工自己建的「测试阿May」），但 `rebuildIfLegacy()` 同样在 import 路径上，条件凑巧满足就会在生产数据上重建表。
 - 未做：同工代报名（上一轮就记着的缺口）；标签排序的拖动（`tags.sort` 列已经有了，目前按提交顺序写）。
 
 #### 2026-09-13 · 活动新增「仅报名的人可见」
