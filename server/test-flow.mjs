@@ -153,9 +153,19 @@ check('错误 PIN 被拒', badPin.status === 401);
     && JSON.stringify(savedAudience.body.activities[0].audienceTags) === '["staff"]',
     JSON.stringify(savedAudience.body.activities[0].audience));
 
-  const anonHidden = await j(`/api/activity/${target.id}`);
-  const normalHidden = await j(`/api/activity/${target.id}`, { headers: playerH });
-  check('同工专属活动对普通用户和匿名访问都隐藏', anonHidden.status === 404 && normalHidden.status === 404);
+  // 落地页**故意不按可见范围拦**：它是二维码入口，拦住就成了打不开的死页，
+  // 而 /api/config 本来就无鉴权地下发全部活动，拦这一下没有任何保密作用。
+  // 够不够资格改用 eligible 表达，报名接口那一关才真的拦。
+  const anonSee = await j(`/api/activity/${target.id}`);
+  const normalSee = await j(`/api/activity/${target.id}`, { headers: playerH });
+  check('同工专属活动的落地页照样打得开（二维码入口不能死）',
+    anonSee.status === 200 && normalSee.status === 200,
+    `匿名 ${anonSee.status} / 普通 ${normalSee.status}`);
+  check('但告诉他们没资格报名', anonSee.body.eligible === false && normalSee.body.eligible === false,
+    JSON.stringify([anonSee.body.eligible, normalSee.body.eligible]));
+  const denied = await j(`/api/activity/${target.id}/signup`, { method: 'POST', headers: playerH });
+  check('真去报名会被拦，而且是 403 不是 404（活动存在，只是不对他开放）',
+    denied.status === 403, `${denied.status} ${JSON.stringify(denied.body)}`);
 
   const roleDenied = await j(`/api/admin/player/${player.id}/role`, {
     method: 'POST', headers: staffH, body: { role: 'staff' },

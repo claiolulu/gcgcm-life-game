@@ -30,7 +30,9 @@ export default function Join() {
       setErr(null);
       setInfo(await api(`/api/activity/${id}`, { token: player.session?.token }));
     } catch (e) {
-      setErr(e.message || '打不开这场活动');
+      // 区分「网断了」和「服务端说没这场活动」—— 两者要给的下一步完全不同。
+      // api() 在网络层失败时把 status 设成 0（见 ApiError.offline）
+      setErr({ offline: e.offline === true || e.status === 0, message: e.message || '打不开这场活动' });
     }
   }, [id, player.session?.token]);
 
@@ -69,11 +71,16 @@ export default function Join() {
   if (err) {
     return (
       <div className="page">
-        <NetBar />
+        <NetBar online={!err.offline} />
         <div className="card stack">
-          <div className="section-title">打不开这场活动</div>
-          <div className="tiny dim">{err}</div>
-          <Link className="btn btn--sm" to="/">回首页</Link>
+          <div className="section-title">{err.offline ? '连不上服务器' : '打不开这场活动'}</div>
+          <div className="tiny dim">
+            {err.offline ? '看看网络，然后下拉刷新重试。' : err.message}
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn btn--sm" onClick={load}>重试</button>
+            <Link className="btn btn--sm btn--ghost" to="/">回首页</Link>
+          </div>
         </div>
       </div>
     );
@@ -133,7 +140,27 @@ export default function Join() {
       </div>
 
       <div className="card stack">
-        {!player.session ? (
+        {info.eligible === false ? (
+          /* 这场活动限定了标签，而这个人（或匿名扫码的人）不在里面。
+             页面照常打开、信息照常看 —— 只是把报名按钮换成一句能照做的说明。
+             之前服务端在这里直接 404，落地页就成了一个打不开的死页 */
+          <>
+            <div className="small">这场活动只对特定标签的成员开放。</div>
+            <div className="tiny dim">
+              {player.session
+                ? '你的护照不在这个名单里。如果觉得是弄错了，找同工把标签加上就行。'
+                : '如果你是受邀的成员，先找回自己的护照再回到这个页面。'}
+            </div>
+            {player.session
+              ? <Link className="btn btn--ghost btn--full" to="/passport">打开我的护照</Link>
+              : (
+                <Link className="btn btn--ghost btn--full" to={`/restore?next=${encodeURIComponent(`/join/${id}`)}`}>
+                  用编号找回护照
+                </Link>
+              )}
+          </>
+        ) :
+        !player.session ? (
           <>
             <div className="small">
               {signupOpen

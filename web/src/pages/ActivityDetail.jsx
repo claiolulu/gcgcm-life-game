@@ -5,7 +5,7 @@ import IconPicker from '../components/IconPicker.jsx';
 import DateField from '../components/DateField.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
-import { copyText } from '../lib/clipboard.js';
+import { copyText, copyImageBlob } from '../lib/clipboard.js';
 import { useConfig, loadConfig, allTags } from '../lib/config.js';
 import { useStaff, allPlayers } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
@@ -72,7 +72,10 @@ export default function ActivityDetail() {
   /* --------------------------- 报名 --------------------------- */
 
   const [signups, setSignups] = useState([]);
-  const joinUrl = `${window.location.origin}/join/${id}`;
+  const qrRef = React.useRef(null);   // 复制二维码要拿到 canvas
+  // 二维码要给参与者扫，所以用服务端下发的分享域名（同工端在 staff. 子域上，
+  // 印着那个域名的码会把人领到同工端入口）。本地开发时服务端给空串，退回自己的 origin
+  const joinUrl = `${config?.shareOrigin || window.location.origin}/join/${id}`;
 
   useEffect(() => {
     if (!token) return;
@@ -449,7 +452,7 @@ export default function ActivityDetail() {
 
         <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ flex: '0 0 auto', background: '#fff', padding: 8, borderRadius: 4 }}>
-            <JoinQR url={joinUrl} />
+            <JoinQR url={joinUrl} canvasRef={qrRef} />
           </div>
           <div className="stack-sm grow" style={{ minWidth: 180 }}>
             <div className="tiny dim">扫不了就发这个链接：</div>
@@ -464,6 +467,23 @@ export default function ActivityDetail() {
               }}
             >
               复制链接
+            </button>
+            <button
+              className="btn btn--sm btn--ghost"
+              onClick={async () => {
+                const canvas = qrRef.current;
+                if (!canvas) return;
+                // **不要先 await**：Safari 要求 clipboard.write 在手势那一刻同步
+                // 发起，等一个 toBlob 回来就晚了。把 Promise 直接交给 ClipboardItem
+                const blob = new Promise((r) => canvas.toBlob(r, 'image/png'));
+                if (await copyImageBlob(blob)) { toast('二维码已复制，可直接粘到微信', 'ok'); return; }
+                // 复制图片要安全上下文（https 或 localhost）。局域网 http:// 打开时
+                // 整个 API 不存在 —— 退一步复制链接，总比什么都没发生好
+                const ok = await copyText(joinUrl);
+                toast(ok ? '这个浏览器复制不了图片，已改为复制链接' : '复制不了，长按二维码自己保存', 'warn');
+              }}
+            >
+              复制二维码
             </button>
             <a className="btn btn--sm btn--ghost" href={joinUrl} target="_blank" rel="noopener noreferrer">
               看看别人扫到什么 →
@@ -560,8 +580,9 @@ export default function ActivityDetail() {
  * 载荷是完整网址而不是护照码那种短串：扫的人多半还没有护照，手机相机得能
  * 直接跳过去。所以点阵会密一些，投影或打印的时候别印太小。
  */
-function JoinQR({ url }) {
-  const ref = React.useRef(null);
+function JoinQR({ url, canvasRef }) {
+  const own = React.useRef(null);
+  const ref = canvasRef || own;
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas || !url) return;
@@ -574,6 +595,7 @@ function JoinQR({ url }) {
       canvas.style.width = '220px';
       canvas.style.height = '220px';
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ref 恒定
   }, [url]);
   return <canvas ref={ref} style={{ width: 220, height: 220, display: 'block' }} />;
 }

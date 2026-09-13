@@ -37,3 +37,28 @@ export async function copyText(text) {
     return false;
   }
 }
+
+/**
+ * 把一张图片放进剪贴板。
+ *
+ * 参数可以是 Blob，也可以是 Promise<Blob> —— 而且**应该**传 Promise：
+ * Safari 要求 clipboard.write 在用户手势那一刻同步发起，先 await 一个
+ * canvas.toBlob 再写就会因为「不是手势里发起的」被拒。ClipboardItem 本身
+ * 接受 Promise，所以把等待推迟到它内部去做。
+ *
+ * 只有 navigator.clipboard.write 这一条路（execCommand 那套复制不了图片），
+ * 它要求安全上下文（https 或 localhost）**并且文档处于聚焦状态**。同工用
+ * 局域网 http:// 地址打开总控台时整个 API 不存在，所以调用方必须准备退路 ——
+ * 返回 false 让它改成复制链接或提示长按保存。
+ */
+export async function copyImageBlob(blobOrPromise, type = 'image/png') {
+  if (!blobOrPromise) return false;
+  try {
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') return false;
+    await navigator.clipboard.write([new ClipboardItem({ [type]: blobOrPromise })]);
+    return true;
+  } catch {
+    // 权限被拒、不支持这个类型、不在安全上下文、或者文档没有焦点
+    return false;
+  }
+}

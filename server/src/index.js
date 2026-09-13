@@ -104,6 +104,22 @@ function staffAuth(role = 'staff') {
 
 /** 活动可见范围使用参与者角色；后台 staff/admin 令牌统一按“同工”处理。 */
 /**
+ * 分享用的域名。
+ *
+ * 同工在 staff.claiolulu.com 上操作总控台，但活动二维码是给参与者扫的 ——
+ * 印着 staff 域名的码会把人领到同工端入口去。所以把 staff. 前缀换成 game.。
+ *
+ * 返回空串表示「前端用自己的 origin」：本地开发和局域网就还是原来那个地址，
+ * 不会被硬塞成线上域名。需要别的域名用 MLG_SHARE_ORIGIN 覆盖。
+ */
+function shareOrigin(req) {
+  if (process.env.MLG_SHARE_ORIGIN) return process.env.MLG_SHARE_ORIGIN;
+  const host = String(req.hostname || '').toLowerCase();
+  if (host.startsWith('staff.')) return `https://game.${host.slice('staff.'.length)}`;
+  return '';
+}
+
+/**
  * 看这一眼的人带着哪些标签。匿名访问按普通成员算。
  *
  * 同工 PIN 令牌没有对应的 players 行，给它 staff 标签就够了 —— 它只用来
@@ -133,9 +149,11 @@ function viewerRole(req) {
 
 app.get('/healthz', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
-app.get('/api/config', (_req, res) => {
+app.get('/api/config', (req, res) => {
   res.json({
     game: GAME,
+    // 二维码和分享链接要拼的域名。见 shareOrigin 的说明
+    shareOrigin: shareOrigin(req),
     activities: getActivities(),
     // 内置两个 + 自建的。前端据此渲染标签条，并在活动可见范围里给出勾选项
     tags: [...BUILTIN_TAGS, ...stmts.allTags.all().map((r) => ({ id: r.id, name: r.name }))],
@@ -1044,9 +1062,14 @@ app.get('/api/admin/activity/:id/materials', staffAuth('admin'), (req, res) => {
  */
 app.get('/api/activity/:id', (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  // 这里用只看角色的那条规则：扫码落地页是报名的入口，
-  // 「报名可见」不能把还没报名的人挡在门外（见 game.js 的说明）
-  if (!a || !activityOpenForSignup(a, viewerTags(req))) return res.status(404).json({ error: '找不到这场活动' });
+  // 这里**不按可见范围拦**。这是二维码落地页，也就是报名的入口：
+  //
+  // 拦住的话，标签不符的人（以及任何还没登录、因此按「普通成员」算的扫码者）
+  // 只会看到一个打不开的页面 —— 而 /api/config 本来就无鉴权地下发全部活动，
+  // 拦这一下一点保密作用都没有，只是把入口堵死。
+  //
+  // 够不够资格报名另外用 eligible 告诉前端，由它把报名按钮换成一句说明。
+  if (!a) return res.status(404).json({ error: '找不到这场活动' });
   const counts = new Map(stmts.signupCounts.all().map((r) => [r.activity_id, r.n]));
   res.json({
     activity: {
@@ -1057,6 +1080,8 @@ app.get('/api/activity/:id', (req, res) => {
     },
     signupCount: counts.get(a.id) || 0,
     registration: activityRegistration(a),
+    // 这个人（可能是匿名）够不够资格报名。不够就只是看不了/报不了，页面照样打开
+    eligible: activityOpenForSignup(a, viewerTags(req)),
   });
 });
 
@@ -1090,8 +1115,12 @@ function activityRegistration(a) {
 /** 报名。已经报过就当没事发生 —— 主键就是 (活动, 人)，天然幂等。 */
 app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  // 同上：报名本身不受「报名可见」限制，否则这一档谁都报不进来
-  if (!a || !activityOpenForSignup(a, playerTagSet(req.player))) return res.status(404).json({ error: '找不到这场活动' });
+  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  // 报名本身不受「报名可见」限制（否则那一档谁都报不进来），但标签不符要拦。
+  // 给 403 而不是 404：活动是存在的，只是不对他开放 —— 说清楚他才知道找谁。
+  if (!activityOpenForSignup(a, playerTagSet(req.player))) {
+    return res.status(403).json({ error: '这场活动只对特定标签的成员开放，你不在名单里。如有疑问请联系同工。' });
+  }
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: registration.message, registration });
@@ -1104,8 +1133,9 @@ app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
 /** 取消报名。人会变卦，别让他只能来找同工改。 */
 app.delete('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
-  // 同上：报名本身不受「报名可见」限制，否则这一档谁都报不进来
-  if (!a || !activityOpenForSignup(a, playerTagSet(req.player))) return res.status(404).json({ error: '找不到这场活动' });
+  // 取消报名**不看标签**：已经报上的人永远能把自己撤下来。
+  // 万一标签后来被改掉，他既看不到也退不掉，那就只能来麻烦同工
+  if (!a) return res.status(404).json({ error: '找不到这场活动' });
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: '报名已经截止，不能再取消。如需变更请联系同工。', registration });

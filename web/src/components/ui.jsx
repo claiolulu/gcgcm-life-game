@@ -147,7 +147,13 @@ function ago(ts) {
  * 界面就是没有界面。
  */
 export function NetBar({ online, syncing, pending = 0, lastSyncedAt }) {
-  const show = pending > 0 || !online || syncing;
+  // online 没传时按「在线」算 —— 不能让 undefined 的 falsy 当成离线。
+  // 有几个页面（活动详情、扫码落地页）不关心同步状态，只是想占个位置，
+  // 原来它们会常驻一条假的「📴 离线模式」，看起来像整个站挂了。
+  const isOnline = online === undefined
+    ? (typeof navigator === 'undefined' ? true : navigator.onLine)
+    : online;
+  const show = pending > 0 || !isOnline || syncing;
 
   // 只有真的在显示「停留在 X 分钟前」时才需要这个计时器；
   // 平时不留一个每 5 秒重渲染整页的定时器。
@@ -162,11 +168,11 @@ export function NetBar({ online, syncing, pending = 0, lastSyncedAt }) {
     return (
       <div className="netbar netbar--pending">
         <span className="pulse" />
-        {online ? `正在上传 ${pending} 个章…` : `已离线盖了 ${pending} 个章，联网后自动上传`}
+        {isOnline ? `正在上传 ${pending} 个章…` : `已离线盖了 ${pending} 个章，联网后自动上传`}
       </div>
     );
   }
-  if (!online) {
+  if (!isOnline) {
     return (
       <div className="netbar netbar--offline">
         📴 离线模式 · 数据停留在 {ago(lastSyncedAt)}，盖章照常可用
