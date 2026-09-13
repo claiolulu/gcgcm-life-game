@@ -96,7 +96,10 @@ function useCrossAxisScroll(ref) {
     let g = null;     // 当前手势
     let glide = 0;    // 惯性动画
 
-    /** 这个块自己的「向下」，在屏幕上指向哪 —— 从累计变换里取 */
+    /**
+     * 这个块自己的「向下」在屏幕上指向哪，外加整体缩放了多少 —— 从累计变换里取。
+     * 返回单位方向和缩放系数：局部 1px 在屏幕上占 s px。
+     */
     const downVec = () => {
       let n = el;
       let m = new DOMMatrix();
@@ -106,14 +109,16 @@ function useCrossAxisScroll(ref) {
         n = n.parentElement;
       }
       // 本地 (0,1) 经过变换后落在 (c, d)
-      return { c: m.c, d: m.d };
+      const s = Math.hypot(m.c, m.d) || 1;
+      return { c: m.c / s, d: m.d / s, s };
     };
 
     const sync = () => {
-      const r = el.getBoundingClientRect();
-      // 布局的宽高和屏幕上的宽高对调了，就是转了 90°
-      rotated = Math.abs(r.width - el.offsetHeight) < 3 && Math.abs(r.height - el.offsetWidth) < 3
-        && el.offsetWidth !== el.offsetHeight;
+      // 用变换矩阵判，**不要比宽高**：护照整册可能被整体缩放以适配屏幕，
+      // 那时布局宽高和屏幕宽高对不上，比绝对差会把旋转判成没旋转。
+      // 局部的「向下」在屏幕上主要指向横向 —— 那就是转了 90°。
+      const v = downVec();
+      rotated = Math.abs(v.c) > Math.abs(v.d);
       // 只有接管的时候才拦手势。没转就还给浏览器，保住惯性滚动
       el.style.touchAction = rotated ? 'none' : '';
     };
@@ -122,9 +127,10 @@ function useCrossAxisScroll(ref) {
     // 在两种朝向下完全一样（页面恒为 1.9:1，变的只是 transform），RO 永远
     // 不会触发。而 resize 事件到达时 React 往往还没把新的 transform 渲上去，
     // 所以再补一帧和一次延时。
+    // rAF 那一发在后台标签页里**根本不触发**，所以再挂一个 setTimeout 兜底；
+    // 首屏也走同一条路 —— transform 可能比 effect 晚落定
     const syncSoon = () => { sync(); requestAnimationFrame(sync); setTimeout(sync, 250); };
-    sync();
-    requestAnimationFrame(sync);   // 首屏：transform 可能比 effect 晚一帧
+    syncSoon();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     window.addEventListener('resize', syncSoon);
@@ -154,8 +160,9 @@ function useCrossAxisScroll(ref) {
       g.moved = true;
       // 沿文字方向划（浏览器原来支持的那条），和屏幕竖向划（竖着拿手机时的
       // 本能动作），哪个位移大听哪个。没转的话两者相等，公式自然退化
-      const along = -(dx * g.v.c + dy * g.v.d);
-      const cross = -dy;
+      // 除以缩放：手指走的是屏幕像素，滚动要的是内容像素，缩放过就不是 1:1
+      const along = -(dx * g.v.c + dy * g.v.d) / g.v.s;
+      const cross = -dy / g.v.s;
       const delta = Math.abs(along) >= Math.abs(cross) ? along : cross;
       const max = el.scrollHeight - el.clientHeight;
       const next = Math.max(0, Math.min(max, g.top + delta));
@@ -219,7 +226,16 @@ export default function ScrollBox({ children, style, className = '', railClassNa
   const onOverflow = useCallback((v) => setOver((prev) => (prev === v ? prev : v)), []);
   return (
     <div className={`scroll-box ${className}`.trim()} style={{ position: 'relative', ...style }}>
-      <div ref={ref} className={`scroll-box__body${over ? ' scroll-box__body--over' : ''}`}>
+      {/*
+        签证页的块层整层是 pointerEvents: 'none'（见 VisaBlocks —— 否则一张铺满
+        页面的背景图会把翻页吃掉），所以这个盒子默认**不是命中目标**：手指落下
+        去，目标是上面那层翻页层，我们挂在这里的手势监听一次都不会被调用，浏览器
+        自己的原生滚动也同样滚不动。`pointer-events` 是可继承属性，后代能改回
+        `auto` 把命中要回来 —— 但只在真的装不下时要，否则这么大一块地方会把翻页
+        的点击吞掉。装得下的块仍然整块穿透。
+      */}
+      <div ref={ref} className={`scroll-box__body${over ? ' scroll-box__body--over' : ''}`}
+        style={{ pointerEvents: over ? 'auto' : 'none' }}>
         {children}
       </div>
       <ScrollRail targetRef={ref} className={railClassName} deps={deps} onOverflow={onOverflow} />
