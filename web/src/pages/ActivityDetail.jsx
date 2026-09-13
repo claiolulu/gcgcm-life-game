@@ -6,7 +6,7 @@ import DateField from '../components/DateField.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText, copyImageBlob } from '../lib/clipboard.js';
-import { useConfig, loadConfig, allTags } from '../lib/config.js';
+import { useConfig, loadConfig, allTags, activityVisibleTo, playerTags } from '../lib/config.js';
 import { useStaff, allPlayers, queueOp, settleOps, issueFor } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import { onTick } from '../lib/realtime.js';
@@ -107,11 +107,34 @@ export default function ActivityDetail() {
     }
   }
 
-  /** 还没签到的报名者 */
-  const pendingCheckIn = useMemo(
-    () => signups.filter((p) => !players.find((x) => x.id === p.id)?.stations?.[id]),
-    [signups, players, id],
-  );
+  /* ---- 签到名单：并在「👥 已参加」框里 ----
+   *
+   * 列的是**所有能看到这场活动的人**，不只是报名者。实际用法是不报名直接
+   * 来盖章（第一次团契 0 报名 / 8 个章），只列报名者的话这一框基本是空的。
+   */
+  const [ciQuery, setCiQuery] = useState('');
+  // 可见范围用已经保存到服务端的那份判 —— 草稿里还没保存的改动服务端不认，
+  // 按草稿列人会列出盖不上章的人
+  const savedActivity = useMemo(
+    () => (config?.activities || []).find((a) => a.id === id), [config, id]);
+  const eligiblePlayers = useMemo(() => players.filter((p) => !savedActivity
+    || activityVisibleTo(savedActivity, playerTags(p), p.signups || [])), [players, savedActivity]);
+  const hiddenByAudience = players.length - eligiblePlayers.length;
+  const checkInRoster = useMemo(() => {
+    const kw = ciQuery.trim().toLowerCase();
+    const tags = allTags(config);
+    const signedIds = new Set(signups.map((s) => s.id));
+    return eligiblePlayers
+      // 标签名一起搜：敲「团契」再点一键全签到，就是给一整组签到
+      .filter((p) => !kw || [p.name, p.code, p.contact,
+        ...(p.tags || []).map((x) => tags.find((tg) => tg.id === x)?.name || '')]
+        .some((v) => String(v || '').toLowerCase().includes(kw)))
+      .map((p) => ({ ...p, done: !!p.stations?.[id], signed: signedIds.has(p.id) || (p.signups || []).includes(id) }))
+      // 顺序只看「报没报名」和编号，**不看签没签** —— 按签到状态排的话，
+      // 点一下那一行就跳到底下去了，门口一路往下点会点错人
+      .sort((a, b) => (b.signed - a.signed) || String(a.code).localeCompare(String(b.code)));
+  }, [eligiblePlayers, ciQuery, config, signups, id]);
+  const pendingCheckIn = useMemo(() => checkInRoster.filter((p) => !p.done), [checkInRoster]);
 
   /**
    * 一键全签到。
@@ -123,7 +146,7 @@ export default function ActivityDetail() {
   async function checkInAll() {
     if (!pendingCheckIn.length) return;
     const ok = await ask({
-      title: `给还没签到的 ${pendingCheckIn.length} 人全部签到？`,
+      title: `给${ciQuery.trim() ? `搜到的「${ciQuery.trim()}」里` : '列表里'}还没签到的 ${pendingCheckIn.length} 人全部签到？`,
       body: '章盖下去就撤不掉了 —— 那是一条写进记录的事实，不是可以来回拨的开关。'
         + '只会给还没签到的人盖，已经签到的不动。',
     });
@@ -574,28 +597,12 @@ export default function ActivityDetail() {
         </div>
 
         {signups.length > 0 && (
-          <>
-          <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div className="tiny dim grow">
-              签到就是盖章 —— 和同工扫码盖的是同一个章，一场只盖一次。
-            </div>
-            <button
-              type="button"
-              className="btn btn--sm btn--primary"
-              style={{ flex: '0 0 auto' }}
-              disabled={!!checking || pendingCheckIn.length === 0}
-              onClick={checkInAll}
-            >
-              {checking === 'all' ? '签到中…'
-                : pendingCheckIn.length ? `一键全签到（${pendingCheckIn.length}）` : '都签到了'}
-            </button>
-          </div>
           <div className="stack-sm">
             {signups.map((p) => {
               const came = !!attended.find((x) => x.id === p.id);
               return (
                 <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
-                  <Avatar avatar={p.avatar} size={26} />
+                  <Avatar config={p.avatar} size={26} />
                   <div className="grow" style={{ minWidth: 0 }}>
                     <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {p.name}
@@ -610,54 +617,71 @@ export default function ActivityDetail() {
                       </button>
                     )}
                   </div>
-                  {came ? (
-                    <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已签到 ✓</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn--sm"
-                      style={{ flex: '0 0 auto' }}
-                      disabled={!!checking}
-                      onClick={() => checkIn(p)}
-                    >
-                      {checking === p.id ? '…' : '签到'}
-                    </button>
-                  )}
+                  <span className="tiny" style={{ flex: '0 0 auto', color: came ? 'var(--green)' : 'var(--text-3)' }}>
+                    {came ? '来了 ✓' : '待到场'}
+                  </span>
                 </div>
               );
             })}
             {/* 报了名没来的人，是活动结束之后最该被问一句的那批 */}
             <div className="tiny dim">
-              报名 {signups.length} 人，已签到 {signups.length - pendingCheckIn.length} 人。
-              没报名就来的人，在「👥 用户」里找到他、或者直接扫他的码盖章。
+              报名 {signups.length} 人，到场 {signups.filter((p) => attended.find((x) => x.id === p.id)).length} 人。
+              签到在「👥 已参加」那一框里。
             </div>
           </div>
-          </>
         )}
       </div>
       </div>
 
       <div className="cell-stack">
-      {/* 谁来了 */}
+      {/* 谁来了 + 签到：同一个框。已签的和还没签的在一张表里，
+          门口点名的时候不用在两处之间来回切 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">
           👥 已参加（{attended.length}）
         </div>
-        {attended.length === 0 ? (
-          <div className="tiny dim">还没有人在这一场盖章。同工扫码盖了章，这里就会出现。</div>
+        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <input
+            className="input grow"
+            type="search"
+            value={ciQuery}
+            onChange={(e) => setCiQuery(e.target.value)}
+            placeholder="搜名字、编号或标签"
+            aria-label="搜索要签到的人"
+          />
+          <button
+            type="button"
+            className="btn btn--sm btn--primary"
+            style={{ flex: '0 0 auto' }}
+            disabled={!!checking || pendingCheckIn.length === 0}
+            onClick={checkInAll}
+          >
+            {checking === 'all' ? '签到中…'
+              : pendingCheckIn.length ? `一键全签到（${pendingCheckIn.length}）` : '都签到了'}
+          </button>
+        </div>
+        <div className="tiny dim">
+          签到就是盖章 —— 和同工扫码盖的是同一个章，一场只盖一次，盖下去撤不掉。
+          {ciQuery.trim() ? '一键全签到只作用于当前搜到的人。' : '先搜一个标签名，就能一键签一整组。'}
+          {hiddenByAudience > 0 ? ` 另有 ${hiddenByAudience} 人不在这场的可见范围里，没有列出。` : ''}
+        </div>
+        {checkInRoster.length === 0 ? (
+          <div className="tiny dim">{ciQuery.trim() ? `没有匹配「${ciQuery.trim()}」的人` : '还没有人领护照。'}</div>
         ) : (
           /* 单独占一摞，所以给得起高度；再多就自己滚，不会把整页拉长 */
           <div className="stack-sm attend-list">
-            {attended.map((p) => (
+            {checkInRoster.map((p) => (
               <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
-                <Avatar avatar={p.avatar} size={28} />
+                <Avatar config={p.avatar} size={28} />
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {p.name}
+                    {p.signed && <span className="tiny dim" style={{ fontWeight: 400 }}> · 已报名</span>}
                   </div>
                   <div className="tiny dim">
-                    {p.code} · {ago(p.stamp.at)}
-                    {p.stamp.operator ? ` · ${p.stamp.operator} 盖的` : ''}
+                    {p.code}
+                    {p.done ? ` · ${ago(p.stations[id].at)}` : ''}
+                    {p.done && p.stations[id].operator ? ` · ${p.stations[id].operator} 盖的` : ''}
                   </div>
                   {p.contact && (
                     <button type="button" className="tiny signup-contact copy-text"
@@ -666,6 +690,19 @@ export default function ActivityDetail() {
                     </button>
                   )}
                 </div>
+                {p.done ? (
+                  <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已签到 ✓</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn--sm"
+                    style={{ flex: '0 0 auto' }}
+                    disabled={!!checking}
+                    onClick={() => checkIn(p)}
+                  >
+                    {checking === p.id ? '…' : '签到'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
