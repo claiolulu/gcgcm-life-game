@@ -4,6 +4,7 @@ import Avatar from '../components/Avatar.jsx';
 import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText } from '../lib/clipboard.js';
+import { ScrollRail } from '../components/ScrollRail.jsx';
 import { useConfig, loadConfig, activityVisibleTo } from '../lib/config.js';
 import { onTick } from '../lib/realtime.js';
 import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp, issueFor } from '../lib/staff.js';
@@ -19,63 +20,6 @@ const ACT_AUDIENCE = {
   normal: { label: '普通专属', className: 'admin-activity__audience--normal' },
   staff: { label: '同工专属', className: 'admin-activity__audience--staff' },
 };
-
-/**
- * 列表右边那根滑杆。
- *
- * 只负责「告诉你还能滑」和「滑到哪了」，不接受拖拽 —— 滚动仍然靠手指和
- * 滚轮。原生滚动条在手机上根本不显示（iOS、微信 WebView 都是滚动时才
- * 短暂出现），而这个列表是封了高的，不给个东西指着，没人知道下面还有人。
- *
- * 内容没超出时整根隐藏：一根永远填满的滑杆等于没说。
- */
-function ScrollRail({ targetRef, deps }) {
-  const [rail, setRail] = useState(null);   // null = 不用显示
-
-  useEffect(() => {
-    const el = targetRef.current;
-    if (!el) return undefined;
-
-    const measure = () => {
-      const { scrollHeight, clientHeight, scrollTop } = el;
-      // 高度为 0 说明这会儿量不准（标签页在后台、父容器还没排版完），
-      // 这时候算出来的比例是错的，宁可先不显示，等下一次再量
-      if (!clientHeight) return;
-      const over = scrollHeight - clientHeight;
-      if (over <= 2) { setRail(null); return; }
-      // 滑块长度按「看得见的比例」算，和真滚动条一个道理
-      const ratio = clientHeight / scrollHeight;
-      setRail({
-        size: Math.max(ratio * 100, 12),          // 百分比，太短了不好看
-        // 剩下的轨道长度按已滚比例分配，滚到底时滑块正好贴底
-        pos: (scrollTop / over) * (100 - Math.max(ratio * 100, 12)),
-        end: scrollTop >= over - 2,
-      });
-    };
-
-    measure();
-    // 首帧常常还没排好版（尤其是刚从后台切回来），再补量一次
-    const raf = requestAnimationFrame(measure);
-    el.addEventListener('scroll', measure, { passive: true });
-    window.addEventListener('resize', measure);
-    // 列表本身高度固定，内容变高不会触发它的 resize，所以连内容一起观察
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    if (el.firstElementChild) ro.observe(el.firstElementChild);
-    return () => {
-      cancelAnimationFrame(raf);
-      el.removeEventListener('scroll', measure);
-      window.removeEventListener('resize', measure);
-      ro.disconnect();
-    };
-  }, [targetRef, deps]);
-
-  return (
-    <div className={`list-rail ${rail ? 'list-rail--on' : ''} ${rail?.end ? 'list-rail--end' : ''}`} aria-hidden="true">
-      {rail && <div className="list-rail__thumb" style={{ height: `${rail.size}%`, top: `${rail.pos}%` }} />}
-    </div>
-  );
-}
 
 export default function Admin() {
   const nav = useNavigate();

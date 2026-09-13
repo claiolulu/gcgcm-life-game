@@ -1,4 +1,5 @@
 import React, { useLayoutEffect, useRef } from 'react';
+import ScrollBox from '../../components/ScrollRail.jsx';
 
 /**
  * 签证页的正文 —— 一张块的清单。
@@ -228,8 +229,15 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
       );
 
     case 'note':
+      // 备注是同工自己写的，长度没有上限 —— 原来 overflow: hidden，写多了
+      // 后面几行直接被裁掉，页面上一点痕迹都没有，写的人还以为印上了。
+      // 现在装不下就能滚，右边那根滑杆负责说「下面还有」。
       return (
-        <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+        <ScrollBox
+          style={{ width: '100%', height: '100%' }}
+          railClassName="list-rail--visa"
+          deps={`${data.desc || ''}|${b.h}`}
+        >
           {inlineEditing ? (
             <InlineValue value={b.label} field="label" blockId={b.id} maxLength={30}
               placeholder="ANNOTATION 备注" onTextChange={onTextChange}
@@ -243,7 +251,7 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
                 placeholder="直接输入备注" onTextChange={onTextChange} />
             ) : data.desc}
           </div>
-        </div>
+        </ScrollBox>
       );
 
     case 'photo':
@@ -317,20 +325,24 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
     case 'text':
     default:
       return (
-        <div style={{
-          width: '100%', height: '100%',
-          fontFamily: FONTS[b.font] || FONTS.sans,
-          fontSize: `${b.size || 4}cqh`,
-          lineHeight: b.lh || 1.5,
-          fontWeight: b.bold ? 700 : 400,
-          textAlign: b.align || 'left',
-          color: b.color || 'var(--pp-text)',
-          outline: 'none', cursor: inlineEditing ? 'text' : undefined,
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
-        }}>{inlineEditing ? (
+        <ScrollBox
+          railClassName="list-rail--visa"
+          deps={`${b.text || ''}|${b.h}|${b.size}|${b.lh}`}
+          style={{
+            width: '100%', height: '100%',
+            fontFamily: FONTS[b.font] || FONTS.sans,
+            fontSize: `${b.size || 4}cqh`,
+            lineHeight: b.lh || 1.5,
+            fontWeight: b.bold ? 700 : 400,
+            textAlign: b.align || 'left',
+            color: b.color || 'var(--pp-text)',
+            outline: 'none', cursor: inlineEditing ? 'text' : undefined,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}
+        >{inlineEditing ? (
           <InlineValue as="div" multiline value={b.text} field="text" blockId={b.id}
             placeholder="直接输入文字" onTextChange={onTextChange} />
-        ) : b.text}</div>
+        ) : b.text}</ScrollBox>
       );
   }
 }

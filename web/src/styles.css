@@ -699,6 +699,32 @@ h3 { font-size: 16px; }
 .copy-text:active { opacity: .6; }
 .copy-text:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+/* ScrollBox：装不下就自己滚，右边留出滑杆的道 */
+.scroll-box { overflow: hidden; }
+.scroll-box__body {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+/* 装得下就不留这几个像素 —— 见 ScrollBox 里的说明 */
+.scroll-box__body--over { padding-right: 7px; }
+/* 原生滚动条藏掉，右边那根是自己画的，两根并排很难看 */
+.scroll-box__body::-webkit-scrollbar { width: 0; height: 0; }
+
+/* 签证页上那根：护照是纸色的，深蓝滑块在上面像脏点，得用护照自己的主色。
+   也细一点 —— 那是一张设计过的纸，不是一个列表 */
+.list-rail--visa {
+  width: 4px;
+  background: rgba(var(--pp-ink-rgb), .12);
+}
+.list-rail--visa .list-rail__thumb {
+  min-height: 14px;
+  background: rgba(var(--pp-ink-rgb), .48);
+}
+.list-rail--visa.list-rail--end .list-rail__thumb { background: rgba(var(--pp-ink-rgb), .55); }
+
 /* 名单里的联系方式：比编号亮一点，因为这是要照着抄下来去找人的那一行 */
 .signup-contact {
   color: var(--text-2);
