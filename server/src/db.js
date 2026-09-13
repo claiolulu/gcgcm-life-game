@@ -188,6 +188,38 @@ function bannerBrand(b, activity) {
 }
 
 /**
+ * 内置标签：仍然由 players.role 派生，不进 tags 表。
+ * id 被占用，自建标签不能用这两个（也不能用 all / signed / tags）。
+ */
+export const BUILTIN_TAGS = [
+  { id: 'normal', name: '普通成员', builtin: true },
+  { id: 'staff', name: '同工', builtin: true },
+];
+export const RESERVED_TAG_IDS = new Set(['all', 'signed', 'tags', 'normal', 'staff']);
+
+/**
+ * 可见范围规整到 { audience, audienceTags } 两个字段。
+ *
+ * 老数据里 audience 是单值 'normal' / 'staff'，迁成 tags 模式挂上同名内置标签
+ * —— getActivities 会把规整结果写回库，所以迁移只发生一次。
+ */
+export function normalizeAudience(a) {
+  const tags = Array.isArray(a?.audienceTags)
+    ? [...new Set(a.audienceTags.map((x) => String(x || '').trim()).filter(Boolean))].slice(0, 24)
+    : [];
+  if (a?.audience === 'signed') return { audience: 'signed', audienceTags: [] };
+  if (a?.audience === 'normal' || a?.audience === 'staff') {
+    return { audience: 'tags', audienceTags: [a.audience] };
+  }
+  // 选了 tags 但一个都没勾，等于没限制 —— 否则这场活动谁都看不见，
+  // 而同工只会觉得活动凭空消失了
+  if (a?.audience === 'tags') {
+    return tags.length ? { audience: 'tags', audienceTags: tags } : { audience: 'all', audienceTags: [] };
+  }
+  return { audience: 'all', audienceTags: [] };
+}
+
+/**
  * 当前的活动清单。总控台改过就用库里的，没改过就是 config.js 的默认值。
  *
  * 不放进 getSettings() 一起返回：它是个数组，而 settings 那个对象
@@ -202,7 +234,7 @@ export function getActivities() {
   const normalized = out.map((a) => ({
     ...a,
     state: a?.state || 'upcoming',
-    audience: ['normal', 'staff', 'signed'].includes(a?.audience) ? a.audience : 'all',
+    ...normalizeAudience(a),
     date: normalizeActivityDate(a?.date),
     // 已经保存过版式的活动，栏目标题也要从旧「控制号」迁移成「编号」。
     ...(Array.isArray(a?.blocks) ? {
@@ -332,6 +364,17 @@ export const stmts = {
   `),
   signupCounts: db.prepare('SELECT activity_id, COUNT(*) AS n FROM signups GROUP BY activity_id'),
   signupsOf: db.prepare('SELECT activity_id FROM signups WHERE player_id = ?'),
+  /* ---------------------------- 自建标签 ---------------------------- */
+  allTags: db.prepare('SELECT id, name, sort FROM tags ORDER BY sort, name'),
+  insertTag: db.prepare('INSERT INTO tags (id, name, sort, created_at) VALUES (?, ?, ?, ?)'),
+  updateTag: db.prepare('UPDATE tags SET name = ?, sort = ? WHERE id = ?'),
+  deleteTag: db.prepare('DELETE FROM tags WHERE id = ?'),
+  tagsOf: db.prepare('SELECT tag_id FROM player_tags WHERE player_id = ?'),
+  // 花名册/排行榜要给每个人算可见活动，逐人查会是 N 次往返；一次拉全再分组
+  allPlayerTags: db.prepare('SELECT player_id, tag_id FROM player_tags'),
+  addPlayerTag: db.prepare(
+    'INSERT OR IGNORE INTO player_tags (player_id, tag_id, created_at) VALUES (?, ?, ?)'),
+  clearPlayerTags: db.prepare('DELETE FROM player_tags WHERE player_id = ?'),
   // 花名册和排行榜要给每个人算一遍可见活动，逐人查报名会是 N 次往返；
   // 一次拉全再在内存里按人分组
   allSignups: db.prepare('SELECT activity_id, player_id FROM signups'),

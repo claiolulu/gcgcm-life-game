@@ -90,3 +90,28 @@ CREATE TABLE IF NOT EXISTS activity_materials (
 );
 CREATE INDEX IF NOT EXISTS materials_activity ON activity_materials(activity_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS materials_player   ON activity_materials(player_id, activity_id, created_at DESC);
+
+-- 自建标签。
+--
+-- 「普通成员 / 同工」这两个不在这张表里 —— 它们仍然由 players.role 派生，
+-- 当作两个内置标签用。这样既不用动 role 那一列（导出、花名册、总控台的
+-- 角色下拉都还指着它），又能让一个人同时挂任意多个自建标签。
+--
+-- 一个人的**有效标签集** = {role} ∪ player_tags 里的自建标签。
+-- 活动的可见范围就是拿这个集合去求交集（见 game.js 的 activityVisibleTo）。
+CREATE TABLE IF NOT EXISTS tags (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  -- 排序用，总控台里拖动或新增时写入
+  sort       INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+-- 谁挂了哪些自建标签。主键是 (人, 标签)，所以重复挂天然幂等。
+CREATE TABLE IF NOT EXISTS player_tags (
+  player_id  TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  tag_id     TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (player_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS player_tags_tag ON player_tags(tag_id);

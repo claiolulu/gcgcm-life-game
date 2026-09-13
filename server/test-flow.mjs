@@ -146,8 +146,12 @@ check('错误 PIN 被拒', badPin.status === 401);
   const savedAudience = await j('/api/admin/activities', {
     method: 'POST', headers: adminH, body: { activities: restricted },
   });
-  check('活动能标成仅同工可见', savedAudience.status === 200
-    && savedAudience.body.activities[0].audience === 'staff');
+  // 旧写法 audience:'staff' 会被迁成 tags 模式挂上内置的 staff 标签，
+  // 行为不变（下面那条隐藏断言仍然成立），但存储形状变了
+  check('活动能标成仅同工可见（旧值迁成 tags 模式）', savedAudience.status === 200
+    && savedAudience.body.activities[0].audience === 'tags'
+    && JSON.stringify(savedAudience.body.activities[0].audienceTags) === '["staff"]',
+    JSON.stringify(savedAudience.body.activities[0].audience));
 
   const anonHidden = await j(`/api/activity/${target.id}`);
   const normalHidden = await j(`/api/activity/${target.id}`, { headers: playerH });
@@ -851,6 +855,122 @@ check('错误 PIN 被拒', badPin.status === 401);
 
   // 还原
   await j(`/api/activity/${TARGET}/signup`, { method: 'DELETE', headers: playerH });
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
+// 26. 自建标签：一个人可以挂多个，活动按标签可见
+{
+  const playerH = { authorization: `Bearer ${playerToken}` };
+  const base = (await j('/api/config')).body.activities;
+
+  const cfg0 = await j('/api/config');
+  check('配置里带着标签清单，内置两个',
+    (cfg0.body.tags || []).filter((x) => x.builtin).map((x) => x.id).join(',') === 'normal,staff',
+    JSON.stringify(cfg0.body.tags));
+
+  const made = await j('/api/admin/tags', {
+    method: 'POST', headers: adminH, body: { tags: [{ name: '学生' }, { name: '新朋友' }] },
+  });
+  check('能新增标签', made.status === 200 && (made.body.tags || []).length === 2,
+    JSON.stringify(made.body));
+  const stu = made.body.tags.find((x) => x.name === '学生').id;
+  const fresh = made.body.tags.find((x) => x.name === '新朋友').id;
+
+  const reserved = await j('/api/admin/tags', {
+    method: 'POST', headers: adminH, body: { tags: [{ name: 'staff' }] },
+  });
+  check('保留名当标签名被拒', reserved.status === 400, JSON.stringify(reserved.body));
+  const dup = await j('/api/admin/tags', {
+    method: 'POST', headers: adminH, body: { tags: [{ name: '甲' }, { name: '甲' }] },
+  });
+  check('同名标签被拒', dup.status === 400, JSON.stringify(dup.body));
+
+  // 挂两个标签
+  const tagged = await j(`/api/admin/player/${player.id}/tags`, {
+    method: 'POST', headers: adminH, body: { tags: [stu, fresh] },
+  });
+  check('一个人能同时挂多个标签', tagged.status === 200
+    && (tagged.body.player.tags || []).length === 2, JSON.stringify(tagged.body.player?.tags));
+
+  // 两场活动各限定一个标签 —— 命中任一就该看得见
+  const restricted = base.map((a) => {
+    if (a.id === 'easter') return { ...a, audience: 'tags', audienceTags: [stu] };
+    if (a.id === 'serve') return { ...a, audience: 'tags', audienceTags: [fresh] };
+    return { ...a, audience: 'all', audienceTags: [] };
+  });
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: restricted } });
+
+  const mine = await j('/api/me', { headers: playerH });
+  check('挂了标签的人，两场限定活动都看得见',
+    mine.body.player.stationsTotal === base.length,
+    `分母 ${mine.body.player.stationsTotal} / 共 ${base.length}`);
+
+  // 另开一个没标签的人做对照
+  const other = await j('/api/register', { method: 'POST', body: { name: '没标签的人' } });
+  const otherMe = await j('/api/me', { headers: { authorization: `Bearer ${other.body.token}` } });
+  check('没标签的人看不到那两场',
+    otherMe.body.player.stationsTotal === base.length - 2,
+    `分母 ${otherMe.body.player.stationsTotal}`);
+
+  // 没标签的人盖不上，理由要提标签
+  const blocked = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH,
+    body: { ops: [{ opId: 'op-tag-001', type: 'score', playerId: other.body.player.id,
+                    stationId: 'easter', points: 1, checkin: true }], since: 0 },
+  });
+  check('标签不符的人盖不上章', blocked.body.results[0].status === 'error',
+    JSON.stringify(blocked.body.results[0]));
+  check('拒绝理由提到标签', String(blocked.body.results[0].message || '').includes('标签'),
+    blocked.body.results[0].message);
+
+  // 改名不丢挂载
+  const renamed = await j('/api/admin/tags', {
+    method: 'POST', headers: adminH,
+    body: { tags: [{ id: stu, name: '学生们' }, { id: fresh, name: '新朋友' }] },
+  });
+  check('改名成功', renamed.status === 200
+    && renamed.body.tags.find((x) => x.id === stu)?.name === '学生们');
+  const afterRename = await j('/api/me', { headers: playerH });
+  check('改名不影响挂载', (afterRename.body.player.tags || []).includes(stu));
+
+  // 删掉「学生」：挂载要清掉，而且用它限定的活动要退回所有人可见
+  const epochBefore = (await j('/api/staff/sync', {
+    method: 'POST', headers: staffH, body: { ops: [], since: 0 },
+  })).body.epoch;
+  const dropped = await j('/api/admin/tags', {
+    method: 'POST', headers: adminH, body: { tags: [{ id: fresh, name: '新朋友' }] },
+  });
+  check('删标签后清单里只剩一个', (dropped.body.tags || []).length === 1);
+  check('删标签会递增纪元（一批人的可见活动变了）', dropped.body.epoch !== epochBefore,
+    `${epochBefore} → ${dropped.body.epoch}`);
+
+  const afterDrop = await j('/api/me', { headers: playerH });
+  check('删掉的标签从人身上一并取下', !(afterDrop.body.player.tags || []).includes(stu),
+    JSON.stringify(afterDrop.body.player.tags));
+
+  const acts = (await j('/api/config')).body.activities;
+  const easter = acts.find((a) => a.id === 'easter');
+  check('用它限定可见范围的活动退回所有人可见，而不是谁都看不见',
+    easter.audience === 'all' && (easter.audienceTags || []).length === 0,
+    `${easter.audience} ${JSON.stringify(easter.audienceTags)}`);
+
+  // serve 仍限定「新朋友」，而这个人还挂着它
+  const stillSees = await j('/api/me', { headers: playerH });
+  check('另一个标签不受影响，仍然命中',
+    stillSees.body.player.stationsTotal === base.length,
+    `分母 ${stillSees.body.player.stationsTotal}`);
+
+  // 一个标签都不勾 → 规整回 all
+  await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: acts.map((a) => (a.id === 'serve' ? { ...a, audience: 'tags', audienceTags: [] } : a)) },
+  });
+  const empty = (await j('/api/config')).body.activities.find((a) => a.id === 'serve');
+  check('选了标签模式但一个都没勾 → 退回所有人可见', empty.audience === 'all',
+    `${empty.audience} ${JSON.stringify(empty.audienceTags)}`);
+
+  // 还原
+  await j('/api/admin/tags', { method: 'POST', headers: adminH, body: { tags: [] } });
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 

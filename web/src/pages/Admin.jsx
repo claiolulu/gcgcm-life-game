@@ -5,7 +5,7 @@ import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText } from '../lib/clipboard.js';
 import { ScrollRail } from '../components/ScrollRail.jsx';
-import { useConfig, loadConfig, activityVisibleTo } from '../lib/config.js';
+import { useConfig, loadConfig, activityVisibleTo, allTags, playerTags } from '../lib/config.js';
 import { onTick } from '../lib/realtime.js';
 import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp, issueFor } from '../lib/staff.js';
 
@@ -15,12 +15,22 @@ const ACT_STATE = {
   done:     { icon: '✅', label: '已办完' },
 };
 
-const ACT_AUDIENCE = {
-  all: { label: '所有人', className: '' },
-  normal: { label: '普通专属', className: 'admin-activity__audience--normal' },
-  staff: { label: '同工专属', className: 'admin-activity__audience--staff' },
-  signed: { label: '报名可见', className: 'admin-activity__audience--signed' },
-};
+/**
+ * 可见范围的徽标。不可见范围限制就返回 null（不显示徽标）。
+ *
+ * tags 模式下直接把标签名写出来 —— 只写「限定标签」的话，同工得点进去
+ * 才知道限的是哪些，而这一栏存在的意义就是扫一眼就看明白。
+ */
+function audienceBadge(a, tags) {
+  if (a?.audience === 'signed') {
+    return { label: '报名可见', className: 'admin-activity__audience--signed' };
+  }
+  if (a?.audience === 'tags' && (a.audienceTags || []).length) {
+    const names = a.audienceTags.map((id) => tags.find((x) => x.id === id)?.name || '已删除标签');
+    return { label: names.join(' · '), className: 'admin-activity__audience--tags' };
+  }
+  return null;
+}
 
 export default function Admin() {
   const nav = useNavigate();
@@ -37,6 +47,83 @@ export default function Admin() {
   const resetPin = config?.resetPin || '3927';
   const players = useMemo(() => allPlayers(), [staff.players, staff.outbox]); // eslint-disable-line
   const board = useMemo(() => leaderboardLocal(), [staff.players, staff.outbox]); // eslint-disable-line
+
+  /* -------------------------- 用户标签 -------------------------- */
+  //
+  // 内置的「普通成员 / 同工」由每个人的 role 派生，不在这张清单里改；
+  // 这里管的是自建标签：新增、改名、删除。一个人可以挂任意多个。
+
+  const tagList = useMemo(() => allTags(config), [config]);
+  const customTags = useMemo(() => tagList.filter((x) => !x.builtin), [tagList]);
+  // 编辑中的草稿：{id, name}[]。id 以 'new-' 开头的是还没保存的新标签
+  const [tagDraft, setTagDraft] = useState(null);
+  const [newTagName, setNewTagName] = useState('');
+  // 没在编辑就直接显示服务端那份
+  const tagRows = tagDraft ?? customTags.map((x) => ({ id: x.id, name: x.name }));
+  const tagsDirty = tagDraft !== null
+    && JSON.stringify(tagDraft.map((x) => [x.id, x.name]))
+       !== JSON.stringify(customTags.map((x) => [x.id, x.name]));
+
+  const editTagRows = (next) => setTagDraft(next);
+
+  function addTagRow() {
+    const name = newTagName.trim().slice(0, 12);
+    if (!name) return;
+    if (tagRows.some((x) => x.name === name)) { toast(`已经有「${name}」了`, 'warn'); return; }
+    editTagRows([...tagRows, { id: `new-${Date.now()}`, name }]);
+    setNewTagName('');
+  }
+
+  async function saveTags(rows) {
+    setBusy('tags');
+    try {
+      // 新增的行不带 id，让服务端生成；已有的带上 id 才是改名而不是重建
+      const payload = rows.map((x) => (String(x.id).startsWith('new-')
+        ? { name: x.name } : { id: x.id, name: x.name }));
+      await api('/api/admin/tags', { method: 'POST', body: { tags: payload }, token });
+      await loadConfig();
+      // 删标签会改一批人的可见活动，服务端已经递增纪元，这里要全量重拉
+      await flush({ full: true });
+      setTagDraft(null);
+      toast('标签已保存', 'ok');
+    } catch (err) {
+      toast(err.message || '标签保存失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeTagRow(id) {
+    const row = tagRows.find((x) => x.id === id);
+    if (!row) return;
+    // 还没保存的新行直接扔掉，不必确认也不必惊动服务端
+    if (String(id).startsWith('new-')) { editTagRows(tagRows.filter((x) => x.id !== id)); return; }
+    const ok = await ask({
+      title: `删除标签「${row.name}」？`,
+      body: '会同时从所有人身上取下。如果有活动正用它限定可见范围，'
+        + '那些活动会退回「所有人可见」—— 不这么做的话它们会变成谁都看不见。',
+      danger: true,
+    });
+    if (!ok) return;
+    await saveTags(tagRows.filter((x) => x.id !== id));
+  }
+
+  async function togglePlayerTag(player, tagId) {
+    if (!player) return;
+    const has = (player.tags || []).includes(tagId);
+    const next = has
+      ? (player.tags || []).filter((x) => x !== tagId)
+      : [...(player.tags || []), tagId];
+    setBusy(`tag-${tagId}`);
+    try {
+      await api(`/api/admin/player/${player.id}/tags`, { method: 'POST', body: { tags: next }, token });
+      await flush({ full: true });
+    } catch (err) {
+      toast(err.message || '标签更新失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
 
   /* -------------------------- 活动清单 -------------------------- */
   //
@@ -433,9 +520,12 @@ export default function Admin() {
   const shown = useMemo(() => {
     const kw = q.trim().toLowerCase();
     if (!kw) return board;
-    return board.filter((p) => [p.name, p.code, p.contact]
-      .some((v) => String(v || '').toLowerCase().includes(kw)));
-  }, [board, q]);
+    return board.filter((p) => [
+      p.name, p.code, p.contact,
+      // 标签名一起搜：敲「学生」就等于按标签筛人，不用再单独做一个筛选控件
+      ...(p.tags || []).map((id) => tagList.find((x) => x.id === id)?.name || ''),
+    ].some((v) => String(v || '').toLowerCase().includes(kw)));
+  }, [board, q, tagList]);
 
   // 报名名单要按人看，而接口是按活动给的，所以整份拉回来自己倒排一次。
   // 活动就几场，比给每个人单独发一次请求省事
@@ -575,7 +665,7 @@ export default function Admin() {
         <div className="stack-sm">
           {activities.map((a) => {
             const st = ACT_STATE[a.state] || ACT_STATE.upcoming;
-            const audience = ACT_AUDIENCE[a.audience] || ACT_AUDIENCE.all;
+            const audience = audienceBadge(a, tagList);
             return (
               <div key={a.id} data-activity-row={a.id}
                 className={`admin-activity-sort-row ${dragActivity === a.id ? 'admin-activity-sort-row--dragging' : ''}`}>
@@ -619,7 +709,7 @@ export default function Admin() {
                         {st.icon} {st.label}
                       </span>
                     )}
-                    {a.audience && a.audience !== 'all' && (
+                    {audience && (
                       <span className={`admin-activity__audience ${audience.className}`}>{audience.label}</span>
                     )}
                   </div>
@@ -708,6 +798,63 @@ export default function Admin() {
             <button className="btn btn--sm btn--ghost" onClick={() => flush({ full: true })} title="重新拉取花名册">↻</button>
           </div>
         </div>
+        {/* 自建标签的增删改。放在用户面板里 —— 标签是贴在人身上的，
+            不是活动的属性；活动那边只是「选用哪些标签」 */}
+        <div className="card card--tight stack-sm">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="label" style={{ margin: 0 }}>🏷 用户标签</div>
+            <div className="tiny dim">{customTags.length} 个自建</div>
+          </div>
+          {tagRows.map((row) => (
+            <div key={row.id} className="row" style={{ gap: 6, alignItems: 'center' }}>
+              <input
+                className="input grow"
+                value={row.name}
+                maxLength={12}
+                aria-label={`标签名字：${row.name}`}
+                disabled={busy === 'tags'}
+                onChange={(e) => editTagRows(tagRows.map((x) => (
+                  x.id === row.id ? { ...x, name: e.target.value.slice(0, 12) } : x)))}
+              />
+              <button type="button" className="btn btn--sm btn--ghost" style={{ flex: '0 0 auto' }}
+                disabled={busy === 'tags'} title="删除这个标签"
+                onClick={() => removeTagRow(row.id)}>🗑</button>
+            </div>
+          ))}
+          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            <input
+              className="input grow"
+              placeholder="新标签名字，如 学生 / 新朋友"
+              value={newTagName}
+              maxLength={12}
+              aria-label="新标签名字"
+              disabled={busy === 'tags'}
+              onChange={(e) => setNewTagName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTagRow(); } }}
+            />
+            <button type="button" className="btn btn--sm" style={{ flex: '0 0 auto' }}
+              disabled={!newTagName.trim() || busy === 'tags'}
+              onClick={addTagRow}>+ 新增</button>
+          </div>
+          {tagsDirty && (
+            <div className="row" style={{ gap: 6 }}>
+              <button type="button" className="btn btn--sm grow"
+                disabled={busy === 'tags'} onClick={() => saveTags(tagRows)}>
+                {busy === 'tags' ? '保存中…' : '保存标签改动'}
+              </button>
+              <button type="button" className="btn btn--sm btn--ghost" style={{ flex: '0 0 auto' }}
+                disabled={busy === 'tags'} onClick={() => { setTagDraft(null); setNewTagName(''); }}>
+                撤销
+              </button>
+            </div>
+          )}
+          <div className="tiny dim">
+            「普通成员」和「同工」是内置的，改那个用每个人详情里的角色下拉。
+            一个人可以挂任意多个标签；活动的可见范围可以挑其中几个，命中任一就看得见。
+            搜索框里直接敲标签名，就能筛出挂了它的人。
+          </div>
+        </div>
+
         <div className="admin-search">
           <span className="admin-search__icon" aria-hidden="true">🔎</span>
           <input
@@ -741,6 +888,11 @@ export default function Admin() {
                 <div className="small bold">
                   {p.name}
                   {p.role === 'staff' && <span className="admin-player__role">同工</span>}
+                  {(p.tags || []).map((id) => (
+                    <span key={id} className="admin-player__tag">
+                      {tagList.find((x) => x.id === id)?.name || '?'}
+                    </span>
+                  ))}
                 </div>
                 <div className="tiny dim mono">
                   {p.code} 号 · {p.stationsDone}/{p.stationsTotal ?? activities.length}
@@ -827,6 +979,29 @@ export default function Admin() {
               </div>
             </div>
 
+            {customTags.length > 0 && (
+              <div className="card card--tight stack-sm">
+                <div className="label" style={{ margin: 0 }}>标签</div>
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  {customTags.map((tg) => {
+                    const on = (detailPlayer.tags || []).includes(tg.id);
+                    return (
+                      <button
+                        key={tg.id}
+                        type="button"
+                        className={`admin-tag-pick ${on ? 'admin-tag-pick--on' : ''}`}
+                        aria-pressed={on}
+                        disabled={busy === `tag-${tg.id}`}
+                        onClick={() => togglePlayerTag(detailPlayer, tg.id)}
+                      >
+                        {on ? '✓ ' : ''}{tg.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="tiny dim">点一下切换。可以同时挂多个。</div>
+              </div>
+            )}
             <div className="stack-sm">
               {activities.map((a) => {
                 const done = !!detailPlayer.stations?.[a.id];
@@ -845,13 +1020,12 @@ export default function Admin() {
                     </div>
                     {done ? (
                       <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已参加 ✓</span>
-                    ) : !activityVisibleTo(a, detailPlayer.role || 'normal', signed ? [a.id] : []) ? (
+                    ) : !activityVisibleTo(a, playerTags(detailPlayer), signed ? [a.id] : []) ? (
                       /* 这一场对这个人不可见，服务端不会收这一章。
                          与其让人点了没反应，不如把按钮收起来说明白 —— 而且
-                         「报名可见」的处理办法和角色不符不一样，要分开讲 */
+                         「报名可见」的处理办法和标签不符不一样，要分开讲 */
                       <span className="tiny dim" style={{ flex: '0 0 auto', textAlign: 'right' }}>
-                        {a.audience === 'signed' ? '未报名 · 报名后才能标记'
-                          : a.audience === 'staff' ? '同工专属' : '普通专属'}
+                        {a.audience === 'signed' ? '未报名 · 报名后才能标记' : '标签不符 · 挂上标签才能标记'}
                       </span>
                     ) : (
                       <button

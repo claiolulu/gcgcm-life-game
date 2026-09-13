@@ -15,11 +15,11 @@ import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
   getActivities, setActivities, getTheme, UPLOAD_DIR,
-  getVisaTemplate,
+  getVisaTemplate, BUILTIN_TAGS, RESERVED_TAG_IDS, normalizeAudience,
 } from './db.js';
 import {
-  playerState, roster, leaderboard, rankOf, applyOp, activityVisibleTo, activityRoleVisibleTo,
-  signupSetOf, normalizedPlayerRole,
+  playerState, roster, leaderboard, rankOf, applyOp, activityVisibleTo, activityOpenForSignup,
+  signupSetOf, playerTagSet, normalizedPlayerRole,
 } from './game.js';
 import {
   formatPlayerId, canonCode, extractCode, isValidPin, randomPin, uid, randomToken,
@@ -103,6 +103,23 @@ function staffAuth(role = 'staff') {
 }
 
 /** 活动可见范围使用参与者角色；后台 staff/admin 令牌统一按“同工”处理。 */
+/**
+ * 看这一眼的人带着哪些标签。匿名访问按普通成员算。
+ *
+ * 同工 PIN 令牌没有对应的 players 行，给它 staff 标签就够了 —— 它只用来
+ * 判活动可见性。
+ */
+function viewerTags(req) {
+  const token = (req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (token) {
+    const player = stmts.playerByToken.get(token);
+    if (player) return playerTagSet(player);
+    const staff = verifyToken(token, secret());
+    if (staff && ['staff', 'admin'].includes(staff.role)) return new Set(['staff']);
+  }
+  return new Set(['normal']);
+}
+
 function viewerRole(req) {
   const token = (req.get('authorization') || '').replace(/^Bearer\s+/i, '');
   if (!token) return 'normal';
@@ -120,6 +137,8 @@ app.get('/api/config', (_req, res) => {
   res.json({
     game: GAME,
     activities: getActivities(),
+    // 内置两个 + 自建的。前端据此渲染标签条，并在活动可见范围里给出勾选项
+    tags: [...BUILTIN_TAGS, ...stmts.allTags.all().map((r) => ({ id: r.id, name: r.name }))],
     resetPin: RESET_PIN,
     theme: getTheme(),
     themePresets: THEME_PRESETS,
@@ -499,6 +518,102 @@ app.post('/api/admin/player/:id/role', staffAuth('admin'), (req, res) => {
   res.json({ player: playerState(stmts.playerById.get(player.id)), serverTs: Date.now() });
 });
 
+/**
+ * 自建标签的新增 / 改名 / 删除 / 排序，一次整份提交。
+ *
+ * 整份替换而不是逐条增删：同工在总控台里改完一串再保存，一次事务落地，
+ * 中途出错不会留下改了一半的标签表。**清单里没有的标签就是删掉** ——
+ * 外键 ON DELETE CASCADE 会把挂载关系一并清掉。
+ *
+ * 删或改名都会影响一批人的可见活动，而 players 那些行并没有被动到，
+ * 所以必须递增纪元，逼同工端重新全量同步（否则他们手里的花名册还是旧的）。
+ */
+app.post('/api/admin/tags', staffAuth('admin'), (req, res) => {
+  const list = Array.isArray(req.body?.tags) ? req.body.tags : null;
+  if (!list) return res.status(400).json({ error: '请提交标签清单' });
+  if (list.length > 40) return res.status(400).json({ error: '标签最多 40 个' });
+
+  const clean = [];
+  const seenName = new Set();
+  for (const raw of list) {
+    const name = String(raw?.name || '').trim().slice(0, 12);
+    if (!name) continue;                      // 空名字直接忽略，不报错
+    if (RESERVED_TAG_IDS.has(name)) {
+      return res.status(400).json({ error: `「${name}」是保留名，换一个` });
+    }
+    if (seenName.has(name)) {
+      return res.status(400).json({ error: `标签「${name}」重复了` });
+    }
+    seenName.add(name);
+    const id = String(raw?.id || '').trim();
+    // 内置标签不能被改名或删除，它们不在这张表里
+    if (RESERVED_TAG_IDS.has(id)) {
+      return res.status(400).json({ error: `「${name}」是内置标签，不能改` });
+    }
+    clean.push({ id: id || `tag-${uid()}`, name, sort: clean.length + 1 });
+  }
+
+  const before = new Set(stmts.allTags.all().map((r) => r.id));
+  const keep = new Set(clean.map((x) => x.id));
+  const removed = [...before].filter((id) => !keep.has(id));
+  db.transaction(() => {
+    for (const id of removed) stmts.deleteTag.run(id);   // 挂载关系靠外键级联清掉
+    const now = Date.now();
+    for (const x of clean) {
+      if (before.has(x.id)) stmts.updateTag.run(x.name, x.sort, x.id);
+      else stmts.insertTag.run(x.id, x.name, x.sort, now);
+    }
+  })();
+
+  // 删掉的标签还可能被某场活动用来限定可见范围。留着那个失效 id 的后果是
+  // **这场活动谁都看不见**（没人命中它），而总控台里照样显示得好好的 ——
+  // 所以一并从活动上摘掉；摘空了就退回「所有人」。
+  if (removed.length) {
+    let touched = false;
+    const next = getActivities().map((a) => {
+      if (a.audience !== 'tags') return a;
+      const left = (a.audienceTags || []).filter((x) => !removed.includes(x));
+      if (left.length === (a.audienceTags || []).length) return a;
+      touched = true;
+      return left.length
+        ? { ...a, audienceTags: left }
+        : { ...a, audience: 'all', audienceTags: [] };
+    });
+    if (touched) setActivities(next);
+  }
+
+  setSetting('_epoch', epoch() + 1);
+  broadcast('config');
+  res.json({ tags: stmts.allTags.all().map((r) => ({ id: r.id, name: r.name })), epoch: epoch() });
+});
+
+/**
+ * 给一个人挂标签（整份替换）。内置的普通 / 同工不走这里，改那个用 /role。
+ *
+ * 只动这一个人的派生状态，所以不必递增纪元 —— 把他的 updated_at 碰一下，
+ * 增量同步自然会带上他。
+ */
+app.post('/api/admin/player/:id/tags', staffAuth('admin'), (req, res) => {
+  const player = stmts.playerById.get(req.params.id);
+  if (!player) return res.status(404).json({ error: '找不到这个用户' });
+  const want = Array.isArray(req.body?.tags) ? req.body.tags.map((x) => String(x || '').trim()) : null;
+  if (!want) return res.status(400).json({ error: '请提交标签清单' });
+
+  const known = new Set(stmts.allTags.all().map((r) => r.id));
+  const bad = want.find((x) => x && !known.has(x));
+  if (bad) return res.status(400).json({ error: '有标签已经不存在了，请刷新后重试' });
+
+  const now = Date.now();
+  db.transaction(() => {
+    stmts.clearPlayerTags.run(player.id);
+    for (const id of new Set(want.filter(Boolean))) stmts.addPlayerTag.run(player.id, id, now);
+    stmts.touchPlayer.run(now, player.id);
+  })();
+
+  broadcast('profile');
+  res.json({ player: playerState(stmts.playerById.get(player.id)), serverTs: Date.now() });
+});
+
 /** 删除参与者前先落一份完整备份；外键会一并删除其报名、印章和投稿。 */
 app.delete('/api/admin/player/:id', staffAuth('admin'), (req, res) => {
   const player = stmts.playerById.get(req.params.id);
@@ -558,7 +673,11 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
       en: String(a?.en || '').trim().slice(0, 40),
       date,
       tag: String(a?.tag || '').trim().slice(0, 12),
-      audience: ['normal', 'staff', 'signed'].includes(a?.audience) ? a.audience : 'all',
+      // 可见范围用和读取时同一个规整函数 —— 两边各写一套迟早对不上。
+      // 尤其要紧的是它认得旧的 audience:'normal'/'staff' 并迁成 tags 模式：
+      // 总控台如果还跑着缓存的旧前端，提交上来的就是旧值，这里要是简单地
+      // 归到 'all'，「同工专属」会被静默改成谁都能看见。
+      ...normalizeAudience(a),
       host: String(a?.host || '').trim().slice(0, 20),
       // 签发机构。留空就用护照模版上的那个（整本护照的签发方）
       issuer: String(a?.issuer || '').trim().slice(0, 24),
@@ -852,7 +971,7 @@ const materialJson = (row, withOwner = false) => ({
 app.post('/api/activity/:id/materials', playerAuth, (req, res) => {
   const activity = getActivities().find((a) => a.id === req.params.id);
   if (!activity) return res.status(404).json({ error: '找不到这场活动' });
-  if (!activityVisibleTo(activity, req.player.role, signupSetOf(req.player.id))) {
+  if (!activityVisibleTo(activity, playerTagSet(req.player), signupSetOf(req.player.id))) {
     return res.status(404).json({ error: '找不到这场活动' });
   }
 
@@ -887,7 +1006,7 @@ app.post('/api/activity/:id/materials', playerAuth, (req, res) => {
 app.get('/api/activity/:id/materials/mine', playerAuth, (req, res) => {
   const activity = getActivities().find((a) => a.id === req.params.id);
   if (!activity) return res.status(404).json({ error: '找不到这场活动' });
-  if (!activityVisibleTo(activity, req.player.role, signupSetOf(req.player.id))) {
+  if (!activityVisibleTo(activity, playerTagSet(req.player), signupSetOf(req.player.id))) {
     return res.status(404).json({ error: '找不到这场活动' });
   }
   res.json({ materials: stmts.materialsForPlayer.all(activity.id, req.player.id).map((r) => materialJson(r)) });
@@ -896,7 +1015,7 @@ app.get('/api/activity/:id/materials/mine', playerAuth, (req, res) => {
 app.delete('/api/activity/:id/materials/:materialId', playerAuth, (req, res) => {
   const activity = getActivities().find((a) => a.id === req.params.id);
   if (!activity) return res.status(404).json({ error: '找不到这场活动' });
-  if (!activityVisibleTo(activity, req.player.role, signupSetOf(req.player.id))) {
+  if (!activityVisibleTo(activity, playerTagSet(req.player), signupSetOf(req.player.id))) {
     return res.status(404).json({ error: '找不到这场活动' });
   }
   const row = stmts.materialById.get(req.params.materialId);
@@ -927,13 +1046,14 @@ app.get('/api/activity/:id', (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
   // 这里用只看角色的那条规则：扫码落地页是报名的入口，
   // 「报名可见」不能把还没报名的人挡在门外（见 game.js 的说明）
-  if (!a || !activityRoleVisibleTo(a, viewerRole(req))) return res.status(404).json({ error: '找不到这场活动' });
+  if (!a || !activityOpenForSignup(a, viewerTags(req))) return res.status(404).json({ error: '找不到这场活动' });
   const counts = new Map(stmts.signupCounts.all().map((r) => [r.activity_id, r.n]));
   res.json({
     activity: {
       id: a.id, icon: a.icon, name: a.name, en: a.en, date: a.date,
       tag: a.tag, host: a.host, desc: a.desc, photo: a.photo || '',
-      links: a.links || [], state: a.state || 'upcoming', audience: a.audience || 'all',
+      links: a.links || [], state: a.state || 'upcoming',
+      audience: a.audience || 'all', audienceTags: a.audienceTags || [],
     },
     signupCount: counts.get(a.id) || 0,
     registration: activityRegistration(a),
@@ -971,7 +1091,7 @@ function activityRegistration(a) {
 app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
   // 同上：报名本身不受「报名可见」限制，否则这一档谁都报不进来
-  if (!a || !activityRoleVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  if (!a || !activityOpenForSignup(a, playerTagSet(req.player))) return res.status(404).json({ error: '找不到这场活动' });
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: registration.message, registration });
@@ -985,7 +1105,7 @@ app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
 app.delete('/api/activity/:id/signup', playerAuth, (req, res) => {
   const a = getActivities().find((x) => x.id === req.params.id);
   // 同上：报名本身不受「报名可见」限制，否则这一档谁都报不进来
-  if (!a || !activityRoleVisibleTo(a, req.player.role)) return res.status(404).json({ error: '找不到这场活动' });
+  if (!a || !activityOpenForSignup(a, playerTagSet(req.player))) return res.status(404).json({ error: '找不到这场活动' });
   const registration = activityRegistration(a);
   if (registration.status !== 'open') {
     return res.status(409).json({ error: '报名已经截止，不能再取消。如需变更请联系同工。', registration });

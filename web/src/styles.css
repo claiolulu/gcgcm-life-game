@@ -956,10 +956,54 @@ h3 { font-size: 16px; }
   border-color: rgba(232,197,106,.35);
   color: var(--gold);
 }
-/* 报名可见：和角色那两档不是一类（按人不按角色），给个不同的色好分辨 */
+/* 报名可见：和标签那一档不是一类（按报名不按标签），给个不同的色好分辨 */
 .admin-activity__audience--signed {
   border-color: rgba(126,217,163,.35);
   color: #7ed9a3;
+}
+/* 限定标签：徽标里直接写标签名，可能有两三个，别让它把活动名挤没了 */
+.admin-activity__audience--tags {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-color: rgba(197,165,232,.35);
+  color: #c5a5e8;
+}
+
+/* 花名册行上的标签小片。跟在名字后面，所以要比名字小一号、别抢视线 */
+.admin-player__tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border: 1px solid rgba(197,165,232,.3);
+  border-radius: 999px;
+  color: #c5a5e8;
+  font-size: 9px;
+  font-weight: 400;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+/* 可点的标签片：详情里给人挂标签、活动里挑可见范围，两处同一个样式 */
+.admin-tag-pick {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(148,163,184,.22);
+  border-radius: 999px;
+  background: rgba(10,16,28,.55);
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.admin-tag-pick:hover:not(:disabled) { border-color: rgba(197,165,232,.45); color: var(--text); }
+.admin-tag-pick:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.admin-tag-pick:disabled { opacity: .45; cursor: default; }
+.admin-tag-pick--on {
+  border-color: rgba(197,165,232,.6);
+  background: rgba(197,165,232,.14);
+  color: #ddc9f5;
 }
 .admin-player__role {
   display: inline-block;

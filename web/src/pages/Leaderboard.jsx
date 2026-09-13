@@ -5,12 +5,12 @@ import { api } from '../lib/api.js';
 import { kvGet, kvSet } from '../lib/idb.js';
 import { changesLeaderboard, onTick } from '../lib/realtime.js';
 import { usePlayer } from '../lib/player.js';
-import { useConfig, activitiesForRole } from '../lib/config.js';
+import { useConfig, activitiesForPlayer } from '../lib/config.js';
 
 export default function Leaderboard() {
   const { me } = usePlayer();
   const { config } = useConfig();
-  const stationCount = activitiesForRole(config, me?.role, me?.signups).length;
+  const stationCount = activitiesForPlayer(config, me).length;
 
   const [board, setBoard] = useState([]);
   const [state, setState] = useState({ online: navigator.onLine, at: 0, loading: true });

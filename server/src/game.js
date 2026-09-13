@@ -18,38 +18,58 @@ export function normalizedPlayerRole(role) {
   return role === 'staff' ? 'staff' : 'normal';
 }
 
-const AUDIENCES = ['staff', 'normal', 'signed'];
+const AUDIENCES = ['signed', 'tags'];
 
 export function activityAudience(activity) {
   return AUDIENCES.includes(activity?.audience) ? activity.audience : 'all';
 }
 
 /**
- * 这一场活动，对这个人可见吗。
+ * 一个人的**有效标签集**：内置的 role（normal / staff），加上他挂着的自建标签。
  *
- * `signed`（报名可见）和另外两档不是一类：它不看角色，看这个人有没有报名。
- * 所以要多传一份他报过名的活动 id 集合 —— 没传就按「没报名」算。
- * 同工一律可见：否则没法核对名单，也没法给报名的人盖章。
+ * 可见性是拿这个集合和活动的 audienceTags 求交 —— 所以一个人可以同时属于
+ * 任意多个标签，命中其中任何一个就看得见。
  */
-export function activityVisibleTo(activity, role, signedIds = null) {
-  const audience = activityAudience(activity);
-  if (audience === 'all') return true;
-  if (audience === 'signed') {
-    return normalizedPlayerRole(role) === 'staff' || !!signedIds?.has(activity.id);
-  }
-  return audience === normalizedPlayerRole(role);
+export function playerTagSet(player) {
+  const out = new Set([normalizedPlayerRole(player?.role)]);
+  if (player?.id) for (const r of stmts.tagsOf.all(player.id)) out.add(r.tag_id);
+  return out;
+}
+
+function tagsHit(activity, tags) {
+  const want = Array.isArray(activity?.audienceTags) ? activity.audienceTags : [];
+  // 一个都没勾等于没限制。db 层已经把这种情况规整成 'all' 了，这里只是兜底 ——
+  // 真让它「谁都看不见」的话，同工只会觉得活动凭空消失
+  if (!want.length) return true;
+  return want.some((x) => tags?.has(x));
 }
 
 /**
- * 只按角色判，把 `signed` 当作所有人可见。
+ * 这一场活动，对这个人可见吗。
  *
- * 报名这条路必须用它：扫码落地页和报名接口**不能**被 `signed` 拦住，
- * 否则没报名的人看不到、也报不了名，这一档就成了一把锁死的门。
+ * `signed`（报名可见）和标签那一档不是一类：它不看标签，看这个人有没有报名。
+ * 所以要多传一份他报过名的活动 id 集合 —— 没传就按「没报名」算。
+ * 同工一律可见：否则没法核对名单，也没法给报名的人盖章。
  */
-export function activityRoleVisibleTo(activity, role) {
+export function activityVisibleTo(activity, tags, signedIds = null) {
+  const audience = activityAudience(activity);
+  if (audience === 'all') return true;
+  if (audience === 'signed') {
+    return !!tags?.has('staff') || !!signedIds?.has(activity.id);
+  }
+  return tagsHit(activity, tags);
+}
+
+/**
+ * 报名这条路专用：把 `signed` 当作所有人可见，其余仍按标签判。
+ *
+ * 扫码落地页和报名接口**不能**被 `signed` 拦住，否则没报名的人看不到、
+ * 也报不了名，那一档就成了一把从里面锁死的门。
+ */
+export function activityOpenForSignup(activity, tags) {
   const audience = activityAudience(activity);
   if (audience === 'all' || audience === 'signed') return true;
-  return audience === normalizedPlayerRole(role);
+  return tagsHit(activity, tags);
 }
 
 /** 某人报过名的活动 id 集合 */
@@ -57,11 +77,11 @@ export function signupSetOf(playerId) {
   return new Set(stmts.signupsOf.all(playerId).map((r) => r.activity_id));
 }
 
-function stationById(id, role = null, signedIds = null) {
+function stationById(id, tags = null, signedIds = null) {
   // 每次现查：总控台加了一场活动，同工立刻就能给它盖章，不用重启。
   // 活动就几条，这点开销可以忽略
   return getActivities().find((x) => x.id === id
-    && (role == null || activityVisibleTo(x, role, signedIds))) || null;
+    && (tags == null || activityVisibleTo(x, tags, signedIds))) || null;
 }
 
 /**
@@ -72,9 +92,9 @@ function stationById(id, role = null, signedIds = null) {
  * （哪天把同 id 的活动加回来，它们自己就回来了），但不再计入分数和场次：
  * 不这么做的话，分子数了已删活动、分母只数现存活动，会印出「参加 5/1 场」。
  */
-function liveStationIds(role = null, signedIds = null) {
+function liveStationIds(tags = null, signedIds = null) {
   return new Set(getActivities()
-    .filter((a) => role == null || activityVisibleTo(a, role, signedIds))
+    .filter((a) => tags == null || activityVisibleTo(a, tags, signedIds))
     .map((a) => a.id));
 }
 
@@ -88,12 +108,14 @@ export function totalFor(playerId) {
  * 把一个选手的事件流折叠成完整状态。
  * 所有"当前值"都是算出来的，因此乱序同步、重放、补录都能收敛到同一结果。
  */
-export function playerState(player, settings = getSettings(), live = null, signedIds = null) {
-  // 报名集合要先有：`signed` 那一档的可见性按它算，而可见性又决定
-  // 哪些章计分（liveStationIds）。默认参数在函数体之前求值，拿不到它，
-  // 所以 live 改成进来再算
+export function playerState(player, settings = getSettings(), live = null, signedIds = null,
+                            tagSet = null) {
+  // 报名集合和标签集都要先有：可见性按它们算，而可见性又决定哪些章计分
+  // （liveStationIds）。默认参数在函数体之前求值，拿不到它们，所以
+  // live 改成进来再算
   const signups = signedIds || signupSetOf(player.id);
-  const liveSet = live || liveStationIds(player.role, signups);
+  const tags = tagSet || playerTagSet(player);
+  const liveSet = live || liveStationIds(tags, signups);
   const events = stmts.eventsByPlayer.all(player.id);
   let total = 0;
   let done = 0;
@@ -139,6 +161,9 @@ export function playerState(player, settings = getSettings(), live = null, signe
     // 报过名的活动 id。护照上据此显示「已报名」，也决定报名按钮是
     // 「我要报名」还是「取消报名」
     signups: [...signups],
+    // 挂着的自建标签 id。内置的 normal / staff 仍走 role 字段 ——
+    // 前端要的有效标签集是 {role} ∪ tags（见 lib/config.js 的 playerTags）
+    tags: [...tags].filter((x) => x !== 'normal' && x !== 'staff'),
     // 只数现存活动上的章，和分母对得上，也和资料页上打勾的数量对得上
     stationsDone: done,
     stationsTotal: liveSet.size,
@@ -173,6 +198,17 @@ function signupsByPlayer() {
   return map;
 }
 
+/** 一次拉全部标签挂载再按人分组 —— 同 signupsByPlayer，避免逐人查 */
+function tagsByPlayer() {
+  const map = new Map();
+  for (const r of stmts.allPlayerTags.all()) {
+    let set = map.get(r.player_id);
+    if (!set) { set = new Set(); map.set(r.player_id, set); }
+    set.add(r.tag_id);
+  }
+  return map;
+}
+
 const NO_SIGNUPS = new Set();
 
 /** 花名册：工作人员端离线缓存的全量数据（50 人量级，压缩后几 KB） */
@@ -180,9 +216,11 @@ export function roster(since = 0) {
   const settings = getSettings();
   const players = since > 0 ? stmts.playersSince.all(since) : stmts.allPlayers.all();
   const signups = signupsByPlayer();
+  const tagMap = tagsByPlayer();
   return players.map((p) => {
     const mine = signups.get(p.id) || NO_SIGNUPS;
-    const s = playerState(p, settings, liveStationIds(p.role, mine), mine);
+    const tags = new Set([normalizedPlayerRole(p.role), ...(tagMap.get(p.id) || [])]);
+    const s = playerState(p, settings, liveStationIds(tags, mine), mine, tags);
     delete s.history; // 花名册不带完整历史，扫到人再单独拉
     return s;
   });
@@ -192,9 +230,11 @@ export function leaderboard({ limit = 0 } = {}) {
   const settings = getSettings();
   const players = stmts.allPlayers.all();
   const signups = signupsByPlayer();
+  const tagMap = tagsByPlayer();
   const rows = players.map((p) => {
     const mine = signups.get(p.id) || NO_SIGNUPS;
-    const s = playerState(p, settings, liveStationIds(p.role, mine), mine);
+    const tags = new Set([normalizedPlayerRole(p.role), ...(tagMap.get(p.id) || [])]);
+    const s = playerState(p, settings, liveStationIds(tags, mine), mine, tags);
     return {
       id: s.id,
       code: s.code,
@@ -283,12 +323,12 @@ const applyOpTx = db.transaction((op, settings) => {
       const existingStation = stationById(op.stationId);
       if (!existingStation) return { status: 'error', message: '未知活动，可能已被删除' };
       const signedIds = signupSetOf(player.id);
-      const station = stationById(op.stationId, player.role, signedIds);
+      const station = stationById(op.stationId, playerTagSet(player), signedIds);
       if (!station) {
-        // 分开说：角色不对和没报名是两回事，处理办法也不一样
+        // 分开说：标签不匹配和没报名是两回事，处理办法也不一样
         const why = activityAudience(existingStation) === 'signed'
           ? `${existingStation.name} 只对报名的人可见，而他没有报名这一场`
-          : '这场活动对该用户角色不可见';
+          : `${existingStation.name} 的可见范围不包含这个人的标签`;
         return { status: 'error', message: why };
       }
 

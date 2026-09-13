@@ -6,7 +6,7 @@ import Avatar from '../../components/Avatar.jsx';
 import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages } from './bookVals.js';
 import { FLIP_MS, FLIP_EASE } from './bookVals.js';
-import { useConfig, activitiesForRole } from '../../lib/config.js';
+import { useConfig, activitiesForPlayer } from '../../lib/config.js';
 import { usePlayer, refreshMe } from '../../lib/player.js';
 import { api } from '../../lib/api.js';
 import { kvGet, kvSet } from '../../lib/idb.js';
@@ -68,13 +68,14 @@ export default function PassportBook() {
 
   // 签证页的内容来源：每场活动一张信息页，可再加照片/总结页
   //
-  // me.signups 是数组，每轮同步都是新的引用，直接当依赖会让整本书的版式
-  // 每次同步重算一遍。拼成字符串当键，内容真变了才重算
+  // me.signups / me.tags 都是数组，每轮同步都是新的引用，直接当依赖会让整本书
+  // 的版式每次同步重算一遍。拼成字符串当键，内容真变了才重算
   const signedKey = (me?.signups || []).join(',');
+  const tagKey = (me?.tags || []).join(',');
   const activities = useMemo(
-    () => activitiesForRole(config, me?.role, me?.signups),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- signedKey 代表 me.signups
-    [config, me?.role, signedKey],
+    () => activitiesForPlayer(config, me),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signedKey / tagKey 代表那两个数组
+    [config, me?.role, signedKey, tagKey],
   );
   // 签证页按活动装订，顺序就是配置里的先后（大致按时间）。
   // 游戏版那套「按各关忙闲排班」在这里用不上 —— 活动分散在几个月里，

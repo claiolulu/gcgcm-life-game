@@ -6,7 +6,7 @@ import DateField from '../components/DateField.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText } from '../lib/clipboard.js';
-import { useConfig, loadConfig } from '../lib/config.js';
+import { useConfig, loadConfig, allTags } from '../lib/config.js';
 import { useStaff, allPlayers } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import { onTick } from '../lib/realtime.js';
@@ -46,6 +46,7 @@ export default function ActivityDetail() {
   const token = staff.session?.token;
 
   const [busy, setBusy] = useState(null);
+  const tagChoices = allTags(config);
   const [draft, setDraft] = useState(null);      // 这一场的本地改动，null = 还没载入
   const [dirty, setDirty] = useState(false);
   // 每次本地编辑都递增。保存返回时只清理它真正保存过的那一版，
@@ -292,10 +293,41 @@ export default function ActivityDetail() {
           <select id="activity-audience" className="input" value={draft.audience || 'all'}
             onChange={(e) => edit({ audience: e.target.value })}>
             <option value="all">所有人</option>
-            <option value="normal">仅普通用户</option>
-            <option value="staff">仅同工</option>
+            <option value="tags">仅指定标签</option>
             <option value="signed">仅报名的人</option>
           </select>
+          {draft.audience === 'tags' && (
+            <div className="stack-sm">
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                {tagChoices.length === 0 && (
+                  <div className="tiny dim">还没有标签。先去「👥 用户」那边新增几个。</div>
+                )}
+                {tagChoices.map((tg) => {
+                  const on = (draft.audienceTags || []).includes(tg.id);
+                  return (
+                    <button
+                      key={tg.id}
+                      type="button"
+                      className={`admin-tag-pick ${on ? 'admin-tag-pick--on' : ''}`}
+                      aria-pressed={on}
+                      onClick={() => edit({
+                        audienceTags: on
+                          ? (draft.audienceTags || []).filter((x) => x !== tg.id)
+                          : [...(draft.audienceTags || []), tg.id],
+                      })}
+                    >
+                      {on ? '✓ ' : ''}{tg.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="tiny dim">
+                勾中的标签**命中任一**就看得见 —— 一个人可以同时挂多个标签。
+                一个都不勾等于不限制（会自动退回「所有人」，否则这场活动谁都看不见）。
+                同工端总控台始终能看到全部活动，这里限制的是参与者的护照和计分。
+              </div>
+            </div>
+          )}
           <div className="tiny dim">
             设为特定角色后，其他角色的护照不会显示这场活动，也不能通过链接报名。
           </div>
