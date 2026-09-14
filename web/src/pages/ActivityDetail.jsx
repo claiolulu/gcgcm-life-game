@@ -119,9 +119,18 @@ export default function ActivityDetail() {
   const checkInRoster = useMemo(() => {
     const kw = ciQuery.trim().toLowerCase();
     const tags = allTags(config);
-    return signups
+    const signedIds = new Set(signups.map((s) => s.id));
+    // 没报名但已经盖了章的人也要列出来 —— 实际用法是不报名直接来盖章
+    // （第一次团契 0 报名 / 8 个章），只列报名者的话这一框是空的、已签到是 0。
+    // 按盖章时间排在报名者后面
+    const walkIns = players
+      .filter((p) => p.stations?.[id] && !signedIds.has(p.id))
+      .sort((a, b) => a.stations[id].at - b.stations[id].at);
+    return [
       // 报名接口只给基本资料；章、标签、角色在同工端花名册里，合起来用
-      .map((s) => ({ ...s, ...(players.find((x) => x.id === s.id) || {}) }))
+      ...signups.map((s) => ({ ...s, ...(players.find((x) => x.id === s.id) || {}), signed: true })),
+      ...walkIns.map((p) => ({ ...p, signed: false })),
+    ]
       .filter((p) => !kw || [p.name, p.code, p.contact,
         ...(p.tags || []).map((x) => tags.find((tg) => tg.id === x)?.name || '')]
         .some((v) => String(v || '').toLowerCase().includes(kw)))
@@ -135,9 +144,7 @@ export default function ActivityDetail() {
   }, [signups, players, ciQuery, config, savedActivity, id]);
   const pendingCheckIn = useMemo(
     () => checkInRoster.filter((p) => !p.done && p.eligible), [checkInRoster]);
-  const signedDone = useMemo(
-    () => signups.filter((s) => players.find((x) => x.id === s.id)?.stations?.[id]).length,
-    [signups, players, id]);
+
 
   /**
    * 一键全签到。
@@ -607,10 +614,10 @@ export default function ActivityDetail() {
       {/* 已报名 + 签到：报了名的人都在这里，点一下就是盖章 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">
-          📋 已报名（{signups.length}）· 已签到 {signedDone}
+          📋 已报名（{signups.length}）· 已签到 {attended.length}
         </div>
-        {signups.length === 0 ? (
-          <div className="tiny dim">还没有人报名这一场。把左边的报名码发出去，报了名的人会出现在这里。</div>
+        {signups.length === 0 && attended.length === 0 ? (
+          <div className="tiny dim">还没有人报名，也还没有人盖章。把报名码发出去，报了名或盖了章的人会出现在这里。</div>
         ) : (
           <>
             <div className="row" style={{ gap: 8, alignItems: 'center' }}>
@@ -636,7 +643,7 @@ export default function ActivityDetail() {
             <div className="tiny dim">
               签到就是盖章 —— 和同工扫码盖的是同一个章，一场只盖一次，盖下去撤不掉。
               {ciQuery.trim() ? '一键全签到只作用于当前搜到的人。' : ''}
-              没报名就来的人不在这里：扫他的码，或者去「👥 用户」里标记。
+              没报名的人盖了章也会列在这里；还没盖章的，扫他的码或去「👥 用户」里标记。
             </div>
             {checkInRoster.length === 0 ? (
               <div className="tiny dim">没有匹配「{ciQuery.trim()}」的人</div>
@@ -649,6 +656,7 @@ export default function ActivityDetail() {
                     <div className="grow" style={{ minWidth: 0 }}>
                       <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.name}
+                        {!p.signed && <span className="tiny dim" style={{ fontWeight: 400 }}> · 未报名</span>}
                       </div>
                       <div className="tiny dim">
                         {p.code}
