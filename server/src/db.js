@@ -143,6 +143,51 @@ function rebuildIfLegacy() {
 }
 rebuildIfLegacy();
 
+/**
+ * 标签颜色的色板。
+ *
+ * 总控台是深色底，这些颜色既要当字色看得清，也要当边框和浅底用。
+ * 金色留给内置的「同工」，灰蓝留给「普通成员」，所以这里不放这两个。
+ */
+export const TAG_PALETTE = [
+  '#7eb8ff', '#7ed9a3', '#c5a5e8', '#ff9b8a', '#6fd6d6',
+  '#f0a6d4', '#b8d86b', '#ffb86b', '#d9a06b', '#9fa8ff',
+];
+
+/** 挑一个还没被用的颜色；十个都用完了就轮着来 */
+export function pickTagColor(used = []) {
+  const taken = new Set(used.map((c) => String(c).toLowerCase()));
+  return TAG_PALETTE.find((c) => !taken.has(c)) || TAG_PALETTE[taken.size % TAG_PALETTE.length];
+}
+
+/** 只认 #rrggbb；别的一律当没给（它最后会进 style 属性） */
+export function normalizeTagColor(c) {
+  const s = String(c || '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(s) ? s : '';
+}
+
+// tags.color 是后加的列。老库里 tags 表已经在，CREATE IF NOT EXISTS 不会补列，
+// 得在准备语句之前手动加上 —— 否则下面 allTags 那条 SELECT color 直接报错起不来。
+// 加完顺手给没颜色的标签按顺序各发一个不重复的颜色。
+{
+  const cols = db.prepare('PRAGMA table_info(tags)').all().map((c) => c.name);
+  if (cols.length) {
+    if (!cols.includes('color')) {
+      db.exec("ALTER TABLE tags ADD COLUMN color TEXT NOT NULL DEFAULT ''");
+      console.log('[db] 已为 tags 表添加 color 列');
+    }
+    const rows = db.prepare('SELECT id, color FROM tags ORDER BY sort, name').all();
+    const used = rows.map((r) => r.color).filter(Boolean);
+    const setColor = db.prepare('UPDATE tags SET color = ? WHERE id = ?');
+    for (const r of rows) {
+      if (r.color) continue;
+      const c = pickTagColor(used);
+      setColor.run(c, r.id);
+      used.push(c);
+    }
+  }
+}
+
 // 迎新游戏那套留下的设置项。rebuildIfLegacy 只对还没重建过的库跑，
 // 已经重建过的库里这几行还留着 —— 无害，但会让人以为功能还在。
 {
@@ -192,8 +237,8 @@ function bannerBrand(b, activity) {
  * id 被占用，自建标签不能用这两个（也不能用 all / signed / tags）。
  */
 export const BUILTIN_TAGS = [
-  { id: 'normal', name: '普通成员', builtin: true },
-  { id: 'staff', name: '同工', builtin: true },
+  { id: 'normal', name: '普通成员', builtin: true, color: '#9aa8bd' },
+  { id: 'staff', name: '同工', builtin: true, color: '#e8c56a' },
 ];
 export const RESERVED_TAG_IDS = new Set(['all', 'signed', 'tags', 'normal', 'staff']);
 
@@ -365,9 +410,9 @@ export const stmts = {
   signupCounts: db.prepare('SELECT activity_id, COUNT(*) AS n FROM signups GROUP BY activity_id'),
   signupsOf: db.prepare('SELECT activity_id FROM signups WHERE player_id = ?'),
   /* ---------------------------- 自建标签 ---------------------------- */
-  allTags: db.prepare('SELECT id, name, sort FROM tags ORDER BY sort, name'),
-  insertTag: db.prepare('INSERT INTO tags (id, name, sort, created_at) VALUES (?, ?, ?, ?)'),
-  updateTag: db.prepare('UPDATE tags SET name = ?, sort = ? WHERE id = ?'),
+  allTags: db.prepare('SELECT id, name, sort, color FROM tags ORDER BY sort, name'),
+  insertTag: db.prepare('INSERT INTO tags (id, name, sort, color, created_at) VALUES (?, ?, ?, ?, ?)'),
+  updateTag: db.prepare('UPDATE tags SET name = ?, sort = ?, color = ? WHERE id = ?'),
   deleteTag: db.prepare('DELETE FROM tags WHERE id = ?'),
   tagsOf: db.prepare('SELECT tag_id FROM player_tags WHERE player_id = ?'),
   // 花名册/排行榜要给每个人算可见活动，逐人查会是 N 次往返；一次拉全再分组

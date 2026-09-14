@@ -101,8 +101,8 @@ export function activitiesForPlayer(config, me) {
  * 而真正的原因只是服务端旧。
  */
 const BUILTIN = [
-  { id: 'normal', name: '普通成员', builtin: true },
-  { id: 'staff', name: '同工', builtin: true },
+  { id: 'normal', name: '普通成员', builtin: true, color: '#9aa8bd' },
+  { id: 'staff', name: '同工', builtin: true, color: '#e8c56a' },
 ];
 
 export function allTags(config) {
@@ -112,6 +112,32 @@ export function allTags(config) {
 
 export function tagName(config, id) {
   return allTags(config).find((t) => t.id === id)?.name || id;
+}
+
+/** 和服务端 db.js 的 TAG_PALETTE 同一份；服务端下发了就用下发的 */
+const PALETTE = [
+  '#7eb8ff', '#7ed9a3', '#c5a5e8', '#ff9b8a', '#6fd6d6',
+  '#f0a6d4', '#b8d86b', '#ffb86b', '#d9a06b', '#9fa8ff',
+];
+
+export function tagPalette(config) {
+  return Array.isArray(config?.tagPalette) && config.tagPalette.length ? config.tagPalette : PALETTE;
+}
+
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+/**
+ * 标签片的配色：字用标签色，边框和底用同一个颜色的淡版。
+ *
+ * 用 rgba 算出来，不用 CSS 的 color-mix —— 同工手里有旧 iPhone，
+ * color-mix 要 Safari 16.2 起才认。
+ */
+export function tagChipStyle(color, on = false) {
+  const c = /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#9aa8bd';
+  return { color: c, borderColor: rgba(c, on ? 0.75 : 0.4), background: rgba(c, on ? 0.18 : 0.06) };
 }
 
 export async function loadConfig() {

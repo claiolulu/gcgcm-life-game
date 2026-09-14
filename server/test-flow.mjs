@@ -885,6 +885,13 @@ check('错误 PIN 被拒', badPin.status === 401);
     JSON.stringify(made.body));
   const stu = made.body.tags.find((x) => x.name === '学生').id;
   const fresh = made.body.tags.find((x) => x.name === '新朋友').id;
+  const c1 = made.body.tags.find((x) => x.id === stu).color;
+  const c2 = made.body.tags.find((x) => x.id === fresh).color;
+  check('新标签自动配了颜色，而且两个不撞色',
+    /^#[0-9a-f]{6}$/.test(c1 || '') && /^#[0-9a-f]{6}$/.test(c2 || '') && c1 !== c2, `${c1} ${c2}`);
+  check('内置标签也带颜色', (cfg0.body.tags || []).filter((x) => x.builtin)
+    .every((x) => /^#[0-9a-f]{6}$/.test(x.color || '')), JSON.stringify(cfg0.body.tags));
+  check('配置里下发色板', Array.isArray(cfg0.body.tagPalette) && cfg0.body.tagPalette.length >= 8);
 
   const reserved = await j('/api/admin/tags', {
     method: 'POST', headers: adminH, body: { tags: [{ name: 'staff' }] },
@@ -942,6 +949,16 @@ check('错误 PIN 被拒', badPin.status === 401);
     && renamed.body.tags.find((x) => x.id === stu)?.name === '学生们');
   const afterRename = await j('/api/me', { headers: playerH });
   check('改名不影响挂载', (afterRename.body.player.tags || []).includes(stu));
+  check('改名时不带颜色，颜色保持原样', renamed.body.tags.find((x) => x.id === stu)?.color === c1,
+    JSON.stringify(renamed.body.tags));
+  const recolor = await j('/api/admin/tags', {
+    method: 'POST', headers: adminH,
+    body: { tags: [{ id: stu, name: '学生们', color: '#FF9B8A' }, { id: fresh, name: '新朋友', color: 'red;background:url(x)' }] },
+  });
+  check('能手动换颜色（大写也认，存成小写）', recolor.body.tags.find((x) => x.id === stu)?.color === '#ff9b8a',
+    JSON.stringify(recolor.body.tags));
+  check('不合法的颜色不会被存进去，沿用原来的', recolor.body.tags.find((x) => x.id === fresh)?.color === c2,
+    JSON.stringify(recolor.body.tags));
 
   // 删掉「学生」：挂载要清掉，而且用它限定的活动要退回所有人可见
   const epochBefore = (await j('/api/staff/sync', {

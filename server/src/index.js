@@ -16,6 +16,7 @@ import {
   writeSnapshot, resetAll, snapshot,
   getActivities, setActivities, getTheme, UPLOAD_DIR,
   getVisaTemplate, BUILTIN_TAGS, RESERVED_TAG_IDS, normalizeAudience,
+  TAG_PALETTE, pickTagColor, normalizeTagColor,
 } from './db.js';
 import {
   playerState, roster, leaderboard, rankOf, applyOp, activityVisibleTo, activityOpenForSignup,
@@ -156,7 +157,9 @@ app.get('/api/config', (req, res) => {
     shareOrigin: shareOrigin(req),
     activities: getActivities(),
     // 内置两个 + 自建的。前端据此渲染标签条，并在活动可见范围里给出勾选项
-    tags: [...BUILTIN_TAGS, ...stmts.allTags.all().map((r) => ({ id: r.id, name: r.name }))],
+    tags: [...BUILTIN_TAGS, ...stmts.allTags.all().map((r) => ({ id: r.id, name: r.name, color: r.color }))],
+    // 总控台点色点换颜色时按这个顺序轮
+    tagPalette: TAG_PALETTE,
     resetPin: RESET_PIN,
     theme: getTheme(),
     themePresets: THEME_PRESETS,
@@ -568,18 +571,28 @@ app.post('/api/admin/tags', staffAuth('admin'), (req, res) => {
     if (RESERVED_TAG_IDS.has(id)) {
       return res.status(400).json({ error: `「${name}」是内置标签，不能改` });
     }
-    clean.push({ id: id || `tag-${uid()}`, name, sort: clean.length + 1 });
+    clean.push({ id: id || `tag-${uid()}`, name, sort: clean.length + 1, color: normalizeTagColor(raw?.color) });
   }
 
-  const before = new Set(stmts.allTags.all().map((r) => r.id));
+  const existing = new Map(stmts.allTags.all().map((r) => [r.id, r]));
+  const before = new Set(existing.keys());
+  // 颜色：提交里带了合法的就用；没带（或不合法）就沿用这个标签原来的；
+  // 还没有（新标签）就挑一个眼下没人用的 —— 同一批里先到先得，保证不撞色
+  for (const x of clean) x.color = x.color || existing.get(x.id)?.color || '';
+  const usedColors = clean.map((x) => x.color).filter(Boolean);
+  for (const x of clean) {
+    if (x.color) continue;
+    x.color = pickTagColor(usedColors);
+    usedColors.push(x.color);
+  }
   const keep = new Set(clean.map((x) => x.id));
   const removed = [...before].filter((id) => !keep.has(id));
   db.transaction(() => {
     for (const id of removed) stmts.deleteTag.run(id);   // 挂载关系靠外键级联清掉
     const now = Date.now();
     for (const x of clean) {
-      if (before.has(x.id)) stmts.updateTag.run(x.name, x.sort, x.id);
-      else stmts.insertTag.run(x.id, x.name, x.sort, now);
+      if (before.has(x.id)) stmts.updateTag.run(x.name, x.sort, x.color, x.id);
+      else stmts.insertTag.run(x.id, x.name, x.sort, x.color, now);
     }
   })();
 
@@ -602,7 +615,7 @@ app.post('/api/admin/tags', staffAuth('admin'), (req, res) => {
 
   setSetting('_epoch', epoch() + 1);
   broadcast('config');
-  res.json({ tags: stmts.allTags.all().map((r) => ({ id: r.id, name: r.name })), epoch: epoch() });
+  res.json({ tags: stmts.allTags.all().map((r) => ({ id: r.id, name: r.name, color: r.color })), epoch: epoch() });
 });
 
 /**

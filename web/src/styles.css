@@ -961,16 +961,6 @@ h3 { font-size: 16px; }
   border-color: rgba(126,217,163,.35);
   color: #7ed9a3;
 }
-/* 限定标签：徽标里直接写标签名，可能有两三个，别让它把活动名挤没了 */
-.admin-activity__audience--tags {
-  max-width: 40%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-color: rgba(197,165,232,.35);
-  color: #c5a5e8;
-}
-
 /* 花名册行上的标签小片。跟在名字后面，所以要比名字小一号、别抢视线 */
 .admin-player__tag {
   display: inline-block;
@@ -1000,6 +990,18 @@ h3 { font-size: 16px; }
 .admin-tag-pick:hover:not(:disabled) { border-color: rgba(197,165,232,.45); color: var(--text); }
 .admin-tag-pick:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 .admin-tag-pick:disabled { opacity: .45; cursor: default; }
+/* 标签编辑器里的色点：点一下换下一个颜色。颜色本身写在行内 style 上 */
+.admin-tag-swatch {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,.2);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.admin-tag-swatch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.admin-tag-swatch:disabled { opacity: .45; cursor: default; }
 .admin-tag-pick--role {
   /* 内置身份是二选一，用方角和实心底跟可多选的圆角标签区分开 */
   border-radius: 7px;

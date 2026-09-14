@@ -6,7 +6,7 @@ import DateField from '../components/DateField.jsx';
 import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText, copyImageBlob } from '../lib/clipboard.js';
-import { useConfig, loadConfig, allTags, activityVisibleTo, playerTags } from '../lib/config.js';
+import { useConfig, loadConfig, allTags, activityVisibleTo, playerTags, tagChipStyle } from '../lib/config.js';
 import { useStaff, allPlayers, queueOp, settleOps, issueFor } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import { onTick } from '../lib/realtime.js';
@@ -420,6 +420,7 @@ export default function ActivityDetail() {
                       key={tg.id}
                       type="button"
                       className={`admin-tag-pick ${on ? 'admin-tag-pick--on' : ''}`}
+                      style={tagChipStyle(tg.color, on)}
                       aria-pressed={on}
                       onClick={() => edit({
                         audienceTags: on

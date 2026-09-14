@@ -5,7 +5,9 @@ import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText } from '../lib/clipboard.js';
 import { ScrollRail } from '../components/ScrollRail.jsx';
-import { useConfig, loadConfig, activityVisibleTo, allTags, playerTags } from '../lib/config.js';
+import {
+  useConfig, loadConfig, activityVisibleTo, allTags, playerTags, tagChipStyle, tagPalette,
+} from '../lib/config.js';
 import { onTick } from '../lib/realtime.js';
 import { useStaff, flush, logout, allPlayers, leaderboardLocal, applyRoster, queueOp, settleOps, issueFor } from '../lib/staff.js';
 
@@ -26,8 +28,13 @@ function audienceBadge(a, tags) {
     return { label: '报名可见', className: 'admin-activity__audience--signed' };
   }
   if (a?.audience === 'tags' && (a.audienceTags || []).length) {
-    const names = a.audienceTags.map((id) => tags.find((x) => x.id === id)?.name || '已删除标签');
-    return { label: names.join(' · '), className: 'admin-activity__audience--tags' };
+    // 每个标签一片、各用各的颜色 —— 和花名册上那个人身上的标签片对得上
+    return {
+      tags: a.audienceTags.map((id) => {
+        const tg = tags.find((x) => x.id === id);
+        return { id, name: tg?.name || '已删除标签', color: tg?.color };
+      }),
+    };
   }
   return null;
 }
@@ -59,10 +66,15 @@ export default function Admin() {
   const [tagDraft, setTagDraft] = useState(null);
   const [newTagName, setNewTagName] = useState('');
   // 没在编辑就直接显示服务端那份
-  const tagRows = tagDraft ?? customTags.map((x) => ({ id: x.id, name: x.name }));
+  const palette = tagPalette(config);
+  // 新行挑一个眼下没人用的颜色；色板用完了就轮着来
+  const unusedColor = (rows) => palette.find((c) => !rows.some((x) => x.color === c))
+    || palette[rows.length % palette.length];
+  const nextColor = (c) => palette[(palette.indexOf(c) + 1) % palette.length];
+  const tagRows = tagDraft ?? customTags.map((x) => ({ id: x.id, name: x.name, color: x.color }));
   const tagsDirty = tagDraft !== null
-    && JSON.stringify(tagDraft.map((x) => [x.id, x.name]))
-       !== JSON.stringify(customTags.map((x) => [x.id, x.name]));
+    && JSON.stringify(tagDraft.map((x) => [x.id, x.name, x.color]))
+       !== JSON.stringify(customTags.map((x) => [x.id, x.name, x.color]));
 
   const editTagRows = (next) => setTagDraft(next);
 
@@ -70,7 +82,7 @@ export default function Admin() {
     const name = newTagName.trim().slice(0, 12);
     if (!name) return;
     if (tagRows.some((x) => x.name === name)) { toast(`已经有「${name}」了`, 'warn'); return; }
-    editTagRows([...tagRows, { id: `new-${Date.now()}`, name }]);
+    editTagRows([...tagRows, { id: `new-${Date.now()}`, name, color: unusedColor(tagRows) }]);
     setNewTagName('');
   }
 
@@ -79,7 +91,7 @@ export default function Admin() {
     try {
       // 新增的行不带 id，让服务端生成；已有的带上 id 才是改名而不是重建
       const payload = rows.map((x) => (String(x.id).startsWith('new-')
-        ? { name: x.name } : { id: x.id, name: x.name }));
+        ? { name: x.name, color: x.color } : { id: x.id, name: x.name, color: x.color }));
       await api('/api/admin/tags', { method: 'POST', body: { tags: payload }, token });
       await loadConfig();
       // 删标签会改一批人的可见活动，服务端已经递增纪元，这里要全量重拉
@@ -710,7 +722,11 @@ export default function Admin() {
                       </span>
                     )}
                     {audience && (
-                      <span className={`admin-activity__audience ${audience.className}`}>{audience.label}</span>
+                      audience.tags ? audience.tags.map((tg) => (
+                        <span key={tg.id} className="admin-activity__audience" style={tagChipStyle(tg.color)}>{tg.name}</span>
+                      )) : (
+                        <span className={`admin-activity__audience ${audience.className}`}>{audience.label}</span>
+                      )
                     )}
                   </div>
                   <div className="tiny dim">
@@ -807,6 +823,16 @@ export default function Admin() {
           </div>
           {tagRows.map((row) => (
             <div key={row.id} className="row" style={{ gap: 6, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="admin-tag-swatch"
+                style={{ background: row.color }}
+                title="点一下换颜色"
+                aria-label={`换颜色：${row.name}`}
+                disabled={busy === 'tags'}
+                onClick={() => editTagRows(tagRows.map((x) => (
+                  x.id === row.id ? { ...x, color: nextColor(x.color) } : x)))}
+              />
               <input
                 className="input grow"
                 value={row.name}
@@ -889,7 +915,7 @@ export default function Admin() {
                   {p.name}
                   {p.role === 'staff' && <span className="admin-player__role">同工</span>}
                   {(p.tags || []).map((id) => (
-                    <span key={id} className="admin-player__tag">
+                    <span key={id} className="admin-player__tag" style={tagChipStyle(tagList.find((x) => x.id === id)?.color)}>
                       {tagList.find((x) => x.id === id)?.name || '?'}
                     </span>
                   ))}
@@ -979,13 +1005,14 @@ export default function Admin() {
             <div className="card card--tight stack-sm admin-player-role">
               <div className="label" style={{ margin: 0 }}>身份与标签</div>
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                {[{ id: 'normal', name: '普通成员' }, { id: 'staff', name: '同工' }].map((tg) => {
+                {tagList.filter((x) => x.builtin).map((tg) => {
                   const on = (detailPlayer.role || 'normal') === tg.id;
                   return (
                     <button
                       key={tg.id}
                       type="button"
                       className={`admin-tag-pick admin-tag-pick--role ${on ? 'admin-tag-pick--on' : ''}`}
+                      style={tagChipStyle(tg.color, on)}
                       aria-pressed={on}
                       disabled={busy === `role-${detailPlayer.id}` || busy === `delete-${detailPlayer.id}`}
                       onClick={() => changePlayerRole(detailPlayer, tg.id)}
@@ -1002,6 +1029,7 @@ export default function Admin() {
                       key={tg.id}
                       type="button"
                       className={`admin-tag-pick ${on ? 'admin-tag-pick--on' : ''}`}
+                      style={tagChipStyle(tg.color, on)}
                       aria-pressed={on}
                       disabled={busy === `tag-${tg.id}`}
                       onClick={() => togglePlayerTag(detailPlayer, tg.id)}
