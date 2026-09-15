@@ -940,7 +940,7 @@ function num(v, min, max, fallback) {
 }
 
 const BLOCK_KINDS = new Set([
-  'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image', 'icon',
+  'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image', 'icon', 'gallery',
 ]);
 
 function cleanBlocks(raw, where) {
@@ -1001,6 +1001,13 @@ function cleanBlocks(raw, where) {
       case 'image':
         return { ...base, src: safePhoto(b?.src),
                  fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover', radius: num(b?.radius, 0, 50, 0) };
+      case 'gallery':
+        return {
+          ...base, href: '',
+          photos: (Array.isArray(b?.photos) ? b.photos : []).slice(0, 100).map(safePhoto).filter(Boolean),
+          featured: Math.min(8, Math.max(1, Math.round(Number(b?.featured) || 6))),
+          cols: Math.min(4, Math.max(2, Math.round(Number(b?.cols) || 3))),
+        };
       default:
         return {
           ...base, kind: 'text',

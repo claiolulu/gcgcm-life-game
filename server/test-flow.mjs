@@ -533,6 +533,8 @@ check('错误 PIN 被拒', badPin.status === 401);
   const pages = [
     { id: 'photos', kind: 'photo', title: '活动照片', blocks: [
       { id: 'photo-title', kind: 'text', x: 8, y: 14, w: 84, h: 10, text: '我们在一起' },
+      { id: 'gallery', kind: 'gallery', x: 8, y: 26, w: 84, h: 58,
+        photos: ['/uploads/one.jpg', '', 'javascript:bad'], featured: 99, cols: 1 },
     ] },
     { id: 'photos', kind: 'summary', title: '活动总结', blocks: [
       { id: 'summary', kind: 'text', x: 10, y: 25, w: 80, h: 50, text: '这一页是总结。' },
@@ -549,6 +551,11 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('重复的附加页 id 会自动错开', extras[0]?.id !== extras[1]?.id,
     `${extras[0]?.id} / ${extras[1]?.id}`);
   check('附加页里的画布块能保存', extras[1]?.blocks?.[0]?.text === '这一页是总结。');
+  const gallery = extras[0]?.blocks?.find((b) => b.kind === 'gallery');
+  check('照片页图库能保存并清理图片地址', gallery?.photos?.length === 1 && gallery.photos[0] === '/uploads/one.jpg',
+    JSON.stringify(gallery));
+  check('图库首屏数量和列数会收进安全范围', gallery?.featured === 8 && gallery?.cols === 2,
+    JSON.stringify(gallery));
 
   const tooManyPages = await j('/api/admin/activities', {
     method: 'POST', headers: adminH,

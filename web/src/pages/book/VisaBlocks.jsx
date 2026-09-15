@@ -1,4 +1,5 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { TEXT_BLOCK_MAX } from '../../lib/config.js';
 import ScrollBox from '../../components/ScrollRail.jsx';
 
@@ -27,6 +28,76 @@ const FONTS = {
   mono: "'Courier Prime',monospace",
   sans: "'Noto Serif SC',system-ui,sans-serif",
 };
+
+function GalleryBody({ b, editing }) {
+  const photos = Array.isArray(b.photos) ? b.photos.filter(Boolean) : [];
+  const featured = Math.max(1, Math.min(8, Number(b.featured) || 6));
+  const shown = photos.slice(0, featured);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setOpen(false); setActive(null); }
+      if (active !== null && e.key === 'ArrowRight') setActive((active + 1) % photos.length);
+      if (active !== null && e.key === 'ArrowLeft') setActive((active - 1 + photos.length) % photos.length);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, active, photos.length]);
+
+  if (!photos.length) return editing ? <Ghost text="图库还没有照片：打开参与者素材库，连续加入多张" /> : null;
+
+  const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+  const openAll = (e) => { stop(e); if (!editing) setOpen(true); };
+  const modal = open && !editing && typeof document !== 'undefined' ? createPortal(
+    <div className="photo-gallery-modal" role="dialog" aria-modal="true" aria-label={`全部 ${photos.length} 张照片`}
+      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) { setOpen(false); setActive(null); } }}>
+      <div className="photo-gallery-modal__bar">
+        <div><b>活动照片</b><span>{active === null ? `${photos.length} 张` : `${active + 1} / ${photos.length}`}</span></div>
+        <button onClick={() => { setOpen(false); setActive(null); }} aria-label="关闭全部照片">×</button>
+      </div>
+      {active === null ? (
+        <div className="photo-gallery-modal__grid">
+          {photos.map((src, i) => (
+            <button key={`${src}-${i}`} onClick={() => setActive(i)} aria-label={`查看第 ${i + 1} 张照片`}>
+              <img src={src} alt="" loading="lazy" />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="photo-gallery-modal__viewer">
+          <button className="photo-gallery-modal__nav photo-gallery-modal__nav--prev"
+            onClick={() => setActive((active - 1 + photos.length) % photos.length)} aria-label="上一张">‹</button>
+          <img src={photos[active]} alt={`第 ${active + 1} 张活动照片`} />
+          <button className="photo-gallery-modal__nav photo-gallery-modal__nav--next"
+            onClick={() => setActive((active + 1) % photos.length)} aria-label="下一张">›</button>
+          <button className="photo-gallery-modal__back" onClick={() => setActive(null)}>查看全部缩略图</button>
+        </div>
+      )}
+    </div>, document.body,
+  ) : null;
+
+  return (
+    <>
+      <div className="visa-gallery" style={{ '--gallery-cols': Math.min(4, Math.max(2, Number(b.cols) || 3)) }}>
+        <div className="visa-gallery__grid">
+          {shown.map((src, i) => (
+            <button key={`${src}-${i}`} tabIndex={editing ? -1 : 0} onClick={(e) => { stop(e); if (!editing) { setOpen(true); setActive(i); } }}>
+              <img src={src} alt="" loading="lazy" />
+              {i === shown.length - 1 && photos.length > shown.length ? <span>+{photos.length - shown.length}</span> : null}
+            </button>
+          ))}
+        </div>
+        <button className="visa-gallery__all" tabIndex={editing ? -1 : 0} onClick={openAll}>
+          查看全部 {photos.length} 张
+        </button>
+      </div>
+      {modal}
+    </>
+  );
+}
 
 function InlineValue({ as: Tag = 'span', value, field, blockId, onTextChange, style, maxLength = 1000, placeholder = '', multiline = false }) {
   const ref = useRef(null);
@@ -315,6 +386,9 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
         }} />
       );
 
+    case 'gallery':
+      return <GalleryBody b={b} editing={editing} />;
+
     case 'icon':
       // 字号跟着块高走，把手拖大图标就跟着变大。
       //
@@ -390,7 +464,7 @@ export default function VisaBlocks({ blocks, data, editing = false }) {
           opacity: b.opacity ?? 1,
         };
         const body = <BlockBody b={b} data={data} editing={editing} />;
-        if (b.href && !editing) {
+        if (b.href && !editing && b.kind !== 'gallery') {
           return (
             <a key={b.id} href={b.href} target="_blank" rel="noopener noreferrer"
               style={{ ...box, pointerEvents: 'auto', textDecoration: 'none', display: 'block' }}>
@@ -398,8 +472,9 @@ export default function VisaBlocks({ blocks, data, editing = false }) {
             </a>
           );
         }
-        // 链接块自己会开 pointerEvents（见上面的 links 分支）
-        return <div key={b.id} style={{ ...box, pointerEvents: b.kind === 'links' && !editing ? 'auto' : 'none' }}>{body}</div>;
+        // 链接和图库需要接收点击；其它块继续穿透给翻页层。
+        const interactive = !editing && (b.kind === 'links' || b.kind === 'gallery');
+        return <div key={b.id} style={{ ...box, pointerEvents: interactive ? 'auto' : 'none' }}>{body}</div>;
       })}
     </div>
   );

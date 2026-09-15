@@ -29,6 +29,7 @@ const round = (n) => Math.round(n * 10) / 10;
 const PALETTE = [
   { kind: 'text',    name: '文字',     make: () => ({ x: 8, y: 30, w: 40, h: 14, text: '写点什么', size: 4, color: '', font: 'sans', align: 'left', bold: false, lh: 1.5 }) },
   { kind: 'image',   name: '图片',     make: () => ({ x: 10, y: 25, w: 30, h: 34, src: '', fit: 'cover', radius: 0 }) },
+  { kind: 'gallery', name: '照片图库', make: () => ({ x: 7, y: 26, w: 86, h: 58, photos: [], featured: 6, cols: 3 }) },
   { kind: 'banner',  name: 'VISA 横框', make: (t) => ({ x: 4, y: 12.5, w: 92, h: 11, word: t.banner, ...t.brand }) },
   { kind: 'fields',  name: '栏目',     make: (t) => ({ x: 4.5, y: 27, w: 52, h: 62, cols: 2, rows: t.rows }) },
   { kind: 'station', name: '活动名',   make: (t) => ({ x: 60, y: 27, w: 36, h: 16, label: t.stationLabel }) },
@@ -121,8 +122,8 @@ function newExtraPage(kind, index) {
     blocks: isPhoto ? [
       { id: `t${stamp}`, kind: 'text', x: 6, y: 15, w: 88, h: 9, rot: 0, opacity: 1,
         text: '活动照片', size: 5.2, color: '', font: 'serif', align: 'center', bold: true, lh: 1.2, href: '' },
-      { id: `i${stamp}`, kind: 'image', x: 8, y: 27, w: 84, h: 58, rot: 0, opacity: 1,
-        src: '', fit: 'contain', radius: 0, href: '' },
+      { id: `g${stamp}`, kind: 'gallery', x: 8, y: 27, w: 84, h: 58, rot: 0, opacity: 1,
+        photos: [], featured: 6, cols: 3, href: '' },
     ] : [
       { id: `t${stamp}`, kind: 'text', x: 7, y: 16, w: 86, h: 10, rot: 0, opacity: 1,
         text: '活动总结', size: 5.4, color: '', font: 'serif', align: 'center', bold: true, lh: 1.2, href: '' },
@@ -400,6 +401,33 @@ export default function ActivityDesign() {
     }
   }
 
+  async function pickGalleryImages(files, bid) {
+    const list = [...(files || [])].slice(0, 40);
+    if (!list.length) return;
+    setBusy('gallery');
+    const urls = [];
+    let failed = 0;
+    for (const file of list) {
+      try {
+        const res = await uploadPhoto(file, token);
+        urls.push(res.url);
+      } catch {
+        failed += 1;
+      }
+    }
+    try {
+      if (!urls.length) throw new Error('照片上传失败');
+      const current = (blocksRef.current || []).find((b) => b.id === bid);
+      const photos = [...(current?.photos || []), ...urls].slice(0, 100);
+      patch(bid, { photos });
+      toast(failed ? `已加入 ${urls.length} 张，${failed} 张失败，请重试` : `已加入 ${urls.length} 张照片`, failed ? 'warn' : 'ok');
+    } catch (err) {
+      toast(err.message || '照片上传失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function selectPage(index) {
     if (!designPages?.[index]) return;
     pageIndexRef.current = index;
@@ -485,6 +513,19 @@ export default function ActivityDesign() {
   function addMaterial(material, at = null) {
     checkpoint();
     const isImage = material.kind === 'image';
+    const page = pagesRef.current?.[pageIndexRef.current];
+    const gallery = !at && isImage ? (page?.blocks || []).find((b) => b.kind === 'gallery') : null;
+    if (gallery) {
+      const photos = gallery.photos || [];
+      if (photos.includes(material.content)) return toast('这张照片已经在图库里了', 'warn');
+      setBlocks((cur) => cur.map((b) => (b.id === gallery.id
+        ? { ...b, photos: [...photos, material.content].slice(0, 100) }
+        : b)));
+      setDirty(true);
+      setSel(gallery.id);
+      toast(`已把 ${material.player?.name || '参与者'} 的照片加入图库`, 'ok');
+      return;
+    }
     let made = {
       id: `m${Date.now().toString(36)}`, kind: isImage ? 'image' : 'text',
       x: round(at?.x ?? (isImage ? 12 : 10)), y: round(at?.y ?? (isImage ? 27 : 30)),
@@ -496,7 +537,6 @@ export default function ActivityDesign() {
     };
     // 新建照片页/总结页自带一个占位块。第一次放参与者素材时直接替换它，
     // 不然两段文字（或空图片框）会精确叠在一起，看上去像坏掉了。
-    const page = pagesRef.current?.[pageIndexRef.current];
     const placeholder = !at && page?.kind === 'photo' && isImage
       ? (page.blocks || []).find((b) => b.kind === 'image' && !b.src)
       : !at && page?.kind === 'summary' && !isImage
@@ -1270,6 +1310,7 @@ export default function ActivityDesign() {
           <Inspector
             b={selected} patch={(p) => patch(selected.id, p)} sources={sources}
             busy={busy} onPickImage={(f) => pickImage(f, selected.id)}
+            onPickGalleryImages={(files) => pickGalleryImages(files, selected.id)}
           />
 
           {selected.kind === 'text' && (() => {
@@ -1287,7 +1328,7 @@ export default function ActivityDesign() {
           <Slider label="旋转" value={selected.rot || 0} min={-180} max={180} step={1}
             onChange={(v) => patch(selected.id, { rot: v })} suffix="°" />
 
-          {selected.kind !== 'links' && (
+          {selected.kind !== 'links' && selected.kind !== 'gallery' && (
             <label className="stack-sm" style={{ gap: 3 }}>
               <div className="tiny dim">点它跳到哪 —— 相册、报名表、地图。留空就是不可点。</div>
               <input className="input" value={selected.href || ''} maxLength={300}
@@ -1327,7 +1368,7 @@ export default function ActivityDesign() {
 }
 
 /** 每种块自己那几项 */
-function Inspector({ b, patch, sources, busy, onPickImage }) {
+function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages }) {
   const toast = useToast();
   if (b.kind === 'icon') {
     return (
@@ -1438,6 +1479,53 @@ function Inspector({ b, patch, sources, busy, onPickImage }) {
         </div>
         <Slider label="圆角" value={b.radius || 0} min={0} max={50} step={1}
           onChange={(v) => patch({ radius: v })} suffix="%" />
+      </>
+    );
+  }
+
+  if (b.kind === 'gallery') {
+    const photos = b.photos || [];
+    const move = (i, d) => {
+      const to = i + d;
+      if (to < 0 || to >= photos.length) return;
+      const next = [...photos];
+      [next[i], next[to]] = [next[to], next[i]];
+      patch({ photos: next });
+    };
+    return (
+      <>
+        <div className="tiny dim">首屏显示精选缩略图；参与者点“查看全部”后浏览完整图库。照片顺序就是展示顺序。</div>
+        <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer', alignSelf: 'flex-start' }}>
+          {busy === 'gallery' ? '上传中…' : '＋ 从设备选择多张'}
+          <input type="file" accept="image/*" multiple hidden disabled={busy === 'gallery'}
+            onChange={(e) => { const files = e.target.files; e.target.value = ''; onPickGalleryImages(files); }} />
+        </label>
+        <div className="row" style={{ gap: 8 }}>
+          <label className="stack-sm grow" style={{ gap: 3 }}>
+            <span className="tiny dim">首屏张数</span>
+            <select className="input" value={b.featured || 6} onChange={(e) => patch({ featured: Number(e.target.value) })}>
+              {[3, 4, 6, 8].map((n) => <option key={n} value={n}>{n} 张</option>)}
+            </select>
+          </label>
+          <label className="stack-sm grow" style={{ gap: 3 }}>
+            <span className="tiny dim">每行</span>
+            <select className="input" value={b.cols || 3} onChange={(e) => patch({ cols: Number(e.target.value) })}>
+              {[2, 3, 4].map((n) => <option key={n} value={n}>{n} 张</option>)}
+            </select>
+          </label>
+        </div>
+        {!photos.length ? <div className="small dim">还没有照片。可以从设备选择，或在参与者素材库连续点“加入图库”。</div> : null}
+        <div className="design__gallery-list">
+          {photos.map((src, i) => (
+            <div key={`${src}-${i}`} className="design__gallery-item">
+              <img src={src} alt={`图库第 ${i + 1} 张`} />
+              <b>{i + 1}</b>
+              <button className="btn btn--sm btn--ghost" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+              <button className="btn btn--sm btn--ghost" disabled={i === photos.length - 1} onClick={() => move(i, 1)}>↓</button>
+              <button className="btn btn--sm btn--ghost" onClick={() => patch({ photos: photos.filter((_, k) => k !== i) })}>移除</button>
+            </div>
+          ))}
+        </div>
       </>
     );
   }
