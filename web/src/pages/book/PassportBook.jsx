@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePush } from '../../lib/push.js';
+import { track } from '../../lib/track.js';
 import { useToast } from '../../components/ui.jsx';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
@@ -88,6 +89,21 @@ export default function PassportBook() {
   // 不存在开局全挤在一个门口的问题。
   const pages = useMemo(() => buildPages(activities), [activities]);
   const pageCount = pages.length;
+
+  // 使用统计：翻到了哪页、打开了哪些浮层。只记类别和活动 id（见 lib/track.js）
+  useEffect(() => {
+    const p = pages[page];
+    if (!p) return;
+    if (p.kind === 'visa') track('visa', { activityId: activities[p.i]?.id, once: true });
+    else track('page', { label: p.kind, once: true });
+  }, [page, pages, activities]);
+  useEffect(() => { if (overlay) track(overlay); }, [overlay]);
+  useEffect(() => { if (modal) track(modal); }, [modal]);
+  useEffect(() => { if (themeOpen) track('theme'); }, [themeOpen]);
+  useEffect(() => { if (tourOpen) track('tour'); }, [tourOpen]);
+  useEffect(() => {
+    if (contributionActivity) track('contribution', { activityId: contributionActivity.id });
+  }, [contributionActivity]);
 
   /* ------------------------------ 翻页 ------------------------------ */
 

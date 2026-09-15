@@ -130,3 +130,22 @@ CREATE TABLE IF NOT EXISTS push_subs (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS push_subs_player ON push_subs(player_id);
+
+-- 使用情况统计（自建埋点，见 usage.js）。只记谁、哪天、哪一类操作、哪场活动；
+-- 不记 IP、位置和任何填写的内容。原始记录保留 180 天，到期自动删除。
+-- 删掉一个人时 player_id 置空：统计里的次数还在，但不再指向这个人。
+CREATE TABLE IF NOT EXISTS usage_events (
+  id          INTEGER PRIMARY KEY,
+  ts          INTEGER NOT NULL,
+  -- 英国时间的日期 YYYY-MM-DD，按天统计靠它
+  day         TEXT NOT NULL,
+  player_id   TEXT REFERENCES players(id) ON DELETE SET NULL,
+  -- 浏览器里随机生成的设备号，区分没登录的访客；服务端自己记的事件为空串
+  device      TEXT NOT NULL,
+  event       TEXT NOT NULL,
+  activity_id TEXT NOT NULL DEFAULT '',
+  label       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS usage_events_day ON usage_events(day);
+CREATE INDEX IF NOT EXISTS usage_events_ts ON usage_events(ts);
+CREATE INDEX IF NOT EXISTS usage_events_player ON usage_events(player_id);

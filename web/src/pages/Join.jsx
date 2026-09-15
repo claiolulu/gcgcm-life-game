@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { NetBar, useToast } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
+import { track } from '../lib/track.js';
 import { usePlayer, refreshMe } from '../lib/player.js';
 
 /**
@@ -29,6 +30,7 @@ export default function Join() {
     try {
       setErr(null);
       setInfo(await api(`/api/activity/${id}`, { token: player.session?.token }));
+      track('join', { activityId: id, once: true });
     } catch (e) {
       // 区分「网断了」和「服务端说没这场活动」—— 两者要给的下一步完全不同。
       // api() 在网络层失败时把 status 设成 0（见 ApiError.offline）
@@ -37,6 +39,14 @@ export default function Join() {
   }, [id, player.session?.token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 从通知点进来的，链接上带着 ?from=push：记一笔，再把参数去掉，免得刷新又记一次
+  const [params] = useSearchParams();
+  useEffect(() => {
+    if (params.get('from') !== 'push') return;
+    track('notif_open', { activityId: id, once: true });
+    nav(`/join/${id}`, { replace: true });
+  }, [params, id, nav]);
 
   const signedUp = !!me?.signups?.includes(id);
   const registration = info?.registration || {
@@ -58,6 +68,7 @@ export default function Join() {
       await api(`/api/activity/${id}/signup`, {
         method: signedUp ? 'DELETE' : 'POST', token: player.session.token,
       });
+      track(signedUp ? 'cancel' : 'signup', { activityId: id });
       await refreshMe();
       await load();
       toast(signedUp ? '已取消报名' : '报名成功，活动当天带上护照', 'ok');

@@ -18,6 +18,8 @@ import ActivityDesign from './pages/ActivityDesign.jsx';
 import Join from './pages/Join.jsx';
 import StaffPlayer from './pages/StaffPlayer.jsx';
 import Admin from './pages/Admin.jsx';
+import Usage from './pages/Usage.jsx';
+import { useRouteTracking } from './lib/track.js';
 
 /* ------------------------------ 底部导航 ------------------------------ */
 
@@ -98,6 +100,12 @@ function StaffEntry() {
 
 /* ------------------------------- 根组件 ------------------------------- */
 
+/** 路由级埋点：打开了哪一类页面（每类一天记一次），见 lib/track.js */
+function UsageTracker() {
+  useRouteTracking();
+  return null;
+}
+
 export default function App() {
   const [booted, setBooted] = useState(false);
   const { config } = useConfig();
@@ -136,9 +144,11 @@ export default function App() {
             <Route path="/staff/admin" element={<StaffRoute admin><Admin /></StaffRoute>} />
             <Route path="/staff/admin/a/:id" element={<StaffRoute admin><ActivityDetail /></StaffRoute>} />
             <Route path="/staff/admin/a/:id/design" element={<StaffRoute admin><ActivityDesign /></StaffRoute>} />
+            <Route path="/staff/admin/usage" element={<StaffRoute admin><Usage /></StaffRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <UsageTracker />
           <BottomNav />
         </div>
       </BrowserRouter>

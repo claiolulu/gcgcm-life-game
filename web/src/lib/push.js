@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { getPlayerSession } from './session.js';
+import { track } from './track.js';
 
 /**
  * 通知推送（参与者端）。
@@ -107,11 +108,13 @@ export function usePush(notify) {
       if (state === 'on') {
         await disablePush();
         setState('off');
+        track('push_off');
         notify?.('已关闭通知', 'ok');
       } else {
         setState('loading');
         await enablePush();
         setState('on');
+        track('push_on');
         notify?.('已开启通知，活动有新消息会提醒你', 'ok');
       }
     } catch (err) {

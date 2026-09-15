@@ -1162,5 +1162,76 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
+// 30. 使用情况统计：白名单、按人/按设备去重、鉴权、单批上限、删人后不再指向这个人
+{
+  console.log('\n— 使用情况统计 —');
+  const cfgU = await j('/api/config');
+  const ACT = cfgU.body.activities[0].id;
+  const stamp = Date.now().toString(36);
+  const pu = await j('/api/register', {
+    method: 'POST', body: { name: `统计测试${stamp}`, avatar: { skin: 1 }, pin: '1357', confirmNew: true },
+  });
+  const tokenU = pu.body.token;
+  const devA = `devA-${stamp}`;
+  const devB = `devB-${stamp}`;
+  const beacon = async (body) => {
+    const r = await fetch(BASE + '/api/t', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const report = (days = 7) => j(`/api/admin/usage?days=${days}`, { headers: adminH });
+
+  const before = await report();
+  check('管理员能看使用情况', before.status === 200 && before.body.series?.length === 7 && before.body.retentionDays === 180,
+    JSON.stringify(before.body)?.slice(0, 200));
+
+  const r1 = await beacon({ d: devA, t: tokenU, e: [
+    { n: 'open', l: 'passport' }, { n: 'visa', a: ACT }, { n: 'visa', a: ACT }, { n: 'board' },
+    { n: 'guide', ts: Date.now() + 10 * 86_400_000 }, { n: 'qr', ts: Date.now() - 30 * 86_400_000 },
+    { n: 'hack_me' }, { n: 'join', a: '../etc/passwd' },
+  ] });
+  check('sendBeacon 的 text/plain 能收，名单外的事件丢掉', r1.status === 200 && r1.body.accepted === 7 && r1.body.dropped === 1,
+    JSON.stringify(r1.body));
+  const r2 = await beacon({ d: devB, e: [{ n: 'open', l: 'join' }, { n: 'join', a: ACT }] });
+  const r3 = await j('/api/t', { method: 'POST', body: { d: devB, e: [{ n: 'join', a: ACT }] } });
+  check('没登录的访客和 JSON 格式也能收', r2.body?.accepted === 2 && r3.body?.accepted === 1, `${JSON.stringify(r2.body)} ${JSON.stringify(r3.body)}`);
+  const fake = await beacon({ d: devA, t: 'not-a-real-token', e: [{ n: 'board' }] });
+  const badDev = await beacon({ d: 'x', e: [{ n: 'open' }] });
+  check('设备号不合格整批不收，假令牌不认人但照收', badDev.body?.accepted === 0 && fake.body?.accepted === 1,
+    `${JSON.stringify(badDev.body)} ${JSON.stringify(fake.body)}`);
+  const junk = await beacon({ d: devB, e: 'nope' });
+  const notJson = await fetch(BASE + '/api/t', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: '{oops' });
+  check('格式不对不会报错崩掉', junk.status === 200 && junk.body.accepted === 0 && notJson.status === 400, `${junk.status} ${notJson.status}`);
+
+  const after = await report();
+  const t0 = before.body.series.at(-1);
+  const t1 = after.body.series.at(-1);
+  check('同一个人点了很多下，活跃用户只加 1', t1.users - t0.users === 1, `${t0.users} → ${t1.users}`);
+  check('一直没登录的设备算访客，登录过的设备不重复算', t1.visitors - t0.visitors === 1, `${t0.visitors} → ${t1.visitors}`);
+  check('操作次数不含单纯打开网页；时间离谱的记到今天', t1.actions - t0.actions === 9, `${t0.actions} → ${t1.actions}`);
+  const actOf = (r) => r.body.activities.find((a) => a.id === ACT) || {};
+  check('活动报名页按人数算（坏的活动 id 不算进任何活动）', actOf(after).joinPeople - (actOf(before).joinPeople || 0) === 1,
+    JSON.stringify(actOf(after)));
+  check('签证页按人数算', actOf(after).visaPeople - (actOf(before).visaPeople || 0) === 1, JSON.stringify(actOf(after)));
+  const evOf = (r, name) => r.body.events.find((e) => e.event === name) || { n: 0, people: 0 };
+  check('功能排行带中文名和次数', evOf(after, 'visa').n - evOf(before, 'visa').n === 2 && evOf(after, 'visa').label === '看活动签证页',
+    JSON.stringify(evOf(after, 'visa')));
+  check('不认识的范围按 30 天算', (await report(13)).body.days === 30);
+
+  const noAuth = await j('/api/admin/usage');
+  const staffTry = await j('/api/admin/usage', { headers: staffH });
+  const playerTry = await j('/api/admin/usage', { headers: { authorization: `Bearer ${tokenU}` } });
+  check('只有管理员能看使用情况', noAuth.status === 401 && staffTry.status === 403 && playerTry.status === 401,
+    `${noAuth.status} ${staffTry.status} ${playerTry.status}`);
+
+  const big = await beacon({ d: `devC-${stamp}`, e: Array.from({ length: 60 }, () => ({ n: 'board' })) });
+  check('单批最多收 50 条', big.body.accepted === 50 && big.body.dropped === 10, JSON.stringify(big.body));
+
+  const del = await j(`/api/admin/player/${pu.body.player.id}`, { method: 'DELETE', headers: adminH });
+  const gone = await report();
+  const t2 = gone.body.series.at(-1);
+  check('删掉用户后统计还在，但不再指向这个人', del.status === 200 && t2.users === t0.users && t2.visitors - t0.visitors === 3,
+    `${del.status} users ${t2.users} visitors ${t0.visitors} → ${t2.visitors}`);
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

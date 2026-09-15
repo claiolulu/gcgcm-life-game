@@ -634,7 +634,10 @@ export default function Admin() {
           <h1>活动总控台</h1>
           <div className="small muted">在这里管理活动、选手与现场数据</div>
         </div>
-        <button className="btn btn--sm btn--ghost admin-logout" onClick={() => { logout(); nav('/staff'); }}>退出登录</button>
+        <div className="admin-header__actions">
+          <button className="btn btn--sm btn--ghost admin-logout" onClick={() => nav('/staff/admin/usage')}>📈 使用情况</button>
+          <button className="btn btn--sm btn--ghost admin-logout" onClick={() => { logout(); nav('/staff'); }}>退出登录</button>
+        </div>
       </div>
 
       <div className="cols-2 cols-pair">

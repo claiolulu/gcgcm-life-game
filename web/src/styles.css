@@ -871,6 +871,80 @@ h3 { font-size: 16px; }
 .admin-stat--gold .admin-stat__icon { background: rgba(232,197,106,.13); }
 .admin-stat--green .admin-stat__icon { background: rgba(62,201,138,.13); }
 .admin-stat--orange .admin-stat__icon { background: rgba(247,148,72,.14); }
+.admin-header__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+/* ------------------------------ 使用情况 ------------------------------ */
+/* 图表色（#3987e5 蓝 / #d95926 橙）在 Usage.jsx 里，已按面板底色校验过 */
+
+.usage-filter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.usage-ranges { display: inline-flex; padding: 3px; border: 1px solid var(--admin-border); border-radius: 12px; background: rgba(15, 23, 42, .55); }
+.usage-range { padding: 7px 12px; border-radius: 9px; color: #8895aa; font-size: 13px; font-weight: 650; white-space: nowrap; }
+.usage-range:hover { color: #eef4ff; background: rgba(255, 255, 255, .04); }
+.usage-range--on, .usage-range--on:hover { color: #eef4ff; background: rgba(57, 135, 229, .22); }
+.usage-body { display: grid; gap: 12px; transition: opacity .2s; }
+.usage-body .admin-stats { margin-bottom: 0; }
+.usage-body .cols-pair { margin: 0; }
+.usage-card { display: grid; gap: 12px; min-width: 0; }
+.usage-card__head { align-items: flex-start; }
+.usage-card__head .btn { flex: none; white-space: nowrap; }
+.usage-card__head h3 { margin: 0 0 3px; font-size: 15px; font-weight: 750; color: #f5f7fb; }
+.usage-note { color: #a9b4c6; font-size: 13px; line-height: 1.7; }
+.usage-note--err { color: #ffb4a8; }
+.usage-legend { display: flex; gap: 14px; color: #a9b4c6; font-size: 12px; }
+.usage-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.usage-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.usage-chart { position: relative; width: 100%; min-width: 0; }
+.usage-chart svg { display: block; outline: none; touch-action: pan-y; }
+.usage-chart svg:focus-visible { border-radius: 6px; box-shadow: 0 0 0 2px rgba(57, 135, 229, .6); }
+.usage-grid { stroke: rgba(148, 163, 184, .12); stroke-width: 1; }
+.usage-axis { stroke: rgba(148, 163, 184, .32); stroke-width: 1; }
+.usage-tick { fill: #8895aa; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.usage-hoverband { fill: rgba(255, 255, 255, .05); }
+.usage-tip {
+  position: absolute;
+  top: 4px;
+  z-index: 5;
+  min-width: 124px;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #0f1523;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .35);
+  font-size: 12px;
+  pointer-events: none;
+}
+.usage-tip__day { margin-bottom: 4px; color: #a9b4c6; }
+.usage-tip__row { display: flex; align-items: center; gap: 7px; line-height: 1.65; color: #8895aa; }
+.usage-tip__row b { min-width: 22px; color: #eef4ff; font-weight: 750; }
+.usage-tip__key { flex: none; width: 10px; height: 2px; border-radius: 1px; }
+.usage-tip__key--none { background: transparent; }
+.usage-bars { display: grid; gap: 8px; }
+.usage-bar { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 12.5px; }
+.usage-bar__label { overflow: hidden; color: #d7deea; white-space: nowrap; text-overflow: ellipsis; }
+.usage-bar__track { height: 8px; }
+.usage-bar__fill { height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; background: #3987e5; }
+.usage-bar__value { color: #8895aa; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.usage-bar__value b { color: #eef4ff; }
+.usage-table-wrap { max-height: 420px; overflow: auto; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.usage-table th {
+  position: sticky;
+  top: 0;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--admin-border);
+  background: #141b2b;
+  color: #8895aa;
+  font-weight: 650;
+  text-align: right;
+  white-space: nowrap;
+}
+.usage-table td { padding: 7px 8px; border-bottom: 1px solid rgba(148, 163, 184, .08); color: #d7deea; text-align: right; white-space: nowrap; }
+.usage-table th:first-child, .usage-table td:first-child { text-align: left; }
+.usage-table__name { max-width: 14em; overflow: hidden; text-overflow: ellipsis; }
+.usage-foot { padding: 4px 2px 24px; line-height: 1.7; }
+@media (max-width: 720px) {
+  .usage-bar { grid-template-columns: 7.5em minmax(0, 1fr) auto; gap: 8px; font-size: 12px; }
+}
 
 .admin-panel.card {
   border-color: var(--admin-border);

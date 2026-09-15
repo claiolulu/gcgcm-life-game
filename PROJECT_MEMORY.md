@@ -1,7 +1,7 @@
 # Mini Life Game · 共享项目记忆
 
-最后更新：2026-09-13（Europe/London）  
-本次核对代码基线：`passport-checkin` / `25bd8e6`。这只是核对时的提交，不要求开发始终停留在该提交。  
+最后更新：2026-09-15（Europe/London）
+本次核对代码基线：`98cdae5` 之后的两个提交（照片图库、使用情况统计），已推送到 `origin/passport-checkin`。这只是核对时的提交，不要求开发始终停留在该提交。
 用途：让 Claude Code、Codex 和人工维护者从同一份项目现状继续工作。代码是事实来源；本文件是交接摘要，不替代源码或 Git 历史。
 
 ## 1. 项目定位与当前进度
@@ -18,6 +18,7 @@
 - 画布：首张信息页始终保留；附加照片/总结页可增删、改名和排序；照片页默认带多图图库，支持设备多选上传、从参与者素材库连续加入、排序/移除及精选数量/列数设置；组件移动/缩放/旋转/删除、文字原位编辑、齿轮样式面板、撤销/重做、自动吸附参考线、全屏编辑、双指缩放和平移。
 - 分享图：生成 PNG，系统文件分享、下载及平台提示。iPhone 网页不能静默写相册，使用系统分享面板的“存储图像”或长按图片；不保证所有社交 App 都提供直接分享目标。
 - 离线：PWA 缓存、参与者快照、同工花名册和操作 outbox、恢复网络重试、Socket.IO 实时信号与断线轮询。
+- 使用统计：参与者端埋点（打开页面、翻签证页、排名榜、报名、开/关通知、点开通知等）批量上报；总控台「📈 使用情况」看每日活跃（登录用户/未登录访客）、每日操作次数、功能排行和每场活动转化。原始记录保留 180 天后自动删除，不记 IP、位置和填写内容；护照「使用说明」第 6 条向参与者说明。
 
 已经移除：Solo/Duo/Trio 组队、路线排班、人生盲盒、Help Token/恩典站、奖项分配、全局可编辑护照/签证模板入口。不要仅凭旧 README 或残留注释把它们加回来。
 
@@ -39,6 +40,7 @@
 | 画布编辑 | `web/src/pages/ActivityDesign.jsx`；本地草稿、页面/区块、手势、样式面板、素材库、保存 |
 | 活动/总控 | `ActivityDetail.jsx`、`Admin.jsx`；配置整份回传、活动状态、用户与统计 |
 | 参与者上传 | `book/ActivityContributionSheet.jsx`；单次最多 9 张，逐张压缩/提交，部分失败保留待传照片 |
+| 使用统计 | `server/src/usage.js`（事件白名单、英国时间分天、单设备限流、180 天清理、报表 SQL）；`web/src/lib/track.js`（队列 + sendBeacon + 离线补发、路由级埋点）；`web/src/pages/Usage.jsx`（管理员报表页） |
 | 其他页面 | `Register.jsx`、`Join.jsx`、`Badge.jsx`、`Leaderboard.jsx`、`StaffLogin.jsx`、`StaffScan.jsx`、`StaffPlayer.jsx` |
 | 通用组件/样式 | `ImeInput.jsx`、`Avatar*.jsx`、`Scanner.jsx`、`ui.jsx`；`styles.css` 与 `fonts.css` |
 | 构建/PWA | `web/vite.config.js`、`web/scripts/make-icons.mjs`、`web/public/staff.webmanifest` |
@@ -47,7 +49,7 @@
 
 技术栈：Node.js ESM + Express 4 + better-sqlite3 + Socket.IO；React 18 + React Router 6 + Vite 5 + vite-plugin-pwa。二维码使用 qrcode/jsQR。当前本机核对运行环境 Node 22。
 
-主要前端路径：`/`、`/register`、`/join/:id`、`/passport`、`/leaderboard`、`/badge`、`/staff`、`/staff/scan`、`/staff/p/:id`、`/staff/admin`、`/staff/admin/a/:id`、`/staff/admin/a/:id/design`。
+主要前端路径：`/`、`/register`、`/join/:id`、`/passport`、`/leaderboard`、`/badge`、`/staff`、`/staff/scan`、`/staff/p/:id`、`/staff/admin`、`/staff/admin/a/:id`、`/staff/admin/a/:id/design`、`/staff/admin/usage`。
 
 ## 3. 数据模型与不可破坏的规则
 
@@ -62,6 +64,7 @@
 - fields 的 `src` 来自 `VISA_ROW_SOURCES`：固定文字、持照人信息、活动数据、报名/盖章信息。不能把示例持照人值当作所有人的固定正文。
 - `signups`：activity/player 组合主键，报名与实际盖章分离。仅 upcoming 可报名/取消；同一时刻最多一个 live。全局 gameState 是兼容派生值，不再是报名/个人资料锁定开关。
 - `activity_materials`：归属 activity/player，text/image，时间戳。用户只能访问本人投稿；全体素材库仅 admin。单人每活动最多 30 项，文字最多 1000 字符。
+- `usage_events`：`ts`、`day`（Europe/London 日期，`MLG_TZ` 可覆盖）、`player_id`（外键 ON DELETE SET NULL：删人后次数保留但不再指向这个人）、`device`（浏览器随机设备号；服务端自记事件为空串）、`event`、`activity_id`、`label`。事件名必须在 `USAGE_EVENTS`（前端可报）或 `SERVER_EVENTS`（目前只有 `notif_sent`，label 存发出的设备数）里。活跃用户 = 当天 distinct `player_id`；访客 = 当天从没带过 player 的设备；操作次数不含 `open`。`POST /api/t` 无鉴权，单批 50 条、单设备 10 分钟 600 条；`GET /api/admin/usage?days=7|30|90|180` 仅 admin。不进每分钟 JSON 快照，也不随 `resetAll` 清空。
 - 图像压缩后提交 data URL；服务端验证真实文件头，压缩后上限 2MB；内容哈希文件名避免重复存储。图片位于 `/uploads/`，不能跟随前端构建清除。
 - 参与者 `role=normal/staff` 只控制活动可见性，不能获得后台权限。后台 session 的 staff/admin 是另一套 PIN 鉴权。`audience=all/normal/staff`；直接活动/报名/素材接口也检查范围，但公开 `/api/config` 仍含活动配置，不能把 audience 当成保密数据隔离。
 - 删除用户：UI 二次确认，服务端先备份，外键级联删事件/报名/投稿，epoch 增加以清除同工旧花名册；现有实现不会自动删除磁盘图片。
@@ -94,7 +97,7 @@ npm start
 
 测试：`npm test` 自动启动隔离 3199 服务与 `server/data-test/`，迁移测试另用专用库。`TEST_PORT` 可覆盖。不能将独立测试脚本的 BASE 指向线上服务；它们有清库动作。**不要运行当前过时的 `npm run seed` 去处理真实库。**
 
-环境变量：`PORT`、`MLG_DATA_DIR`、`WEB_DIST`（隔离视觉构建）、`NODE_ENV`、`STAFF_PIN`、`ADMIN_PIN`。后台 PIN 环境变量优先于已存数据库值；开发 fallback 2026/stm2026 不是当前真实部署凭据。生产缺失会产生随机 fallback。实际密码只由部署环境/负责人管理，不写入共享记忆。
+环境变量：`PORT`、`MLG_DATA_DIR`、`WEB_DIST`（隔离视觉构建）、`NODE_ENV`、`STAFF_PIN`、`ADMIN_PIN`。后台 PIN 环境变量优先于已存数据库值；开发 fallback 见 `db.js` 的 `seedSettings()`，只用于本地开发。**仓库是公开的，代码里的默认值绝不能改成线上实际 PIN**（2026-09-15 发现过一次，推送前已恢复），真实值也不写进本文件。PIN 相关风险已与用户确认，线上 PIN 暂不更换。生产缺失会产生随机 fallback。实际部署仍优先使用明确环境变量，不要用 fallback 猜生产配置。
 
 部署背景：本项目通过本机 3000 + Cloudflare named tunnel `gcgcm-life-game` 提供 `game.claiolulu.com`；同一后端支持 `staff.claiolulu.com` 首页跳转 `/staff` 与独立工作人员 manifest。2026-09-13 已实际重启并复核：两个域名返回 200、两个 PIN 登录返回预期角色、花名册人数未变。
 
@@ -161,6 +164,8 @@ npm start
 24. **通知推送的密钥（VAPID）由服务端第一次用到时自己生成，存在 settings 表的 `_vapid`，不要换。** 换了之后所有已订阅的设备立刻失效，每个人都得重新点一次 🔔。私钥只在 `server/src/push.js` 里用：不打印、不下发、不写文件；`/api/config` 里不能出现它（有测试）。按用户要求由服务端生成，不走「用户手动生成再传环境变量」那条路。注意完整备份（`/api/admin/backup.json`）会带上 settings 表，和 `_secret` 一样属于管理员才能拿到的敏感内容。
 25. **通知只能手动发，不能跟着活动保存自动发。** 活动详情页是边改边自动保存的，自动发的话改一个字就推一条。发给谁由同工每次选：`all` 全部领了护照的人 / `signed` 报了名的人 / `tags` 挂着所选任一标签的人。服务端**不认识的范围按 `signed` 处理**（宁可少发，不要因为一个错字发给所有人），选 `tags` 却没选标签返回 400。
 26. 翻页热区是按**元素自己的盒子**算左右四分之一，而各类页面的盒子宽度不同（横屏下身份页那类 `book-flip` 是全屏 812 宽，欢迎页那类只有居中 430 宽）。换算成屏幕坐标时别想当然。横屏下窄页两侧各有约 190px 点了没反应，是已知的体验缺口，尚未处理。
+27. **埋点走 `sendBeacon`，所以 `POST /api/t` 收的是 `text/plain`，护照令牌放在 body 的 `t` 字段**（beacon 带不了 Authorization 头）。不要改成 `application/json` 的 Blob，各浏览器对非简单类型 beacon 的处理不一致；服务端两种都认。`track(event, { once: true })` 的去重键带当天日期，同一天同样的事只记一次。新增事件名要前后端一起加 —— 服务端不认识的会被静默丢掉，报表里就是没有。
+28. **公网健康检查用 `curl`，不要用 Python `urllib`。** Cloudflare 按浏览器特征拦 urllib 默认 UA，三个域名一律回 `403 error code: 1010`，看起来像全站挂了；2026-09-15 重启核对时遇到过，换 curl 全部正常。
 
 ## 7. 每次开发的更新协议
 
@@ -175,6 +180,16 @@ npm start
 5. 检查 `git diff --check` 和链接；最终回复说明记忆已同步。提交/推送/部署是否执行仍由当前用户请求决定。
 
 ### 开发记录
+
+#### 2026-09-15 · 自建使用情况统计（保留半年）
+
+- 需求：想知道每天多少人在用、点了什么。用户选择自建、原始记录保留半年。身份口径是助手的默认（用户未另行指定）：登录的人记护照 id，没登录的记随机设备号；不记 IP、位置、UA 和任何填写内容。
+- 服务端：`schema.sql` 新表 `usage_events`；新模块 `server/src/usage.js`；`index.js` 加 `POST /api/t`、`GET /api/admin/usage`，启动时和每 6 小时删除 180 天前的记录；发通知时记 `notif_sent`，通知链接改为 `/join/:id?from=push`。
+- 前端：`lib/track.js`；`App.jsx` 路由级埋点与 `/staff/admin/usage`；埋点接入 `PassportBook`（翻页/签证页/排名榜/说明/护照码/自定义/上传/引导）、`Join`（报名页、报名/取消、点开通知后去掉参数）、`Register`（领取/找回/领完顺手报名）、`push.js`（开/关通知）、`Badge`（分享/保存）。`Admin.jsx` 页头「📈 使用情况」；`Usage.jsx` 报表：7/30/90/180 天范围、4 个指标、每日活跃叠加柱状图（可切表格）、每日操作次数、功能排行、活动转化表。`bookVals.js` 使用说明加第 6 条隐私说明。图表蓝 `#3987e5` / 橙 `#d95926` 在面板底色上通过调色板校验。
+- 验证：`npm test` 301/301（迁移 27、流程 230、并发 11、只读 33；流程第 30 节覆盖白名单、去重口径、鉴权、单批上限、删人后置空）。隔离库冒烟：英国时区分天与夏令时切换、180 天清理、各范围日期连续、单设备限流、表里无 IP/UA 列。隔离实例 3223 + 示例数据浏览器检查：桌面与手机竖屏报表布局、悬停提示、叠加柱缝隙、表格横向滚动、总控台入口按钮；真实前端链路（`?from=push` 进报名页 → 护照）入库数与期望逐项一致。未做真机检查。
+- **部署：已执行（2026-09-15 12:19）。** 备份 `server/data/pre-usage-2026-09-15T12-19-41.db`（integrity_check=ok）。只重启 node：四个环境变量从旧进程带过去并逐一核对相同，推送公钥未变，各表计数重启前后一致，两条隧道 PID 未变，启动日志无报错；前端构建后线上 bundle 与本地一致。curl 复核 game 200、staff 302、city 200，`POST /api/t` 空批次 200，`/api/admin/usage` 无令牌 401。上线时 `usage_events` 0 行。
+- 提交：按用户要求和照片图库分成两个提交并推送。推送前把图库那组改动里 7 处管理员默认值恢复为原开发值（线上 PIN 由环境变量提供，不受影响）。
+- 下一步：过几天回看数据是否合理；可选扩展是按标签看活跃、导出 CSV。
 
 #### 2026-09-15 · 照片页多图图库与对应画板编辑
 

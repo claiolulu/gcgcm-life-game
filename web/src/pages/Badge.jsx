@@ -6,6 +6,7 @@ import { useToast, Empty } from '../components/ui.jsx';
 import { usePlayer } from '../lib/player.js';
 import { useConfig, activitiesForPlayer } from '../lib/config.js';
 import { passportTheme } from './book/bookVals.js';
+import { track } from '../lib/track.js';
 
 /**
  * 结业徽章：可保存、可分享朋友圈。
@@ -178,6 +179,7 @@ export default function Badge() {
    */
   async function shareImage() {
     if (!png) return;
+    track('badge_share');
     try {
       const file = await pngFile();
       if (navigator.canShare?.({ files: [file] })) {
@@ -205,6 +207,7 @@ export default function Badge() {
    */
   async function saveImage() {
     if (!png) return;
+    track('badge_save');
     const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     if (isiOS) {

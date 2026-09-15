@@ -8,6 +8,7 @@ import { splitName } from './book/bookVals.js';
 import { register, restore, lookup, changePin } from '../lib/player.js';
 import { api } from '../lib/api.js';
 import { getPlayerSession } from '../lib/session.js';
+import { track } from '../lib/track.js';
 
 /**
  * 领完护照（或找回之后）该去哪。
@@ -29,7 +30,10 @@ function useAfterAuth() {
     if (signup) {
       try {
         const token = getPlayerSession()?.token;
-        if (token) await api(`/api/activity/${signup}/signup`, { method: 'POST', token });
+        if (token) {
+          await api(`/api/activity/${signup}/signup`, { method: 'POST', token });
+          track('signup', { activityId: signup });
+        }
       } catch { /* 报名失败不该挡住领护照这件事，报名页上还能再点一次 */ }
     }
     nav(next, { replace: true });
@@ -79,6 +83,7 @@ export default function Register() {
         contact: contact.trim(),
         avatar, pin, confirmNew: confirmNew === true,
       });
+      track('register');
       toast(`护照已生成，欢迎来到 ${game?.title || 'GCGCM'}`, 'ok');
       await done();
     } catch (err) {
@@ -339,6 +344,7 @@ export function RestoreSheet({ open, onClose }) {
         await restore({ code: code.trim(), pin: pin.trim() });
         toast('护照已找回', 'ok');
       }
+      track('recover');
       onClose?.();
       await done();
     } catch (err) {

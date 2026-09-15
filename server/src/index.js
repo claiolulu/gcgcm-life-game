@@ -12,6 +12,7 @@ import {
   GAME, RESET_PIN, ACTIVITIES, THEME_PRESETS, VISA_ROW_SOURCES, normalizeActivityDate,
 } from './config.js';
 import { vapidPublicKey, sendToPlayers } from './push.js';
+import { recordUsage, recordServerUsage, pruneUsage, usageReport, USAGE_RETENTION_DAYS } from './usage.js';
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
@@ -736,11 +737,58 @@ app.post('/api/admin/activity/:id/notify', staffAuth('admin'), async (req, res) 
     const title = String(req.body?.title || '').trim().slice(0, 60) || a.name;
     const body = String(req.body?.body || '').trim().slice(0, 200);
     const ids = notifyRecipients(a, audience, tagIds);
-    const result = await sendToPlayers(ids, { title, body, url: `/join/${a.id}`, tag: `activity-${a.id}` });
+    // ?from=push 让报名页知道这是从通知点进来的，记一笔「点开通知」（见 web/src/lib/track.js）
+    const result = await sendToPlayers(ids, { title, body, url: `/join/${a.id}?from=push`, tag: `activity-${a.id}` });
+    recordServerUsage('notif_sent', { activityId: a.id, count: result.sent });
     res.json({ audience, people: ids.length, ...result });
   } catch (err) {
     res.status(500).json({ error: err.message || '发送失败' });
   }
+});
+
+/* ------------------------------ 使用情况统计 ------------------------------ */
+
+/**
+ * 前端埋点上报。用 sendBeacon 发，所以是 text/plain、令牌在 body 里（t），
+ * 设备号是 d，事件列表是 e。不认识的事件、超量的批次在 usage.js 里丢掉。
+ * 这里不读也不存 IP。
+ */
+const usageText = express.text({ type: 'text/plain', limit: '64kb' });
+app.post('/api/t', usageText, (req, res) => {
+  let data = req.body;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch { data = null; }
+  }
+  if (!data || typeof data !== 'object') return res.status(400).json({ error: '格式不对' });
+  const token = String(data.t || (req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+  const player = token ? stmts.playerByToken.get(token) : null;
+  res.json(recordUsage({ playerId: player?.id || null, device: String(data.d || ''), events: data.e }));
+});
+
+const signupCounts = db.prepare('SELECT activity_id AS id, COUNT(*) AS n FROM signups GROUP BY activity_id');
+const attendCounts = db.prepare(
+  "SELECT station_id AS id, COUNT(DISTINCT player_id) AS n FROM events WHERE kind = 'station' GROUP BY station_id"
+);
+
+/** 总控台「使用情况」。?days= 只认 7 / 30 / 90 / 180 */
+app.get('/api/admin/usage', staffAuth('admin'), (req, res) => {
+  const report = usageReport({ days: Number(req.query.days) || 30 });
+  const signed = new Map(signupCounts.all().map((r) => [r.id, r.n]));
+  const attended = new Map(attendCounts.all().map((r) => [r.id, r.n]));
+  const activities = getActivities().map((a) => {
+    const u = report.activities[a.id] || {};
+    return {
+      id: a.id,
+      name: a.name,
+      joinPeople: u.join?.people || 0,
+      visaPeople: u.visa?.people || 0,
+      signups: signed.get(a.id) || 0,
+      attended: attended.get(a.id) || 0,
+      notifSent: u.notif_sent?.total || 0,
+      notifOpens: u.notif_open?.people || 0,
+    };
+  });
+  res.json({ ...report, activities });
 });
 
 /** 删除参与者前先落一份完整备份；外键会一并删除其报名、印章和投稿。 */
@@ -1388,6 +1436,18 @@ app.use((req, res) => res.status(404).json({ error: `未知接口 ${req.path}` }
 setInterval(() => {
   try { writeSnapshot(); } catch (err) { console.error('[backup]', err.message); }
 }, 60_000).unref();
+
+// 使用记录只留 180 天：启动时清一次，之后每 6 小时清一次
+function pruneUsageNow() {
+  try {
+    const n = pruneUsage();
+    if (n) console.log(`  [usage] 删除了 ${n} 条超过 ${USAGE_RETENTION_DAYS} 天的使用记录`);
+  } catch (err) {
+    console.error('[usage]', err.message);
+  }
+}
+pruneUsageNow();
+setInterval(pruneUsageNow, 6 * 3600_000).unref();
 
 process.on('SIGTERM', () => { try { writeSnapshot(); } catch {} process.exit(0); });
 process.on('SIGINT', () => { try { writeSnapshot(); } catch {} process.exit(0); });
