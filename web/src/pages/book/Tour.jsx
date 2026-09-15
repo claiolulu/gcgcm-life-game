@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 const PAD = 6;      // 高亮框比元素本身外扩多少
 const GAP = 12;     // 说明框与高亮框的间距
 
-export default function Tour({ open, steps, onClose, onGoPage }) {
+export default function Tour({ open, steps, onClose, onGoPage, themeVars }) {
   const [i, setI] = useState(0);
   const [rect, setRect] = useState(null);
 
@@ -92,6 +92,9 @@ export default function Tour({ open, steps, onClose, onGoPage }) {
     <div
       onClick={next}
       style={{
+        // 配色跟着这本护照走：主题变量注入在这里，下面的颜色都引用它们。
+        // 暗色的遮罩不跟主题 —— 它的作用是把别处压暗，换成主题色反而看不清高亮
+        ...themeVars,
         position: 'fixed', inset: 0, zIndex: 90, cursor: 'pointer',
         fontFamily: "'Noto Serif SC','EB Garamond',serif",
         animation: 'fadeIn .18s ease both',
@@ -105,7 +108,7 @@ export default function Tour({ open, steps, onClose, onGoPage }) {
             left: rect.x - PAD, top: rect.y - PAD,
             width: rect.w + PAD * 2, height: rect.h + PAD * 2,
             borderRadius: 4,
-            boxShadow: '0 0 0 9999px rgba(20,17,16,.78), 0 0 0 2px #e6cd91',
+            boxShadow: '0 0 0 9999px rgba(20,17,16,.78), 0 0 0 2px var(--pp-gold)',
             pointerEvents: 'none',
             transition: 'left .22s ease, top .22s ease, width .22s ease, height .22s ease',
           }}
@@ -119,8 +122,8 @@ export default function Tour({ open, steps, onClose, onGoPage }) {
         style={{
           position: 'fixed', ...cardStyle,
           maxWidth: 420, margin: '0 auto',
-          background: '#f3ede0', color: '#2a2320',
-          border: '1px solid #b9913f', borderRadius: 2,
+          background: 'var(--pp-paper)', color: 'var(--pp-text)',
+          border: '1px solid var(--pp-gold-2)', borderRadius: 2,
           padding: '16px 18px 14px',
           boxShadow: '0 16px 44px rgba(0,0,0,.5)',
         }}
@@ -131,28 +134,28 @@ export default function Tour({ open, steps, onClose, onGoPage }) {
         }}>
           <div style={{
             fontFamily: "'EB Garamond',serif", fontSize: 9.5, letterSpacing: '.2em',
-            color: 'rgba(92,26,34,.6)',
+            color: 'rgba(var(--pp-ink-rgb),.6)',
           }}>
             {step.eyebrow}
           </div>
           <div style={{
             fontFamily: "'Courier Prime',monospace", fontSize: 10,
-            color: 'rgba(42,35,32,.45)', flex: 'none',
+            color: 'rgba(var(--pp-text-rgb),.45)', flex: 'none',
           }}>
             {i + 1} / {steps.length}
           </div>
         </div>
 
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{step.title}</div>
-        <div style={{ fontSize: 13, lineHeight: 1.85, color: 'rgba(42,35,32,.8)' }}>{step.body}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.85, color: 'rgba(var(--pp-text-rgb),.8)' }}>{step.body}</div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
           <button
             onClick={next}
             style={{
               flex: 1, padding: '11px', cursor: 'pointer',
-              background: '#5c1a22', border: '1px solid rgba(198,164,95,.6)', borderRadius: 2,
-              color: '#e6cd91', fontFamily: "'EB Garamond',serif",
+              background: 'var(--pp-ink)', border: '1px solid rgba(var(--pp-gold-2-rgb),.6)', borderRadius: 2,
+              color: 'var(--pp-gold)', fontFamily: "'EB Garamond',serif",
               fontSize: 11.5, letterSpacing: '.2em', textIndent: '.2em',
             }}
           >
@@ -163,8 +166,8 @@ export default function Tour({ open, steps, onClose, onGoPage }) {
               onClick={skip}
               style={{
                 padding: '11px 12px', cursor: 'pointer',
-                background: 'transparent', border: '1px solid rgba(92,26,34,.3)', borderRadius: 2,
-                color: 'rgba(92,26,34,.7)', fontSize: 11.5,
+                background: 'transparent', border: '1px solid rgba(var(--pp-ink-rgb),.3)', borderRadius: 2,
+                color: 'rgba(var(--pp-ink-rgb),.7)', fontSize: 11.5,
               }}
             >
               跳过
@@ -179,7 +182,7 @@ export default function Tour({ open, steps, onClose, onGoPage }) {
               key={k}
               style={{
                 width: k === i ? 14 : 5, height: 5, borderRadius: 999,
-                background: k === i ? '#5c1a22' : 'rgba(92,26,34,.25)',
+                background: k === i ? 'var(--pp-ink)' : 'rgba(var(--pp-ink-rgb),.25)',
                 transition: 'width .2s ease',
               }}
             />

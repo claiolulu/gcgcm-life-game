@@ -442,19 +442,22 @@ export default function PassportBook() {
       body: `它不属于某一晚或某一场游戏。资料页、${visaPageCount} 张活动内容页和结语装订在一起；以后增加活动或照片页，也会自动装订进来。点左右边缘即可翻页。` },
     { eyebrow: 'VISA PAGES 签证页', page: firstVisa,
       title: '每场活动都有自己的页面',
-      body: '第一页是活动信息，后面还可以有照片和总结。页顶“上传”能把文字或照片交给同工；参加后，同工会在信息页盖一枚「已参加」的章。' },
+      body: '第一页是活动信息，后面还可以有照片和总结；文字多的地方可以用手指滑着看。页顶“上传”能把文字或照片交给同工。有些活动只对报了名的人、或者某个小组的人显示。' },
     { eyebrow: 'IDENTIFICATION 资料页', page: pages.findIndex((p) => p.kind === 'data'),
       title: '现场出示的是“护照二维码”',
-      body: '活动海报上的二维码用来报名；这本护照里的二维码用来让同工认出你并盖章。扫不出来时，直接报资料页上的个人编号即可。' },
+      body: '活动海报上的二维码用来报名；这本护照里的二维码用来让同工认出你并盖章，盖完这一场就记为「已参加」。扫不出来时，直接报资料页上的个人编号即可。' },
+    { eyebrow: 'NOTIFICATIONS 活动通知', page: notesPage, selector: '[data-tour="notify"]',
+      title: '点铃铛，活动有消息会提醒你',
+      body: '开启后，新活动发布、报名的活动改了时间地点、活动后发照片，同工都可以直接推送到你的手机上。安卓用 Chrome 直接开；iPhone 要先把这个网页「添加到主屏幕」，再从主屏幕图标打开。再点一次铃铛就关掉。' },
     { eyebrow: 'PERSONALISE 个性化', page: pages.findIndex((p) => p.kind === 'data'), selector: '[data-tour="theme"]',
       title: '这本护照可以有自己的颜色',
-      body: '点“自定义”可以更换护照配色，只影响你自己的这一本。姓名、头像或联系方式也可以随时回到个人资料里修改。' },
+      body: '点“自定义”可以更换护照配色，只影响你自己的这一本，连这份说明也会跟着换颜色。姓名、头像或联系方式也可以随时回到个人资料里修改。' },
     { eyebrow: 'ATTENDANCE 参与记录', page: notesPage, selector: '[data-tour="board"]',
       title: '看看大家一起走了多远',
-      body: '这里按参加活动的记录汇总。它不是一次游戏的输赢，只是一本共同生活的足迹册。' },
+      body: '这里按参加活动的场次汇总，前三名会有奖杯。它不是一次游戏的输赢，只是一本共同生活的足迹册。' },
     { eyebrow: 'HOW TO USE 使用说明', page: notesPage, selector: '[data-tour="guide"]',
       title: '想再看一遍就点这里',
-      body: '问号里随时可以重看完整说明。记住个人编号和四位密码；换手机或清除浏览器数据后，可以用它们找回同一本护照。' },
+      body: '问号里随时可以重看这份说明。记住个人编号和四位密码；换手机或清除浏览器数据后，可以用它们找回同一本护照。' },
   ];
 
 
@@ -464,6 +467,8 @@ export default function PassportBook() {
 
       <Tour
         open={tourOpen}
+        // 引导挂在护照册外面，拿不到册子最外层注入的主题变量，得单独传进去
+        themeVars={v.themeVars}
         steps={tourSteps}
         onGoPage={jump}
         onClose={() => { setTourOpen(false); setTourDone(true); }}
