@@ -2129,6 +2129,19 @@ kbd {
 .visa-qr__label { font-size: 17cqh; font-weight: 700; letter-spacing: .08em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .visa-qr__hint { font-size: 11cqh; line-height: 1.35; color: rgba(var(--pp-text-rgb), .6); }
 
+/* 参与者端整屏跟护照配色（lib/passportScreen.js 在 <html> 上挂 .pp-themed 和 --pp-* 变量）。
+   基础色（卡片、按钮、弹窗、输入框）已经通过 --ink / --gold / --text 跟上；这里补几处写死了颜色的 */
+html.pp-themed .sheet-backdrop { background: rgba(var(--pp-ink-rgb), .45); }
+/* 主按钮底色跟着 --gold 变成护照主色（通常是深色），原来写死的深棕字就看不见了，改用纸色 */
+html.pp-themed .btn--primary { color: var(--pp-paper); box-shadow: 0 6px 20px rgba(var(--pp-ink-rgb), .22); }
+html.pp-themed .toast { color: var(--pp-text); }
+html.pp-themed .toast--ok { background: var(--pp-ink); color: var(--pp-paper); border-color: rgba(var(--pp-gold-rgb), .55); }
+html.pp-themed .toast--err { background: #fbeaea; color: #8a1f24; border-color: rgba(176, 40, 45, .35); }
+html.pp-themed .toast--warn { background: #fbf2dc; color: #6b4f0e; border-color: rgba(176, 130, 20, .38); }
+/* 看照片的全屏底保持很深（照片在深底上最好看），但带一点这本护照的主色 */
+html.pp-themed .photo-gallery-modal { background: linear-gradient(rgba(0, 0, 0, .8), rgba(0, 0, 0, .8)), var(--pp-ink); }
+html.pp-themed .activity-qr-modal { background: rgba(var(--pp-ink-rgb), .55); }
+
 /* 点开报名码后的分享面板。挂在 body 上，脱离旋转的书页 */
 .activity-qr-modal {
   position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center;

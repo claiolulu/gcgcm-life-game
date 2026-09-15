@@ -257,6 +257,8 @@ export function blockData({
     links: station?.links || [],
     // 报名二维码块用：扫码去的报名页（分享域名见 /api/config 的 shareOrigin）和中间默认的图标
     activityId: station?.id || '',
+    // 报名码只在「还没到」（报名中）时显示；进行中 = 报名已截止，已办完 = 结束，扫进去也报不了名
+    activityState: station?.state || 'upcoming',
     icon: station?.icon || '',
     joinUrl: joinUrlFor(station?.id, shareOrigin),
     mrz1: visaMrzLine(1, { surname, given, visaNo, passportNo, code: me?.code }),

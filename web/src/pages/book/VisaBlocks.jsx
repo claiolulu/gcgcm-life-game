@@ -48,24 +48,40 @@ function QrBody({ b, data, editing }) {
   const [thumb, setThumb] = useState('');
   const [big, setBig] = useState('');
   const [open, setOpen] = useState(false);
+  // 活动进入「进行中」（报名截止）或「已办完」，护照上自动不显示报名码；
+  // 画板里照样画出来（变淡 + 注明），同工才知道这个块还在
+  const closed = (data?.activityState || 'upcoming') !== 'upcoming';
+  // 码中间的徽章用这本护照的主色和金色：从块自己身上读 --pp-* 变量
+  // （护照册和画板的签证页容器都挂着它们），读到了才开始画，免得先画一张默认色的再换
+  const btnRef = useRef(null);
+  const [colors, setColors] = useState(null);
+  useLayoutEffect(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    const ink = cs.getPropertyValue('--pp-ink').trim();
+    const gold = cs.getPropertyValue('--pp-gold').trim();
+    setColors((c) => (c && c.ink === ink && c.gold === gold ? c : { ink, gold }));
+  });
 
   useEffect(() => {
-    if (!url) return undefined;
+    if (!url || !colors || (closed && !editing)) return undefined;
     let alive = true;
-    activityQr(url, { icon, size: 360 }).then((src) => { if (alive) setThumb(src); }).catch(() => {});
+    activityQr(url, { icon, size: 360, ...colors }).then((src) => { if (alive) setThumb(src); }).catch(() => {});
     return () => { alive = false; };
-  }, [url, icon]);
+  }, [url, icon, closed, editing, colors]);
 
   useEffect(() => {
     if (!open || !url) return undefined;
     let alive = true;
-    activityQr(url, { icon, size: 900 }).then((src) => { if (alive) setBig(src); }).catch(() => {});
+    activityQr(url, { icon, size: 900, ...(colors || {}) }).then((src) => { if (alive) setBig(src); }).catch(() => {});
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     window.addEventListener('keydown', onKey);
     return () => { alive = false; window.removeEventListener('keydown', onKey); };
-  }, [open, url, icon]);
+  }, [open, url, icon, colors]);
 
   if (!url) return editing ? <Ghost text="报名二维码" /> : null;
+  if (closed && !editing) return null;
 
   const name = data?.name || '活动';
   const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
@@ -123,7 +139,8 @@ function QrBody({ b, data, editing }) {
 
   return (
     <>
-      <button type="button" className="visa-qr" tabIndex={editing ? -1 : 0}
+      <button type="button" className="visa-qr" ref={btnRef} tabIndex={editing ? -1 : 0}
+        style={closed ? { opacity: 0.45 } : undefined}
         aria-label={`${name} 报名二维码，点开分享`}
         onClick={(e) => {
           stop(e);
@@ -134,7 +151,7 @@ function QrBody({ b, data, editing }) {
         <span className="visa-qr__code">{thumb ? <img src={thumb} alt="" /> : null}</span>
         <span className="visa-qr__text">
           <span className="visa-qr__label" style={{ fontFamily: FONTS.sans }}>{b.label || '扫码报名'}</span>
-          <span className="visa-qr__hint">点开分享给朋友</span>
+          <span className="visa-qr__hint">{closed ? '报名截止后自动隐藏' : '点开分享给朋友'}</span>
         </span>
       </button>
       {modal}

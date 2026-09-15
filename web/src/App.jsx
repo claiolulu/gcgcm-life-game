@@ -20,6 +20,7 @@ import StaffPlayer from './pages/StaffPlayer.jsx';
 import Admin from './pages/Admin.jsx';
 import Usage from './pages/Usage.jsx';
 import { useRouteTracking } from './lib/track.js';
+import { usePassportScreen } from './lib/passportScreen.js';
 
 /* ------------------------------ 底部导航 ------------------------------ */
 
@@ -106,6 +107,19 @@ function UsageTracker() {
   return null;
 }
 
+/**
+ * 参与者端所有页面、弹窗、提示条都跟这本护照的配色走（见 lib/passportScreen.js）。
+ * 没登录的人（扫码进报名页、领护照页）用全局默认配色；同工端（/staff）保持总控台的深色。
+ */
+function PassportScreenTheme() {
+  const { pathname } = useLocation();
+  const { config } = useConfig();
+  const player = usePlayer();
+  // 只有真的登录着才用本人的配色；本机缓存里残留的护照资料不算
+  usePassportScreen(config, player.session ? player.me : null, !pathname.startsWith('/staff'));
+  return null;
+}
+
 export default function App() {
   const [booted, setBooted] = useState(false);
   const { config } = useConfig();
@@ -149,6 +163,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <UsageTracker />
+          <PassportScreenTheme />
           <BottomNav />
         </div>
       </BrowserRouter>

@@ -22,15 +22,19 @@ const cache = new Map();
  * 画好的 PNG data URL。同一个链接 + 图标 + 尺寸只画一次。
  * icon：'' 或 'M' 画护照徽章里的 M；其它按 emoji / 文字画在圆心。
  */
-export function activityQr(url, { icon = '', size = 600 } = {}) {
-  const key = `${url}|${icon}|${size}`;
+export function activityQr(url, { icon = '', size = 600, ink = '', gold = '' } = {}) {
+  // 徽章跟这本护照的配色走；传进来的不是 #rrggbb 就用默认的酒红和金
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const inkC = HEX.test(String(ink).trim()) ? String(ink).trim() : '#5b1f26';
+  const goldC = HEX.test(String(gold).trim()) ? String(gold).trim() : '#e8c56a';
+  const key = `${url}|${icon}|${size}|${inkC}|${goldC}`;
   if (!cache.has(key)) {
-    cache.set(key, draw(url, icon, size).catch((err) => { cache.delete(key); throw err; }));
+    cache.set(key, draw(url, icon, size, inkC, goldC).catch((err) => { cache.delete(key); throw err; }));
   }
   return cache.get(key);
 }
 
-async function draw(url, icon, size) {
+async function draw(url, icon, size, inkC, goldC) {
   const canvas = document.createElement('canvas');
   await QRCode.toCanvas(canvas, url, {
     errorCorrectionLevel: 'H', margin: 2, width: size,
@@ -57,12 +61,12 @@ async function draw(url, icon, size) {
   ctx.closePath();
   ctx.fill();
 
-  // 酒红圆 + 金色内圈，和护照封面的徽章同一套
-  ctx.fillStyle = '#5b1f26';
+  // 护照主色的圆 + 金色内圈，和护照封面的徽章同一套
+  ctx.fillStyle = inkC;
   ctx.beginPath();
   ctx.arc(c, c, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#e8c56a';
+  ctx.strokeStyle = goldC;
   ctx.lineWidth = Math.max(2, w * 0.006);
   ctx.beginPath();
   ctx.arc(c, c, r * 0.82, 0, Math.PI * 2);
@@ -72,7 +76,7 @@ async function draw(url, icon, size) {
   ctx.textBaseline = 'middle';
   const glyph = String(icon || '').trim();
   if (!glyph || glyph === 'M') {
-    ctx.fillStyle = '#e8c56a';
+    ctx.fillStyle = goldC;
     ctx.font = `${Math.round(r * 1.02)}px "EB Garamond", Georgia, "Times New Roman", serif`;
     ctx.fillText('M', c, c + r * 0.05);
   } else {

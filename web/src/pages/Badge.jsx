@@ -12,14 +12,6 @@ import { track } from '../lib/track.js';
  * 结业徽章：可保存、可分享朋友圈。
  * 整张图是一段 SVG，序列化后画进 canvas 导出 PNG —— 全程本地，断网也能生成。
  */
-/** 把一个 hex 往黑里压一点（k<1）。用来从纸色推出卡片和边框那几档 */
-function shadeHex(hex, k) {
-  const n = parseInt(String(hex).replace('#', ''), 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-    .map((c) => Math.max(0, Math.min(255, Math.round(c * k))));
-  return `#${ch.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
-}
-
 export default function Badge() {
   const toast = useToast();
   const nav = useNavigate();
@@ -41,34 +33,9 @@ export default function Badge() {
   const soft = (a) => `rgba(${[1, 3, 5].map((i) => parseInt(T.text.slice(i, i + 2), 16)).join(',')},${a})`;
   const inkSoft = (a) => `rgba(${[1, 3, 5].map((i) => parseInt(T.ink.slice(i, i + 2), 16)).join(',')},${a})`;
 
-  /**
-   * 整屏跟着护照走，不只是那张图。
-   *
-   * 变量挂在 <html> 上而不是页面容器上，有两个原因：
-   *   一是 body 那条 `color: var(--text)` 在 body 这一层就解析完了，
-   *      在里面覆盖已经晚了，标题会留着深色底用的浅字；
-   *   二是底栏是页面容器的兄弟节点，挂在里面够不着它，
-   *      底下会留一条深蓝的条。
-   * 覆盖变量而不是给每个元素写行内样式：.card / .btn / .eyebrow 全读
-   * 这几个变量，改一处全跟上，以后加新元素也自动是对的。
-   */
-  const pageVars = {
-    '--ink': T.paper,
-    '--ink-2': T.paper,
-    '--ink-3': shadeHex(T.paper, 0.97),
-    '--ink-4': shadeHex(T.paper, 0.92),
-    '--line': inkSoft(0.22),
-    '--line-soft': inkSoft(0.12),
-    '--gold': T.ink,
-    '--gold-dim': shadeHex(T.ink, 0.85),
-    '--gold-glow': inkSoft(0.16),
-    '--text': T.text,
-    '--text-2': soft(0.68),
-    '--text-3': soft(0.5),
-    '--shadow': `0 8px 30px ${inkSoft(0.14)}`,
-    '--shadow-sm': `0 2px 10px ${inkSoft(0.1)}`,
-  };
-  const varsKey = JSON.stringify(pageVars);
+  // 整屏跟着护照配色走（不只是那张图）现在由 App 的 PassportScreenTheme 在所有参与者页面
+  // 统一挂到 <html> 上（lib/passportScreen.js，原来是这一页自己挂）。徽章页不能再自己挂 ——
+  // 两处各挂各撤的话，离开这一页会把全局的 paper-screen 一起撤掉。
 
   // ↓ 两个 effect 必须留在下面那句 early return 之前。
   //   放到 return 后面的话，没护照的人渲染的 hook 数量会比有护照的人少，
@@ -90,25 +57,6 @@ export default function Badge() {
 
   // 改了开关就把旧图作废，免得看着开关是关的、手里的图却带着码
   useEffect(() => { setPng(null); }, [withQr]);
-
-  // 离开这一页要原样还回去 —— 这是全局副作用，不还的话整个 app 都变纸色
-  useEffect(() => {
-    const root = document.documentElement;
-    const vars = JSON.parse(varsKey);
-    const prev = {};
-    for (const [k, v] of Object.entries(vars)) {
-      prev[k] = root.style.getPropertyValue(k);
-      root.style.setProperty(k, v);
-    }
-    // body::before 那两团冷光（金 + 蓝）是给深色底画的，压在纸上是脏的
-    root.classList.add('paper-screen');
-    return () => {
-      for (const [k, v] of Object.entries(prev)) {
-        if (v) root.style.setProperty(k, v); else root.style.removeProperty(k);
-      }
-      root.classList.remove('paper-screen');
-    };
-  }, [varsKey]);
 
   if (!me) return <div className="page"><Empty icon="🛂" title="还没有护照" hint="先去报名领一本护照吧" /></div>;
 
