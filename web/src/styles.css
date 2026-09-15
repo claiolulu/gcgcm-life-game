@@ -876,6 +876,24 @@ h3 { font-size: 16px; }
 .admin-stat--orange .admin-stat__icon { background: rgba(247,148,72,.14); }
 .admin-header__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
+/* 活动详情页顶部：返回 + 活动名 ｜ 设计 / 保存 / 删除 */
+.detail-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px 14px; margin-bottom: 14px;
+}
+.detail-head__title { display: flex; align-items: center; gap: 12px; flex: 1 1 280px; min-width: 0; }
+.detail-head__back { flex: none; }
+.detail-head__title h1 {
+  margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: clamp(22px, 5.4vw, 34px); line-height: 1.2;
+}
+.detail-head__actions { display: flex; gap: 6px; flex: none; }
+@media (max-width: 640px) {
+  /* 手机上按钮单独一行、铺满并等分，和下面卡片的左右边对齐 */
+  .detail-head__actions { flex: 1 1 100%; display: grid; grid-template-columns: 1.35fr 1fr 1fr; }
+  .detail-head__actions .btn { width: 100%; min-width: 0; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
+}
+
 /* ------------------------------ 使用情况 ------------------------------ */
 /* 图表色（#3987e5 蓝 / #d95926 橙）在 Usage.jsx 里，已按面板底色校验过 */
 

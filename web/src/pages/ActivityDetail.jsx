@@ -447,22 +447,23 @@ export default function ActivityDetail() {
     <div className="page page--wide staff-page staff-workspace">
       <NetBar />
 
-      {/* 窄屏上按钮换行到第二排：不换的话「返回 + 标题」会被三个按钮
-          挤到零宽，活动名整个看不见 */}
-      <div className="row-between" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <div className="row" style={{ gap: 12, flex: '1 1 200px', minWidth: 0 }}>
+      {/* 宽屏：标题在左、按钮在右。窄屏（手机）：第一行「返回 + 活动名」，
+          第二行三个按钮铺满整行、和下面的卡片左右对齐 —— 原来按钮换行后
+          靠右挂着、宽窄不一，看起来像没排好。样式见 styles.css 的 .detail-head */}
+      <div className="detail-head">
+        <div className="detail-head__title">
           {/* 返回是这一页最常按的东西之一（看完一场回去看下一场），
               原来是标题上面一行 tiny dim 的小字，又小又难点 */}
-          <Link className="btn btn--ghost" to="/staff/admin" style={{ flex: '0 0 auto' }}>
+          <Link className="btn btn--sm btn--ghost detail-head__back" to="/staff/admin">
             ← 总控台
           </Link>
-          <h1 style={{ margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <h1>
             <span style={{ marginRight: 8 }}>{draft.icon}</span>
             {draft.name || '（还没起名字）'}
           </h1>
         </div>
         {/* 设计和删掉各自只有一个动作，不值得各占一张卡 */}
-        <div className="row" style={{ gap: 6, flex: '0 0 auto', marginLeft: 'auto' }}>
+        <div className="detail-head__actions">
           <Link className="btn btn--sm btn--ghost" to={`/staff/admin/a/${id}/design`}>🎨 设计这一页</Link>
           {/* 自动保存已经在管了，这个按钮是给「想立刻落盘」和
               「自动保存失败过一次」留的 */}
@@ -541,7 +542,7 @@ export default function ActivityDetail() {
                 })}
               </div>
               <div className="tiny dim">
-                勾中的标签**命中任一**就看得见 —— 一个人可以同时挂多个标签。
+                勾中的标签<b>命中任一</b>就看得见 —— 一个人可以同时挂多个标签。
                 一个都不勾等于不限制（会自动退回「所有人」，否则这场活动谁都看不见）。
                 同工端总控台始终能看到全部活动，这里限制的是参与者的护照和计分。
               </div>
