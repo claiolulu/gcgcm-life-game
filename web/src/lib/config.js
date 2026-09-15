@@ -164,3 +164,12 @@ export async function loadConfig() {
  * 两边不一致的时候（原来前端 1000、服务端 400），多出来的那截会在保存时无声消失。
  */
 export const TEXT_BLOCK_MAX = 3000;
+
+/**
+ * 同工专属的活动：可见范围只限定了「同工」这一个标签。和服务端 game.js 的
+ * isStaffOnlyActivity 是同一条规则。这类活动不计入排行榜。
+ */
+export function isStaffOnlyActivity(activity) {
+  const want = Array.isArray(activity?.audienceTags) ? activity.audienceTags : [];
+  return activityAudience(activity) === 'tags' && want.length > 0 && want.every((x) => x === 'staff');
+}

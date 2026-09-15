@@ -1021,5 +1021,51 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
+// 28. 同工专属的活动不计入排行榜（护照里本人照常算）
+{
+  const base = (await j('/api/config')).body.activities;
+  const [ONLY, MIXED, NORMAL] = [base[0].id, base[1].id, base[2].id];
+  await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a) => {
+      if (a.id === ONLY) return { ...a, audience: 'tags', audienceTags: ['staff'] };
+      if (a.id === MIXED) return { ...a, audience: 'tags', audienceTags: ['staff', 'normal'] };
+      return a;
+    }) },
+  });
+
+  const staffReg = await j('/api/register', { method: 'POST', body: { name: '排行榜同工' } });
+  const normalReg = await j('/api/register', { method: 'POST', body: { name: '排行榜普通' } });
+  const sid = staffReg.body.player.id;
+  const nid = normalReg.body.player.id;
+  await j(`/api/admin/player/${sid}/role`, { method: 'POST', headers: adminH, body: { role: 'staff' } });
+
+  const stamp = (opId, playerId, stationId) => ({ opId, type: 'score', playerId, stationId, points: 1, checkin: true });
+  const sync = await j('/api/staff/sync', {
+    method: 'POST', headers: staffH,
+    body: { ops: [
+      stamp('lb-s-only', sid, ONLY), stamp('lb-s-mixed', sid, MIXED), stamp('lb-s-normal', sid, NORMAL),
+      stamp('lb-n-mixed', nid, MIXED), stamp('lb-n-normal', nid, NORMAL),
+    ], since: 0 },
+  });
+  check('排行榜测试的五个章都盖上了', sync.body.results.every((r) => r.status === 'ok'),
+    JSON.stringify(sync.body.results.map((r) => r.status)));
+
+  const board = (await j('/api/leaderboard')).body.board;
+  const sRow = board.find((r) => r.id === sid);
+  const nRow = board.find((r) => r.id === nid);
+  check('同工专属活动上的章不计入排行榜总数', sRow?.total === 2, `同工榜上 ${sRow?.total}（应为 2：混合 + 普通）`);
+  check('也不计入排行榜的场次和分母', sRow?.stationsDone === 2 && sRow?.stationsTotal === base.length - 1,
+    `场次 ${sRow?.stationsDone}/${sRow?.stationsTotal}，活动共 ${base.length}`);
+  check('「同工 + 其他标签」的活动照常计入', nRow?.total === 2, `普通榜上 ${nRow?.total}`);
+  check('去掉同工专属之后两人总数相同，名次并列', sRow?.rank === nRow?.rank, `${sRow?.rank} / ${nRow?.rank}`);
+
+  const staffMe = await j('/api/me', { headers: { authorization: `Bearer ${staffReg.body.token}` } });
+  check('护照里本人的总数照常算上同工专属活动', staffMe.body.player.total === 3, `护照总数 ${staffMe.body.player.total}`);
+  check('「我的名次」和排行榜一致', staffMe.body.rank === sRow?.rank, `${staffMe.body.rank} / ${sRow?.rank}`);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

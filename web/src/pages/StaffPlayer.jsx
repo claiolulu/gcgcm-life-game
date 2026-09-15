@@ -14,10 +14,11 @@ export default function StaffPlayer() {
 
   const player = useMemo(() => getPlayer(id), [id, staff.players, staff.outbox]); // eslint-disable-line
   const rankInfo = useMemo(() => {
-    const board = leaderboardLocal();
+    const board = leaderboardLocal(config?.activities);
     const row = board.find((r) => r.id === id);
     return { rank: row?.rank, of: board.length };
-  }, [id, staff.players, staff.outbox]); // eslint-disable-line
+    // config 也要在依赖里：同工专属活动的判定靠它，配置晚到的话名次会停在旧口径
+  }, [id, staff.players, staff.outbox, config]); // eslint-disable-line
 
   // 打卡本里同工盖的是「活动」，不是游戏关卡。
   // 两边共用同一张 events 表，所以后面的记分/盖章逻辑完全不用改

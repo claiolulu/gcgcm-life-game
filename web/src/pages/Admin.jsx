@@ -53,7 +53,7 @@ export default function Admin() {
   const settings = config?.settings || {};
   const resetPin = config?.resetPin || '3927';
   const players = useMemo(() => allPlayers(), [staff.players, staff.outbox]); // eslint-disable-line
-  const board = useMemo(() => leaderboardLocal(), [staff.players, staff.outbox]); // eslint-disable-line
+  const board = useMemo(() => leaderboardLocal(config?.activities), [staff.players, staff.outbox, config]); // eslint-disable-line
 
   /* -------------------------- 用户标签 -------------------------- */
   //
@@ -921,10 +921,10 @@ export default function Admin() {
                   ))}
                 </div>
                 <div className="tiny dim mono">
-                  {p.code} 号 · {p.stationsDone}/{p.stationsTotal ?? activities.length}
+                  {p.code} 号 · {p.boardDone}/{p.boardStationsTotal ?? activities.length}
                 </div>
               </div>
-              <div className="lb-score">{p.total}</div>
+              <div className="lb-score">{p.boardTotal}</div>
             </button>
           ))}
           {board.length === 0 && <div className="center small dim" style={{ padding: 20 }}>还没有人报名</div>}

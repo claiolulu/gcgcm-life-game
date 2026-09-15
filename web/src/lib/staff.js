@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { isStaffOnlyActivity } from './config.js';
 import { api, ApiError, uid } from './api.js';
 import { kvGet, kvSet, outboxAdd, outboxAll, outboxRemove } from './idb.js';
 import { getStaffSession, setStaffSession, clearStaffSession } from './session.js';
@@ -108,13 +109,39 @@ export function allPlayers() {
   return state.players.map((p) => foldPending(p, state.outbox));
 }
 
-export function leaderboardLocal() {
-  const rows = allPlayers().sort(
-    (a, b) => b.total - a.total || b.stationsDone - a.stationsDone || a.createdAt - b.createdAt
+/**
+ * 总控台本地算的名次。必须和服务端 /api/leaderboard 一个口径，否则同工在
+ * 「👥 用户」里看到的名次和大家榜上看到的对不上。
+ *
+ * 同工专属的活动不计入排名。花名册里的 total / stationsDone / stationsTotal 是
+ * 护照口径（含同工专属），所以这里要减掉 —— 但**只对同工减**：同工专属活动只有
+ * 同工看得见，普通成员的护照口径里本来就没算它，再减就减多了。
+ * 排行榜口径的数字放在 boardTotal / boardDone / boardStationsTotal，原字段不动。
+ */
+export function leaderboardLocal(activities = []) {
+  const staffOnly = (activities || []).filter(isStaffOnlyActivity).map((a) => a.id);
+  const rows = allPlayers().map((p) => {
+    const isStaff = p.role === 'staff';
+    let offPoints = 0;
+    let offDone = 0;
+    if (isStaff) {
+      for (const aid of staffOnly) {
+        const st = p.stations?.[aid];
+        if (st) { offPoints += Number(st.points) || 0; offDone += 1; }
+      }
+    }
+    return {
+      ...p,
+      boardTotal: (p.total || 0) - offPoints,
+      boardDone: (p.stationsDone || 0) - offDone,
+      boardStationsTotal: p.stationsTotal == null ? null : p.stationsTotal - (isStaff ? staffOnly.length : 0),
+    };
+  }).sort(
+    (a, b) => b.boardTotal - a.boardTotal || b.boardDone - a.boardDone || a.createdAt - b.createdAt
   );
   let rank = 0, prev = null;
   rows.forEach((r, i) => {
-    if (prev === null || r.total !== prev) { rank = i + 1; prev = r.total; }
+    if (prev === null || r.boardTotal !== prev) { rank = i + 1; prev = r.boardTotal; }
     r.rank = rank;
   });
   return rows;

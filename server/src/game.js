@@ -72,6 +72,17 @@ export function activityOpenForSignup(activity, tags) {
   return tagsHit(activity, tags);
 }
 
+/**
+ * 同工专属的活动：可见范围只限定了「同工」这一个标签。
+ *
+ * 同工 + 其他标签（比如同工 + 团契）不算专属 —— 那是给一群人办的活动。
+ * 这类活动不计入排行榜（见 leaderboard）；护照里本人的总数和场次照常算。
+ */
+export function isStaffOnlyActivity(activity) {
+  const want = Array.isArray(activity?.audienceTags) ? activity.audienceTags : [];
+  return activityAudience(activity) === 'tags' && want.length > 0 && want.every((x) => x === 'staff');
+}
+
 /** 某人报过名的活动 id 集合 */
 export function signupSetOf(playerId) {
   return new Set(stmts.signupsOf.all(playerId).map((r) => r.activity_id));
@@ -231,10 +242,15 @@ export function leaderboard({ limit = 0 } = {}) {
   const players = stmts.allPlayers.all();
   const signups = signupsByPlayer();
   const tagMap = tagsByPlayer();
+  const staffOnly = new Set(getActivities().filter(isStaffOnlyActivity).map((a) => a.id));
   const rows = players.map((p) => {
     const mine = signups.get(p.id) || NO_SIGNUPS;
     const tags = new Set([normalizedPlayerRole(p.role), ...(tagMap.get(p.id) || [])]);
-    const s = playerState(p, settings, liveStationIds(tags, mine), mine, tags);
+    // 同工专属的活动不计入排名 —— 同工在自己的活动上盖的章会把他们整体顶到榜首。
+    // 只影响排行榜：护照里本人的总数、场次照常算（人确实去了）。
+    // rankOf 就是从这里取的，所以「我的名次」也跟着一致
+    const live = new Set([...liveStationIds(tags, mine)].filter((sid) => !staffOnly.has(sid)));
+    const s = playerState(p, settings, live, mine, tags);
     return {
       id: s.id,
       code: s.code,
