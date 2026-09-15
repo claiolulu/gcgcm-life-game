@@ -2037,6 +2037,25 @@ kbd {
   }
 }
 
+/* 竖版页（封面、欢迎、导航、结语、说明/排行浮层）在电脑和平板上保持 430px 宽的
+   一本册子；手机上铺满屏幕。原来横着拿手机时两边各空出一大块黑边，而横版签证页
+   却是铺满的。按屏幕短边判断是不是手机（≤ 540px），页面内部的排版不变。 */
+@media (orientation: landscape) and (max-height: 540px),
+       (orientation: portrait) and (max-width: 540px) {
+  :root { --book-portrait-max: 100%; }
+}
+
+/* 横着拿手机时封面只有 ~390px 高。设计稿里徽章和书名的上边距是百分比（按宽度算），
+   铺满屏宽后会变成 80px 以上，把护照号和「轻触翻开」挤出屏幕，徽章也被压成椭圆。
+   只在这种情况下改按屏幕高度收紧；竖屏和电脑上仍是设计稿原样（内联样式）。 */
+@media (orientation: landscape) and (max-height: 540px) {
+  .pp-cover { padding-top: 18px !important; padding-bottom: 10px !important; }
+  .pp-cover-emblem { flex: none; width: 26cqh !important; height: 26cqh !important; margin-top: 3cqh !important; }
+  .pp-cover-ring { inset: 12% !important; }
+  .pp-cover-seal { width: 53% !important; height: 53% !important; }
+  .pp-cover-title { margin-top: 3cqh !important; }
+}
+
 /* 克隆出来的静态副本：不接受点击，边缘加一道阴影，压出纸张的厚度 */
 .book-ghost {
   pointer-events: none;

@@ -532,7 +532,9 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     /* ---- 版式 ---- */
     // 横版资料/签证页在手机竖屏时会旋转显示：舞台也必须占满屏宽，
     // 否则 430px 的旧上限会在大屏手机/平板两侧留下不对称黑边。
-    stageMax: landscape ? '100%' : '430px',
+    // 竖版页在电脑/平板上保持 430px 宽的一本册子；手机上（含横着拿）铺满屏幕，
+    // 由 styles.css 里的 --book-portrait-max 按屏幕短边切换。
+    stageMax: landscape ? '100%' : 'var(--book-portrait-max, 430px)',
     // 设备视口缺口补偿：竖屏把底部系统区镜像到顶部，横屏把右侧系统区
     // 镜像到左侧。舞台靠另一端放置，最终物理屏幕上的黑边才真正等宽。
     stageWidth: ui.vpLandscape && ui.screenGap?.x

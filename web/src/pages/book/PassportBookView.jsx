@@ -17,7 +17,7 @@ export default function PassportBookView({ v }) {
               <div style={{position: "absolute", inset: "0", display: "flex", flexDirection: "column"}}>
                 {v.isCover ? (
                   <>
-                    <div onClick={v.pageTap} style={{cursor: "pointer", flex: "1", minHeight: "0", position: "relative", background: v.coverBg, padding: "34px 30px 26px", display: "flex", flexDirection: "column", alignItems: "center"}}>
+                    <div className="pp-cover" onClick={v.pageTap} style={{cursor: "pointer", flex: "1", minHeight: "0", position: "relative", background: v.coverBg, padding: "34px 30px 26px", display: "flex", flexDirection: "column", alignItems: "center"}}>
                       <div style={{position: "absolute", inset: "0", pointerEvents: "none", opacity: ".28", background: "repeating-linear-gradient(45deg,rgba(255,255,255,.06) 0 1px,transparent 1px 4px),repeating-linear-gradient(-45deg,rgba(0,0,0,.1) 0 1px,transparent 1px 4px)"}} />
                       <div style={{position: "absolute", left: "0", top: "0", bottom: "0", width: "22px", background: "linear-gradient(90deg,rgba(0,0,0,.4),transparent)"}} />
                       <div style={{position: "absolute", inset: "14px", border: "1px solid rgba(var(--pp-gold-2-rgb),.45)", pointerEvents: "none"}} />
@@ -28,16 +28,16 @@ export default function PassportBookView({ v }) {
                       <div style={{position: "relative", marginTop: "9px", fontSize: "13px", letterSpacing: ".5em", color: "rgba(var(--pp-gold-2-rgb),.72)", textIndent: ".5em"}}>
                         {v.coverSub}
                       </div>
-                      <div style={{position: "relative", marginTop: "11%", width: "132px", height: "132px", display: "flex", alignItems: "center", justifyContent: "center"}}>
+                      <div className="pp-cover-emblem" style={{position: "relative", marginTop: "11%", width: "132px", height: "132px", display: "flex", alignItems: "center", justifyContent: "center"}}>
                         <div style={{position: "absolute", inset: "0", borderRadius: "50%", border: "1px solid rgba(var(--pp-gold-2-rgb),.5)", background: "repeating-conic-gradient(from 0deg,rgba(var(--pp-gold-2-rgb),.16) 0 2deg,transparent 2deg 9deg)"}} />
-                        <div style={{position: "absolute", inset: "16px", borderRadius: "50%", border: "1px solid rgba(var(--pp-gold-2-rgb),.34)"}} />
-                        <div style={{position: "relative", width: "70px", height: "70px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", background: "radial-gradient(circle at 38% 32%,rgba(var(--pp-gold-2-rgb),.4),rgba(var(--pp-gold-2-rgb),.1))", border: "1px solid rgba(var(--pp-gold-2-rgb),.6)"}}>
+                        <div className="pp-cover-ring" style={{position: "absolute", inset: "16px", borderRadius: "50%", border: "1px solid rgba(var(--pp-gold-2-rgb),.34)"}} />
+                        <div className="pp-cover-seal" style={{position: "relative", width: "70px", height: "70px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", background: "radial-gradient(circle at 38% 32%,rgba(var(--pp-gold-2-rgb),.4),rgba(var(--pp-gold-2-rgb),.1))", border: "1px solid rgba(var(--pp-gold-2-rgb),.6)"}}>
                           <div style={{fontFamily: "'EB Garamond',serif", fontSize: "30px", letterSpacing: ".04em", color: "var(--pp-gold)"}}>
                             M
                           </div>
                         </div>
                       </div>
-                      <div style={{position: "relative", textAlign: "center", marginTop: "10%"}}>
+                      <div className="pp-cover-title" style={{position: "relative", textAlign: "center", marginTop: "10%"}}>
                         <div style={{fontSize: "36px", fontWeight: "700", letterSpacing: ".3em", color: "var(--pp-gold)", textIndent: ".3em"}}>
                           {v.coverTitle}
                         </div>
