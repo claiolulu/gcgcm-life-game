@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar.jsx';
-import { NetBar, Sheet, useToast, useConfirm, ago } from '../components/ui.jsx';
+import { NetBar, Sheet, useToast, useConfirm, useLocalState, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText } from '../lib/clipboard.js';
 import { ScrollRail } from '../components/ScrollRail.jsx';
@@ -16,6 +16,14 @@ const ACT_STATE = {
   live:     { icon: '🎯', label: '进行中' },
   done:     { icon: '✅', label: '已办完' },
 };
+
+// 活动清单的筛选与排序（总控台）。默认值 = 全部、护照顺序，和原来的清单一样
+const ACT_VIEW_DEFAULT = { state: 'all', audience: 'all', sort: 'order' };
+const ACT_STATE_FILTERS = [['all', '全部'], ['open', '未结束'], ['upcoming', '还没到'], ['live', '进行中'], ['done', '已办完']];
+const ACT_SORTS = [
+  ['order', '护照顺序'], ['dateDesc', '日期 新→旧'], ['dateAsc', '日期 旧→新'],
+  ['signups', '报名人数'], ['stamps', '盖章人数'], ['name', '名称'],
+];
 
 /**
  * 可见范围的徽标。不可见范围限制就返回 null（不显示徽标）。
@@ -619,6 +627,56 @@ export default function Admin() {
   }
 
   // stateMeta 没人用了：游戏状态那块搬到每场活动自己身上了
+  /* ---------------------- 活动清单的筛选与排序 ---------------------- */
+  // 活动越办越多，清单会一直往下长：加搜索、按状态 / 可见范围筛、换排序，列表限高内部滚动。
+  // 状态、可见范围、排序记在本机（下次打开还是这一套），搜索词不记。
+  // 拖动排序改的是护照装订顺序，只在「护照顺序」且没有筛选时开放 ——
+  // 拖动逻辑按整份清单的下标换位，在筛过或重排过的列表里拖会换错位置。
+  const [actViewRaw, setActView] = useLocalState('mlg.admin.activityView.v1', ACT_VIEW_DEFAULT);
+  const [actQuery, setActQuery] = useState('');
+  const actView = { ...ACT_VIEW_DEFAULT, ...(actViewRaw || {}) };
+  // 记住的是某个标签，但那个标签后来被删了：当作不筛
+  const audienceFilter = actView.audience.startsWith('tag:') && !tagList.some((t) => `tag:${t.id}` === actView.audience)
+    ? 'all' : actView.audience;
+  const actStateCounts = useMemo(() => {
+    const c = { all: activities.length, open: 0, upcoming: 0, live: 0, done: 0 };
+    for (const a of activities) {
+      const s = a.state || 'upcoming';
+      c[s] = (c[s] || 0) + 1;
+      if (s !== 'done') c.open += 1;
+    }
+    return c;
+  }, [activities]);
+  const shownActivities = useMemo(() => {
+    const q = actQuery.trim().toLowerCase();
+    const list = activities.filter((a) => {
+      const s = a.state || 'upcoming';
+      if (actView.state === 'open' ? s === 'done' : (actView.state !== 'all' && s !== actView.state)) return false;
+      const byTags = a.audience === 'tags' && (a.audienceTags || []).length > 0;
+      if (audienceFilter === 'everyone' && (byTags || a.audience === 'signed')) return false;
+      if (audienceFilter === 'signed' && a.audience !== 'signed') return false;
+      if (audienceFilter.startsWith('tag:') && !(byTags && a.audienceTags.includes(audienceFilter.slice(4)))) return false;
+      if (q && ![a.name, a.en, a.tag, a.host, a.date].some((v) => String(v || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
+    // 日期待定的不管正序倒序都排在最后
+    const byDate = (dir) => (x, y) => {
+      if (!x.date || !y.date) return (x.date ? 0 : 1) - (y.date ? 0 : 1);
+      return dir * x.date.localeCompare(y.date);
+    };
+    const sorters = {
+      dateDesc: byDate(-1),
+      dateAsc: byDate(1),
+      signups: (x, y) => (signupCount[y.id] || 0) - (signupCount[x.id] || 0),
+      stamps: (x, y) => (stampCount[y.id] || 0) - (stampCount[x.id] || 0),
+      name: (x, y) => String(x.name || '').localeCompare(String(y.name || ''), 'zh-Hans-CN'),
+    };
+    return sorters[actView.sort] ? [...list].sort(sorters[actView.sort]) : list;
+  }, [activities, actView.state, actView.sort, audienceFilter, actQuery, signupCount, stampCount]);
+  const actFiltered = actView.state !== 'all' || audienceFilter !== 'all' || !!actQuery.trim();
+  const canDragActivities = actView.sort === 'order' && !actFiltered;
+  const resetActView = () => { setActView(ACT_VIEW_DEFAULT); setActQuery(''); };
+
   return (
     <div className="page page--wide staff-page admin-page">
       <NetBar
@@ -677,16 +735,63 @@ export default function Admin() {
           同工端和对应角色的护照都会跟着变。按住左侧拖动柄可以调整顺序。
         </div>
 
-        <div className="stack-sm">
-          {activities.map((a) => {
+        {activities.length > 0 && (
+          <div className="admin-act-tools">
+            <div className="admin-act-tools__row">
+              <input className="input admin-act-tools__search" type="search" value={actQuery}
+                onChange={(e) => setActQuery(e.target.value)}
+                placeholder="搜活动名、类型、负责人或日期" aria-label="搜索活动" />
+              <select className="input admin-act-tools__select" aria-label="排序方式" value={actView.sort}
+                onChange={(e) => setActView({ ...actView, sort: e.target.value })}>
+                {ACT_SORTS.map(([k, label]) => <option key={k} value={k}>排序：{label}</option>)}
+              </select>
+              <select className="input admin-act-tools__select admin-act-tools__audience" aria-label="按可见范围筛选"
+                value={audienceFilter} onChange={(e) => setActView({ ...actView, audience: e.target.value })}>
+                <option value="all">全部可见范围</option>
+                <option value="everyone">所有人可见</option>
+                <option value="signed">报名可见</option>
+                {tagList.map((t) => <option key={t.id} value={`tag:${t.id}`}>标签：{t.name}</option>)}
+              </select>
+            </div>
+            <div className="admin-act-tools__chips" role="group" aria-label="按状态筛选">
+              {ACT_STATE_FILTERS.map(([k, label]) => (
+                <button key={k} type="button" aria-pressed={actView.state === k}
+                  className={`admin-act-chip ${actView.state === k ? 'admin-act-chip--on' : ''}`}
+                  onClick={() => setActView({ ...actView, state: k })}>
+                  {label}<span>{actStateCounts[k] || 0}</span>
+                </button>
+              ))}
+            </div>
+            <div className="tiny dim admin-act-tools__meta">
+              <span>
+                显示 {shownActivities.length} / {activities.length} 场
+                {canDragActivities ? '' : ' · 切回「护照顺序」并清除筛选后才能拖动排序'}
+              </span>
+              {(actFiltered || actView.sort !== 'order') && (
+                <button type="button" className="btn btn--sm btn--ghost" onClick={resetActView}>重置</button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="stack-sm admin-act-list">
+          {activities.length > 0 && shownActivities.length === 0 && (
+            <div className="admin-empty">
+              <span>🔍</span>
+              <strong>没有符合条件的活动</strong>
+              <button type="button" className="btn btn--sm btn--ghost" onClick={resetActView}>清除筛选</button>
+            </div>
+          )}
+          {shownActivities.map((a) => {
             const st = ACT_STATE[a.state] || ACT_STATE.upcoming;
             const audience = audienceBadge(a, tagList);
             return (
               <div key={a.id} data-activity-row={a.id}
                 className={`admin-activity-sort-row ${dragActivity === a.id ? 'admin-activity-sort-row--dragging' : ''}`}>
                 <button className="admin-activity__drag" type="button"
-                  aria-label={`拖动调整${a.name}的顺序`} title="按住拖动排序"
-                  disabled={busy === 'order'}
+                  aria-label={`拖动调整${a.name}的顺序`}
+                  title={canDragActivities ? '按住拖动排序' : '切回「护照顺序」并清除筛选后才能拖动'}
+                  disabled={busy === 'order' || !canDragActivities}
                   onPointerDown={(e) => startActivityDrag(e, a.id)}
                   onPointerMove={moveActivityDrag}
                   onPointerUp={endActivityDrag}

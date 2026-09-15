@@ -876,6 +876,34 @@ h3 { font-size: 16px; }
 .admin-stat--orange .admin-stat__icon { background: rgba(247,148,72,.14); }
 .admin-header__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
+/* 总控台活动清单的筛选 / 排序工具条，和限高内部滚动的列表 */
+.admin-act-tools { display: grid; gap: 8px; }
+.admin-act-tools__row { display: flex; gap: 8px; }
+.admin-act-tools__search { flex: 1 1 auto; min-width: 0; }
+.admin-act-tools__select { flex: 0 0 auto; width: auto; min-width: 0; max-width: 48%; text-overflow: ellipsis; }
+.admin-act-tools__chips {
+  display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 2px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.admin-act-tools__chips::-webkit-scrollbar { display: none; }
+.admin-act-chip {
+  flex: none; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--admin-border);
+  background: rgba(15, 23, 42, .55); color: #a9b4c6; font-size: 12.5px; font-weight: 650; white-space: nowrap;
+}
+.admin-act-chip span { margin-left: 4px; color: #71809a; font-variant-numeric: tabular-nums; }
+.admin-act-chip--on { color: #eef4ff; border-color: rgba(111, 165, 255, .5); background: rgba(57, 135, 229, .22); }
+.admin-act-chip--on span { color: #c9dcff; }
+.admin-act-tools__audience { flex: none; margin-left: auto; min-width: 9.5em; }
+.admin-act-tools__meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; }
+.admin-act-list { max-height: min(64vh, 660px); overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 0; }
+@media (max-width: 640px) {
+  .admin-act-tools__row { flex-wrap: wrap; }
+  .admin-act-tools__search { flex-basis: 100%; }
+  /* 手机上搜索框占一整行，排序和可见范围两个下拉并排各占一半 */
+  .admin-act-tools__select { max-width: none; flex: 1 1 calc(50% - 4px); }
+  .admin-act-tools__audience { margin-left: 0; }
+}
+
 /* 活动详情页顶部：返回 + 活动名 ｜ 设计 / 保存 / 删除 */
 .detail-head {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
