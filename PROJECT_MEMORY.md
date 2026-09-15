@@ -191,6 +191,13 @@ npm start
 
 ### 开发记录
 
+#### 2026-09-15 · 总控台用户列表手机上出现两根滚动条
+
+- 问题：用户列表（`.list-cap`，右侧有 `ScrollRail` 自画滑杆）在手机上滚动时，系统又浮出一根细滚动条，界面上两根并排。原来只靠 `::-webkit-scrollbar { width: 0 }` 隐藏，iPhone Safari 不认。
+- 改动（`styles.css`）：`.list-cap` 加 `scrollbar-width: none` 与 `::-webkit-scrollbar { display: none }`；再用裁剪兜底——`.list-cap` 向右伸出 14px（`margin-right: -14px`、`padding-right` 8→22px），外层 `.list-scroll` 加 `overflow: hidden` 把伸出的一截（系统条画在那里）裁掉，内容位置不变，自画滑杆在外层里照常显示。签证页长文字块 `.scroll-box__body` 同样补 `scrollbar-width: none`（未加裁剪）。
+- 验证：隔离实例 3228、25 个用户，浏览器量尺寸——手机 390 宽：外层 overflow hidden、列表向右伸出 14px、卡片离可见边缘 8px（与改前一致）、自画滑杆显示在外层内、原生滚动条宽 0、无横向溢出；电脑 1280 宽两列、间距一致。Chromium 模拟不出 iOS 浮动滚动条，**真机未确认**。
+- 部署：已执行，仅前端构建到 `web/dist`，线上 bundle 与本地一致；服务端未改未重启。
+
 #### 2026-09-15 · 总控台活动清单：搜索、筛选、排序、限高滚动
 
 - 需求：活动一直新增，清单会越来越长；加筛选和排序，应对十几场以上。

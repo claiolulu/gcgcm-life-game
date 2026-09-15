@@ -614,8 +614,14 @@ h3 { font-size: 16px; }
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  /* 给右边那根滚动条让出位置，别压在分数上 */
-  padding-right: 8px;
+  /* 手机上会出现两根条：右边自己画的那根，加上系统滚动时浮出来的细条。
+     iPhone Safari 不认 ::-webkit-scrollbar 的隐藏，scrollbar-width 也要 iOS 18.2 起才认，
+     所以再加一道保险：滚动区向右多伸出 14px，由外层 .list-scroll 裁掉 ——
+     系统条画在滚动区最右缘，正好落在被裁掉的那一截里。
+     内边距同步多给 14px，内容位置和原来一样（离可见边缘 8px，给自画的条让位） */
+  margin-right: -14px;
+  padding-right: 22px;
+  scrollbar-width: none;
 }
 
 /* 右边那根滑杆是自己画的（见 Admin.jsx 的 ScrollRail），这里把原生的藏掉，
@@ -624,9 +630,10 @@ h3 { font-size: 16px; }
    WebView 更是全程不显示 —— 而这个列表封了高，不给个东西指着，没人知道
    下面还有人。::-webkit-scrollbar 在这个内嵌 WebView 里也没能让它常驻
    （实测 offsetWidth - clientWidth 仍然是 0）。 */
-.list-cap::-webkit-scrollbar { width: 0; height: 0; }
+.list-cap::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
-.list-scroll { position: relative; }
+/* overflow: hidden 裁掉 .list-cap 向右伸出去的那一截（连同系统滚动条），自画的条在它里面照常显示 */
+.list-scroll { position: relative; overflow: hidden; }
 
 .list-rail {
   position: absolute;
@@ -716,7 +723,9 @@ h3 { font-size: 16px; }
 /* 装得下就不留这几个像素 —— 见 ScrollBox 里的说明 */
 .scroll-box__body--over { padding-right: 7px; }
 /* 原生滚动条藏掉，右边那根是自己画的，两根并排很难看 */
-.scroll-box__body::-webkit-scrollbar { width: 0; height: 0; }
+.scroll-box__body::-webkit-scrollbar { width: 0; height: 0; display: none; }
+/* 签证页长文字块同样有自画的滑杆；新版 iOS / Firefox 靠这条藏掉系统滚动条 */
+.scroll-box__body { scrollbar-width: none; }
 
 /* 签证页上那根：护照是纸色的，深蓝滑块在上面像脏点，得用护照自己的主色。
    也细一点 —— 那是一张设计过的纸，不是一个列表 */
