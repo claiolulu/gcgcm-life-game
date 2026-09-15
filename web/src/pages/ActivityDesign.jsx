@@ -4,7 +4,7 @@ import ImeInput from '../components/ImeInput.jsx';
 import { useToast, useConfirm } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import IconPicker from '../components/IconPicker.jsx';
-import { useConfig, loadConfig } from '../lib/config.js';
+import { TEXT_BLOCK_MAX, useConfig, loadConfig } from '../lib/config.js';
 import { useStaff } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import VisaPageFrame, { PAGE_ASPECT } from './book/VisaPageFrame.jsx';
@@ -1114,7 +1114,12 @@ export default function ActivityDesign() {
                     data={data}
                     editing
                     inlineEditing={inlineText === b.id}
-                    onTextChange={(field, value) => inlineChange(b, field, value)}
+                    onTextChange={(field, value, meta) => {
+                      inlineChange(b, field, value);
+                      if (meta?.truncated) {
+                        toast(`这一块最多 ${meta.max} 字，超出的部分已经去掉了。剩下的内容请放到另一个文字块里`, 'warn');
+                      }
+                    }}
                   />
                 </div>
               );
@@ -1261,6 +1266,16 @@ export default function ActivityDesign() {
             b={selected} patch={(p) => patch(selected.id, p)} sources={sources}
             busy={busy} onPickImage={(f) => pickImage(f, selected.id)}
           />
+
+          {selected.kind === 'text' && (() => {
+            const n = [...(selected.text || '')].length;
+            const full = n >= TEXT_BLOCK_MAX;
+            return (
+              <div className="tiny dim" style={full ? { color: '#ff9b8a' } : undefined}>
+                字数 {n} / {TEXT_BLOCK_MAX}{full ? ' · 已经满了，再多的内容放到另一个文字块里' : ''}
+              </div>
+            );
+          })()}
 
           <Slider label="透明度" value={selected.opacity ?? 1} min={0.05} max={1} step={0.05}
             onChange={(v) => patch(selected.id, { opacity: v })} />

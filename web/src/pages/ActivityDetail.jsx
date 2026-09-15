@@ -476,7 +476,15 @@ export default function ActivityDetail() {
         <textarea className="input" rows={4} value={draft.desc} maxLength={200}
           placeholder="这场活动是什么。印在签证页的备注栏里，翻到这一页就看到这段。"
           onChange={(e) => edit({ desc: e.target.value })}
+          // 浏览器的 maxLength 会把超出的粘贴内容悄悄吞掉，得在粘贴那一下说出来
+          onPaste={(e) => {
+            const el = e.currentTarget;
+            const pasted = e.clipboardData?.getData('text') || '';
+            const after = el.value.length - (el.selectionEnd - el.selectionStart) + pasted.length;
+            if (after > 200) toast(`描述最多 200 字，这次粘贴超出了 ${after - 200} 字，超出的部分没有进来。长内容请放到画布的文字块里（最多 3000 字）`, 'warn');
+          }}
           style={{ resize: 'vertical', minHeight: 92, lineHeight: 1.7 }} />
+        <div className="tiny dim" style={{ textAlign: 'right', marginTop: -6 }}>{(draft.desc || '').length} / 200</div>
         <div style={{ height: 1, background: 'var(--line-soft)' }} />
         <div className="section-title">🔗 页面链接（{links.length}）</div>
         <div className="tiny dim">

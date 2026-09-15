@@ -1001,5 +1001,25 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
+// 27. 文字块的字数上限：3000 字以内原样保存；超出的截到 3000，而且不劈开 emoji
+{
+  const base = (await j('/api/config')).body.activities;
+  const long = '团'.repeat(2999) + '👍';          // 正好 3000 个字，最后一个是 emoji
+  const withText = (text) => base.map((a, i) => (i === 0
+    ? { ...a, blocks: [{ id: 'len-test', kind: 'text', x: 5, y: 5, w: 50, h: 50, text }] } : a));
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withText(long) } });
+  const kept = (await j('/api/config')).body.activities[0].blocks.find((b) => b.id === 'len-test');
+  check('3000 字的文字块原样保存（原来只收 400 字）', kept?.text === long,
+    `实际 ${kept ? [...kept.text].length : '无'} 字`);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: withText(long + '多出来的') } });
+  const cut = (await j('/api/config')).body.activities[0].blocks.find((b) => b.id === 'len-test');
+  check('超过 3000 字截到 3000，结尾的 emoji 没被劈开', cut?.text === long,
+    `实际 ${cut ? [...cut.text].length : '无'} 字，结尾 ${cut ? JSON.stringify([...cut.text].slice(-2).join('')) : ''}`);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

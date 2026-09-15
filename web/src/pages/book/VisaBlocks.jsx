@@ -1,4 +1,5 @@
 import React, { useLayoutEffect, useRef } from 'react';
+import { TEXT_BLOCK_MAX } from '../../lib/config.js';
 import ScrollBox from '../../components/ScrollRail.jsx';
 
 /**
@@ -43,11 +44,17 @@ function InlineValue({ as: Tag = 'span', value, field, blockId, onTextChange, st
   const commit = () => {
     const el = ref.current;
     if (!el) return;
-    const next = el.innerText.slice(0, maxLength);
-    if (el.innerText !== next) el.innerText = next;
-    if (next !== initialValue.current) {
+    // 按「字」数（码点），不按 UTF-16 数，免得把 emoji 劈成两半
+    const chars = [...el.innerText];
+    const truncated = chars.length > maxLength;
+    const next = truncated ? chars.slice(0, maxLength).join('') : el.innerText;
+    if (truncated) el.innerText = next;
+    el.removeAttribute('data-over');
+    // 截过就一定要通知，哪怕截完和原来一样（原来就满了、又粘贴了一段）——
+    // 否则超出的那截就这么无声地没了，用户丢内容正是这么来的
+    if (next !== initialValue.current || truncated) {
       initialValue.current = next;
-      onTextChange?.(field, next);
+      onTextChange?.(field, next, truncated ? { truncated: true, max: maxLength } : undefined);
     }
   };
 
@@ -67,6 +74,8 @@ function InlineValue({ as: Tag = 'span', value, field, blockId, onTextChange, st
       onClick={(e) => e.stopPropagation()}
       onCompositionStart={() => { composing.current = true; }}
       onCompositionEnd={() => { composing.current = false; }}
+      // 打字、粘贴的当下就标红，不用等失去焦点才发现超了
+      onInput={(e) => e.currentTarget.toggleAttribute('data-over', [...e.currentTarget.innerText].length > maxLength)}
       onKeyDown={(e) => {
         if (!multiline && e.key === 'Enter') {
           e.preventDefault();
@@ -247,7 +256,7 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
             fontSize: `${b.size || 2.7}cqh`, fontWeight: b.bold === undefined ? 600 : b.bold ? 700 : 400,
             lineHeight: b.lh || 1.75, textAlign: b.align || 'left', color: b.color || 'var(--pp-text)', textWrap: 'pretty' }}>
             {inlineEditing ? (
-              <InlineValue as="div" multiline value={data.desc} field="desc" blockId={b.id}
+              <InlineValue as="div" multiline value={data.desc} field="desc" maxLength={200} blockId={b.id}
                 placeholder="直接输入备注" onTextChange={onTextChange} />
             ) : data.desc}
           </div>
@@ -340,7 +349,7 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
             whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           }}
         >{inlineEditing ? (
-          <InlineValue as="div" multiline value={b.text} field="text" blockId={b.id}
+          <InlineValue as="div" multiline value={b.text} field="text" blockId={b.id} maxLength={TEXT_BLOCK_MAX}
             placeholder="直接输入文字" onTextChange={onTextChange} />
         ) : b.text}</ScrollBox>
       );

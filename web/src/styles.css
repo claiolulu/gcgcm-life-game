@@ -337,6 +337,8 @@ h3 { font-size: 16px; }
 .lb-rank--1 { color: #ffd76e; }
 .lb-rank--2 { color: #d6dcea; }
 .lb-rank--3 { color: #d9a273; }
+/* 前三名的格子里放的是奖杯，不是数字：让它在 30px 宽的格子里居中 */
+.lb-rank svg { margin: 0 auto; }
 
 .lb-score {
   font-family: var(--mono);
@@ -1981,3 +1983,9 @@ kbd {
    --------------------------------------------------------------- */
 /* 名次：单人队和多人队都用同一个宽度，行与行才对得齐 */
 /* 队员：头像叠着排，名字跟在后面 */
+
+/* 画布里直接编辑文字时超过字数上限：当场标红，别等保存时才被截掉 */
+.visa-inline-input[data-over] {
+  outline: 2px solid #e5484d !important;
+  outline-offset: 2px;
+}

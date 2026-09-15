@@ -906,7 +906,8 @@ function cleanBlocks(raw, where) {
       default:
         return {
           ...base, kind: 'text',
-          text: String(b?.text ?? '').slice(0, 400),
+          // 按「字」截（码点），不按 UTF-16 截，免得把 emoji 劈成两半
+          text: [...String(b?.text ?? '')].slice(0, TEXT_BLOCK_MAX).join(''),
           size: num(b?.size, 1, 24, 4),
           color: HEX.test(String(b?.color)) ? String(b.color).toLowerCase() : '',
           font: CANVAS_FONTS.has(b?.font) ? b.font : 'sans',
@@ -938,6 +939,14 @@ function cleanExtraPages(raw, where) {
     return { id, title, kind, blocks: cleanBlocks(page?.blocks || [], `${where}「${title}」`) };
   });
 }
+
+/**
+ * 文字块的字数上限。前端 web/src/lib/config.js 的 TEXT_BLOCK_MAX 必须和这里一致。
+ *
+ * 原来这里是 400，而前端的画布编辑器放行 1000：粘贴一段长文，页面上看着都在，
+ * 一保存后半截就被无声地切掉了（第一次团契的活动总结就是这样没了第 5 条往后）。
+ */
+const TEXT_BLOCK_MAX = 3000;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 

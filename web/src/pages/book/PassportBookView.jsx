@@ -1,4 +1,5 @@
 import React from 'react';
+import Trophy from '../../components/Trophy.jsx';
 import VisaBlocks, { PassportMrz } from './VisaBlocks.jsx';
 
 /**
@@ -283,19 +284,12 @@ export default function PassportBookView({ v }) {
                             {(v.boardRows || []).map((row, i) => (
                               <React.Fragment key={i}>
                                 <div style={{display: "flex", alignItems: "center", gap: "12px", padding: "12px 10px", background: row.bg, borderBottom: "1px solid rgba(var(--pp-ink-rgb),.18)"}}>
-                                  <span style={{fontFamily: "'Courier Prime',monospace", fontSize: "11px", width: "22px", color: row.fg, opacity: ".75"}}>
-                                    {row.rank}
+                                  <span style={{fontFamily: "'Courier Prime',monospace", fontSize: "11px", width: "22px", color: row.fg, opacity: row.trophy ? "1" : ".75"}}>
+                                    {row.trophy ? <Trophy rank={row.trophy} size={18} tone="paper" /> : row.rank}
                                   </span>
                                   <span style={{flex: "1", minWidth: "0", fontSize: "14.5px", fontWeight: "600", color: row.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}>
                                     {row.name}
                                   </span>
-                                  {row.hasTag ? (
-                                    <>
-                                      <span style={{flex: "none", padding: "2px 7px", border: `1px solid ${row.tagBd}`, fontFamily: "'EB Garamond',serif", fontSize: "8px", letterSpacing: ".12em", color: row.tagFg, whiteSpace: "nowrap"}}>
-                                        {row.tag}
-                                      </span>
-                                    </>
-                                  ) : null}
                                   <span style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".14em", color: row.fg, opacity: ".55"}}>
                                     {row.identity}
                                   </span>

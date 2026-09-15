@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Trophy from '../components/Trophy.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { NetBar, Empty, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
@@ -95,7 +96,9 @@ export default function Leaderboard() {
 function Row({ row, isMe, stationCount }) {
   return (
     <div className={`lb-row ${isMe ? 'lb-row--me' : ''}`}>
-      <div className={`lb-rank lb-rank--${row.rank}`}>{row.rank}</div>
+      <div className={`lb-rank lb-rank--${row.rank}`}>
+        {row.rank <= 3 ? <Trophy rank={row.rank} size={24} /> : row.rank}
+      </div>
       <Avatar config={row.avatar} size={38} />
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

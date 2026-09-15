@@ -158,3 +158,9 @@ export async function loadConfig() {
     return cached;
   }
 }
+
+/**
+ * 画布文字块的字数上限。和服务端 server/src/index.js 的 TEXT_BLOCK_MAX 必须一致 ——
+ * 两边不一致的时候（原来前端 1000、服务端 400），多出来的那截会在保存时无声消失。
+ */
+export const TEXT_BLOCK_MAX = 3000;

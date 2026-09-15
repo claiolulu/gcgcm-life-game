@@ -788,10 +788,9 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
       score: String(r.total).padStart(2, '0'),
       bg: r.id === me?.id ? 'rgba(198,164,95,.22)' : 'transparent',
       fg: r.id === me?.id ? 'var(--pp-ink)' : 'var(--pp-text)',
-      hasTag: i < 3,
-      tag: ['THE CHAMPION 冠军', 'THE CONNECTOR 联结者', 'THE CREATIVE 创意奖'][i] || '',
-      tagFg: ['#a63a2a', '#2f6148', '#4a5b6a'][i] || 'var(--pp-text)',
-      tagBd: ['rgba(166,58,42,.5)', 'rgba(47,97,72,.5)', 'rgba(74,91,106,.5)'][i] || 'rgba(var(--pp-ink-rgb),.3)',
+      // 前三名只放奖杯、不写文字。按名次值给，不按列表位置给 —— 原来按位置发
+      // 「冠军 / 联结者 / 创意奖」，并列第一的两个人里排第二的那个拿到的是「联结者」
+      trophy: Number(r.rank ?? i + 1) <= 3 ? Number(r.rank ?? i + 1) : 0,
     })),
   };
 }
