@@ -40,6 +40,10 @@ export const USAGE_EVENTS = {
   badge_share: '分享护照图',
   badge_save: '保存护照图',
   notif_open: '点开通知',
+  qr_open: '打开活动报名码',
+  qr_share: '分享活动报名码',
+  share_visit: '扫分享码打开报名页',
+  install: '添加到桌面',
 };
 
 /** 服务端自己记的事件：不是谁的操作，不算进活跃人数和操作次数。label 存数量 */

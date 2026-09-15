@@ -39,14 +39,16 @@ const PALETTE = [
   // 单独一个图标，想放哪放哪。和别的块一样能配链接、能拖大小 ——
   // 「页面链接」那个块是一排固定在一起的，这个是散装的
   { kind: 'icon',    name: '图标',     make: () => ({ x: 46, y: 45, w: 10, h: 10, icon: '📍', href: '' }) },
+  // 这场活动的报名二维码：参与者在自己的签证页上点开就能分享给朋友报名
+  { kind: 'qr',      name: '报名二维码', make: () => ({ x: 4.5, y: 63, w: 34, h: 16, icon: '', label: '扫码报名' }) },
 ];
 
 const KIND_NAME = Object.fromEntries(PALETTE.map((p) => [p.kind, p.name]));
 
 /** 编辑器里用的示例数据。真页面上这些每个人都不一样。 */
-function sampleData(activity, theme) {
+function sampleData(activity, theme, shareOrigin) {
   return blockData({
-    station: activity, theme,
+    station: activity, theme, shareOrigin,
     me: { name: '林小满', code: '01', contact: 'wx: xiaoman' },
     passportNo: 'GCGCM000001',
     surname: '林', given: '小满',
@@ -276,7 +278,7 @@ export default function ActivityDesign() {
     ...activityFields,
     name,
   } : activity, [activity, activityFields, name]);
-  const data = useMemo(() => sampleData(workingActivity, config?.theme), [workingActivity, config]);
+  const data = useMemo(() => sampleData(workingActivity, config?.theme, config?.shareOrigin), [workingActivity, config]);
   const selected = useMemo(() => (blocks || []).find((b) => b.id === sel) || null, [blocks, sel]);
 
   /* --------------------------- 增删改 --------------------------- */
@@ -959,6 +961,7 @@ export default function ActivityDesign() {
 
   async function save() {
     setBusy('save');
+    let saved = false;
     try {
       const pages = pagesRef.current || [];
       const list = activities.map((a) => (a.id === id ? {
@@ -991,10 +994,19 @@ export default function ActivityDesign() {
       await loadConfig();
       setDirty(false);
       toast('已保存，所有人的护照上都换了', 'ok');
+      saved = true;
     } catch (err) {
       toast(err.message || '保存失败', 'err');
     } finally {
       setBusy(null);
+    }
+    // 保存完主动问要不要发通知。选「去写通知」就跳到这场活动的推送卡片
+    if (saved && await ask({
+      title: '要推送通知告诉大家吗？',
+      body: '页面已经保存，大家的护照上都换了。要不要发一条通知提醒大家？会跳到这场活动的推送卡片，选发给谁、改内容，发送前还会再确认一次。',
+      confirmText: '去写通知',
+    })) {
+      nav(`/staff/admin/a/${id}#notify`);
     }
   }
 
@@ -1377,6 +1389,32 @@ function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages }
         {/* IconPicker 选中时会顺手回一个建议名字（那是给「页面链接」用的），
             这里只取 icon，多出来的字段丢掉就行 */}
         <IconPicker value={b.icon || '📍'} onChange={(v) => patch({ icon: v.icon })} />
+      </>
+    );
+  }
+
+  if (b.kind === 'qr') {
+    // icon 存法：空 = 跟这场活动的图标，'M' = 护照徽章，其它 = 自选的 emoji
+    const mode = !b.icon ? 'activity' : b.icon === 'M' ? 'badge' : 'custom';
+    return (
+      <>
+        <div className="tiny dim">这场活动的报名二维码。参与者在自己的签证页上点开，能放大、分享给朋友；朋友扫码进入报名页。中间的图标可以换。</div>
+        <div className="tiny dim">中间的图标</div>
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+          {[['activity', '跟活动图标'], ['badge', '护照徽章 M'], ['custom', '自选图标']].map(([k, label]) => (
+            <button key={k} type="button" aria-pressed={mode === k}
+              className={`btn btn--sm grow ${mode === k ? 'btn--primary' : 'btn--ghost'}`}
+              onClick={() => patch({ icon: k === 'activity' ? '' : k === 'badge' ? 'M' : (mode === 'custom' ? b.icon : '⭐') })}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {mode === 'custom' && <IconPicker value={b.icon} onChange={(v) => patch({ icon: v.icon })} />}
+        <label className="stack-sm" style={{ gap: 3 }}>
+          <div className="tiny dim">旁边的说明（最多 16 字，留空显示「扫码报名」）</div>
+          <ImeInput className="input" maxLength={16} value={b.label ?? ''} placeholder="扫码报名"
+            onValue={(v) => patch({ label: v })} />
+        </label>
       </>
     );
   }

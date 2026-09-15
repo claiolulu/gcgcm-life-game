@@ -2,6 +2,10 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TEXT_BLOCK_MAX } from '../../lib/config.js';
 import ScrollBox from '../../components/ScrollRail.jsx';
+import { useToast } from '../../components/ui.jsx';
+import { activityQr } from '../../lib/activityQr.js';
+import { copyText } from '../../lib/clipboard.js';
+import { track } from '../../lib/track.js';
 
 /**
  * 签证页的正文 —— 一张块的清单。
@@ -28,6 +32,115 @@ const FONTS = {
   mono: "'Courier Prime',monospace",
   sans: "'Noto Serif SC',system-ui,sans-serif",
 };
+
+/**
+ * 活动报名二维码块。签证页上是一个小码 + 一句说明；点开是分享面板：
+ * 大码（可长按保存）、系统分享（能带图就带图）、复制链接。
+ *
+ * 中间的图标：块上没选 = 跟这场活动的图标，'M' = 护照徽章，其余是自选的。
+ * 和护照页脚那个「护照码」是两回事 —— 那个给同工扫了盖章，这个给朋友扫了报名，
+ * 面板里写明白，免得现场有人拿报名码去给同工扫。
+ */
+function QrBody({ b, data, editing }) {
+  const toast = useToast();
+  const url = data?.joinUrl || '';
+  const icon = b.icon || data?.icon || 'M';
+  const [thumb, setThumb] = useState('');
+  const [big, setBig] = useState('');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!url) return undefined;
+    let alive = true;
+    activityQr(url, { icon, size: 360 }).then((src) => { if (alive) setThumb(src); }).catch(() => {});
+    return () => { alive = false; };
+  }, [url, icon]);
+
+  useEffect(() => {
+    if (!open || !url) return undefined;
+    let alive = true;
+    activityQr(url, { icon, size: 900 }).then((src) => { if (alive) setBig(src); }).catch(() => {});
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => { alive = false; window.removeEventListener('keydown', onKey); };
+  }, [open, url, icon]);
+
+  if (!url) return editing ? <Ghost text="报名二维码" /> : null;
+
+  const name = data?.name || '活动';
+  const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+
+  async function copy() {
+    track('qr_share', { activityId: data?.activityId, label: 'copy' });
+    const ok = await copyText(url);
+    toast(ok ? '报名链接已复制，发给朋友就能报名' : '复制不了，可以长按二维码图片保存', ok ? 'ok' : 'err');
+  }
+
+  async function share() {
+    track('qr_share', { activityId: data?.activityId, label: 'share' });
+    const title = `${name} · 扫码报名`;
+    try {
+      // 带图分享：系统面板里能直接发到微信、WhatsApp 等；桌面浏览器多半不支持，退回分享链接
+      if (big && navigator.canShare) {
+        const blob = await (await fetch(big)).blob();
+        const file = new File([blob], `${name}-报名二维码.png`, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title, text: `${title}：${url}` });
+          return;
+        }
+      }
+      if (navigator.share) {
+        await navigator.share({ title, text: title, url });
+        return;
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return;   // 用户自己在系统面板里取消的
+    }
+    await copy();
+  }
+
+  const modal = open && !editing && typeof document !== 'undefined' ? createPortal(
+    <div className="activity-qr-modal" role="dialog" aria-modal="true" aria-label={`${name} 报名二维码`}
+      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) setOpen(false); }}>
+      <div className="activity-qr-modal__card">
+        <div className="activity-qr-modal__eyebrow">SCAN TO SIGN UP 扫码报名</div>
+        <div className="activity-qr-modal__name">{name}</div>
+        <div className="activity-qr-modal__img">
+          {big ? <img src={big} alt={`${name} 报名二维码`} /> : null}
+        </div>
+        <div className="activity-qr-modal__tip">
+          朋友用手机相机扫这个码，就能打开报名页、领护照并报名。可以长按图片保存，或直接分享。
+          <br />这是报名码；现场盖章请出示护照页脚的护照码。
+        </div>
+        <div className="activity-qr-modal__actions">
+          <button type="button" className="is-primary" onClick={share}>分享给朋友</button>
+          <button type="button" onClick={copy}>复制链接</button>
+        </div>
+        <button type="button" className="activity-qr-modal__close" onClick={() => setOpen(false)}>关闭</button>
+      </div>
+    </div>, document.body,
+  ) : null;
+
+  return (
+    <>
+      <button type="button" className="visa-qr" tabIndex={editing ? -1 : 0}
+        aria-label={`${name} 报名二维码，点开分享`}
+        onClick={(e) => {
+          stop(e);
+          if (editing) return;
+          setOpen(true);
+          track('qr_open', { activityId: data?.activityId });
+        }}>
+        <span className="visa-qr__code">{thumb ? <img src={thumb} alt="" /> : null}</span>
+        <span className="visa-qr__text">
+          <span className="visa-qr__label" style={{ fontFamily: FONTS.sans }}>{b.label || '扫码报名'}</span>
+          <span className="visa-qr__hint">点开分享给朋友</span>
+        </span>
+      </button>
+      {modal}
+    </>
+  );
+}
 
 function GalleryBody({ b, editing }) {
   const photos = Array.isArray(b.photos) ? b.photos.filter(Boolean) : [];
@@ -389,6 +502,9 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
     case 'gallery':
       return <GalleryBody b={b} editing={editing} />;
 
+    case 'qr':
+      return <QrBody b={b} data={data} editing={editing} />;
+
     case 'icon':
       // 字号跟着块高走，把手拖大图标就跟着变大。
       //
@@ -464,7 +580,7 @@ export default function VisaBlocks({ blocks, data, editing = false }) {
           opacity: b.opacity ?? 1,
         };
         const body = <BlockBody b={b} data={data} editing={editing} />;
-        if (b.href && !editing && b.kind !== 'gallery') {
+        if (b.href && !editing && b.kind !== 'gallery' && b.kind !== 'qr') {
           return (
             <a key={b.id} href={b.href} target="_blank" rel="noopener noreferrer"
               style={{ ...box, pointerEvents: 'auto', textDecoration: 'none', display: 'block' }}>
@@ -472,8 +588,8 @@ export default function VisaBlocks({ blocks, data, editing = false }) {
             </a>
           );
         }
-        // 链接和图库需要接收点击；其它块继续穿透给翻页层。
-        const interactive = !editing && (b.kind === 'links' || b.kind === 'gallery');
+        // 链接、图库和报名码需要接收点击；其它块继续穿透给翻页层。
+        const interactive = !editing && (b.kind === 'links' || b.kind === 'gallery' || b.kind === 'qr');
         return <div key={b.id} style={{ ...box, pointerEvents: interactive ? 'auto' : 'none' }}>{body}</div>;
       })}
     </div>

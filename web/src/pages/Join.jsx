@@ -40,11 +40,13 @@ export default function Join() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 从通知点进来的，链接上带着 ?from=push：记一笔，再把参数去掉，免得刷新又记一次
+  // 从通知点进来的带 ?from=push，扫参与者分享的报名码进来的带 ?from=share：
+  // 记一笔，再把参数去掉，免得刷新又记一次
   const [params] = useSearchParams();
   useEffect(() => {
-    if (params.get('from') !== 'push') return;
-    track('notif_open', { activityId: id, once: true });
+    const from = params.get('from');
+    if (from !== 'push' && from !== 'share') return;
+    track(from === 'push' ? 'notif_open' : 'share_visit', { activityId: id, once: true });
     nav(`/join/${id}`, { replace: true });
   }, [params, id, nav]);
 

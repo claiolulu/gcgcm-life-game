@@ -149,6 +149,24 @@ export default function Tour({ open, steps, onClose, onGoPage, themeVars }) {
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{step.title}</div>
         <div style={{ fontSize: 13, lineHeight: 1.85, color: 'rgba(var(--pp-text-rgb),.8)' }}>{step.body}</div>
 
+        {/* 某一步可以带一个真正的操作（开通知、安卓一键添加到桌面）。
+            必须是用户亲手点的按钮 —— 浏览器只在点击里允许弹权限和安装框 */}
+        {step.action ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); if (!step.action.disabled) step.action.onClick?.(); }}
+            disabled={!!step.action.disabled}
+            style={{
+              width: '100%', marginTop: 12, padding: '12px', borderRadius: 2,
+              cursor: step.action.disabled ? 'default' : 'pointer',
+              background: step.action.disabled ? 'rgba(var(--pp-ink-rgb),.08)' : 'var(--pp-gold)',
+              border: '1px solid rgba(var(--pp-ink-rgb),.35)',
+              color: 'var(--pp-ink)', fontSize: 14, fontWeight: 700, letterSpacing: '.06em',
+            }}
+          >
+            {step.action.label}
+          </button>
+        ) : null}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
           <button
             onClick={next}
@@ -159,7 +177,7 @@ export default function Tour({ open, steps, onClose, onGoPage, themeVars }) {
               fontSize: 11.5, letterSpacing: '.2em', textIndent: '.2em',
             }}
           >
-            {i + 1 >= steps.length ? 'DONE 知道了' : 'NEXT 下一个'}
+            {step.nextLabel || (i + 1 >= steps.length ? 'DONE 知道了' : 'NEXT 下一个')}
           </button>
           {i + 1 < steps.length && (
             <button

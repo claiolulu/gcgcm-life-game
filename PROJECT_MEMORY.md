@@ -19,6 +19,8 @@
 - 分享图：生成 PNG，系统文件分享、下载及平台提示。iPhone 网页不能静默写相册，使用系统分享面板的“存储图像”或长按图片；不保证所有社交 App 都提供直接分享目标。
 - 离线：PWA 缓存、参与者快照、同工花名册和操作 outbox、恢复网络重试、Socket.IO 实时信号与断线轮询。
 - 使用统计：参与者端埋点（打开页面、翻签证页、排名榜、报名、开/关通知、点开通知等）批量上报；总控台「📈 使用情况」看每日活跃（登录用户/未登录访客）、每日操作次数、功能排行和每场活动转化。原始记录保留 180 天后自动删除，不记 IP、位置和填写内容；护照「使用说明」第 6 条向参与者说明。
+- 报名码分享：签证页可放「报名二维码」块（默认版式自带），参与者点开是分享面板（大码可长按保存、系统分享带图、复制链接），朋友扫码进报名页；码中间压活动图标或护照徽章。同工保存活动（活动页手动保存 / 画板保存）后主动问要不要发通知。
+- 安装与通知引导：新手引导按 iPhone / 安卓教「添加到桌面」（安卓有安装事件时给一键按钮），通知那一步带「开启通知」按钮；第一次引导结束后主动问一次开不开通知。使用说明最后一条也按系统写添加方法。
 
 已经移除：Solo/Duo/Trio 组队、路线排班、人生盲盒、Help Token/恩典站、奖项分配、全局可编辑护照/签证模板入口。不要仅凭旧 README 或残留注释把它们加回来。
 
@@ -40,6 +42,7 @@
 | 画布编辑 | `web/src/pages/ActivityDesign.jsx`；本地草稿、页面/区块、手势、样式面板、素材库、保存 |
 | 活动/总控 | `ActivityDetail.jsx`、`Admin.jsx`；配置整份回传、活动状态、用户与统计 |
 | 参与者上传 | `book/ActivityContributionSheet.jsx`；单次最多 9 张，逐张压缩/提交，部分失败保留待传照片 |
+| 报名码 / 添加到桌面 | `web/src/lib/activityQr.js`（`joinUrlFor` 报名链接、中间带图标的 H 级二维码并缓存）；`web/src/lib/install.js`（平台判断、截安卓 `beforeinstallprompt`、iPhone/安卓教程文字）；块渲染在 `VisaBlocks.jsx` 的 `QrBody` |
 | 使用统计 | `server/src/usage.js`（事件白名单、英国时间分天、单设备限流、180 天清理、报表 SQL）；`web/src/lib/track.js`（队列 + sendBeacon + 离线补发、路由级埋点）；`web/src/pages/Usage.jsx`（管理员报表页） |
 | 其他页面 | `Register.jsx`、`Join.jsx`、`Badge.jsx`、`Leaderboard.jsx`、`StaffLogin.jsx`、`StaffScan.jsx`、`StaffPlayer.jsx` |
 | 通用组件/样式 | `ImeInput.jsx`、`Avatar*.jsx`、`Scanner.jsx`、`ui.jsx`；`styles.css` 与 `fonts.css` |
@@ -60,7 +63,7 @@
 - 删除活动保留历史章；已删除或角色不可见活动的章不计入该用户当前场次/分数。恢复同 id 活动可重新关联。活动 id 是历史锚，不能随改名或排序改变。
 - `settings._activities` 保存完整活动数组；排序就是数组顺序，服务端重写 `order`。API 是整份替换，多编辑器同时保存可能覆盖彼此，保存前需留意最新配置。
 - 活动第一页用 `activity.blocks`，后续页用 `extraPages[{id,title,kind,blocks}]`。`blocks` 缺省意味着生成默认版式，`[]` 意味着明确留白，两者不能混同。
-- 区块类型：banner/fields/station/note/photo/links/text/image/icon/gallery。`gallery` 最多保存 100 个安全图片地址，首屏 1–8 张、2–4 列；护照先显示精选缩略图和总数，点击进入全屏网格/大图浏览。坐标与宽高是页面百分比，字号按页高 cqh；页面比例 `PAGE_ASPECT = 1.9`。页眉、水印、二维码、章与 MRZ footer 是固定模板。服务端保存时剔除旧 mrz 区块。
+- 区块类型：banner/fields/station/note/photo/links/text/image/icon/gallery/qr。`qr` 是这场活动的报名二维码：码里的链接由前端按活动 id + `/api/config` 的 `shareOrigin` 现算（`/join/:id?from=share`），块上只存 `icon`（空 = 跟活动图标，`M` = 护照徽章，其它为 emoji）和 `label`（≤16 字，空回到「扫码报名」），服务端强制不挂外链。默认版式按栏目行数把它放进栏目下方空位；**已经排过版（`blocks` 是数组）的活动不会自动出现**，要在画板「＋ 新增」里加。`gallery` 最多保存 100 个安全图片地址，首屏 1–8 张、2–4 列；护照先显示精选缩略图和总数，点击进入全屏网格/大图浏览。坐标与宽高是页面百分比，字号按页高 cqh；页面比例 `PAGE_ASPECT = 1.9`。页眉、水印、二维码、章与 MRZ footer 是固定模板。服务端保存时剔除旧 mrz 区块。
 - fields 的 `src` 来自 `VISA_ROW_SOURCES`：固定文字、持照人信息、活动数据、报名/盖章信息。不能把示例持照人值当作所有人的固定正文。
 - `signups`：activity/player 组合主键，报名与实际盖章分离。仅 upcoming 可报名/取消；同一时刻最多一个 live。全局 gameState 是兼容派生值，不再是报名/个人资料锁定开关。
 - `activity_materials`：归属 activity/player，text/image，时间戳。用户只能访问本人投稿；全体素材库仅 admin。单人每活动最多 30 项，文字最多 1000 字符。
@@ -165,6 +168,12 @@ npm start
 25. **通知只能手动发，不能跟着活动保存自动发。** 活动详情页是边改边自动保存的，自动发的话改一个字就推一条。发给谁由同工每次选：`all` 全部领了护照的人 / `signed` 报了名的人 / `tags` 挂着所选任一标签的人。服务端**不认识的范围按 `signed` 处理**（宁可少发，不要因为一个错字发给所有人），选 `tags` 却没选标签返回 400。
 26. 翻页热区是按**元素自己的盒子**算左右四分之一，而各类页面的盒子宽度不同（横屏下身份页那类 `book-flip` 是全屏 812 宽，欢迎页那类只有居中 430 宽）。换算成屏幕坐标时别想当然。2026-09-15 起手机上（屏幕短边 ≤ 540px）竖版页也铺满屏幕，横屏两侧不再有点不到的黑边；电脑/平板上竖版页仍是居中 430px，两侧空白照旧不翻页。
 29. **竖版页宽度由 CSS 变量 `--book-portrait-max` 决定**（`bookVals.js` 的 `stageMax`，默认 430px；`styles.css` 在 `(orientation: landscape) and (max-height: 540px)` 或 `(orientation: portrait) and (max-width: 540px)` 时设为 100%）。用 CSS 变量而不是 JS 判断，转屏时不需要重渲染。设计稿里有**按宽度算的百分比外边距**（封面徽章 `marginTop: 11%`、书名 `10%`）：页面变宽它就变大，横屏手机上会把封面下半截挤出屏幕。封面在横屏手机上用 `.pp-cover*` 类按 `cqh` 收紧（需要 `!important` 压过内联样式），竖屏和电脑仍是内联原值。以后给竖版页加内容，别用百分比 margin/padding。
+30. **`html { -webkit-text-size-adjust: 100% }` 不能删。** iPhone Safari 横屏时会自动放大「像大段正文」的字号，转回竖屏常常不缩回来（用户反馈「横屏再竖屏字体变了、不重新适配」）。竖版页横屏铺满后更容易触发。Chromium 模拟器复现不了，只能靠这条样式兜住，真机要复查。
+31. **平台判断先认安卓，再用「自称 Mac + 有触点」认 iPad。** 反过来的话，模拟器和部分安卓平板会被当成 iPad，教程写成 iPhone 的。`beforeinstallprompt` 在页面很早就会触发，监听必须在模块顶层（`install.js` 被 `bookVals.js` 静态引入）。iPhone 没有安装接口，只能教「分享 → 添加到主屏幕」，而且 **iPhone 只有从桌面图标打开才收得到通知**。
+32. **弹通知权限、弹安装框都必须在用户点击里。** 所以新手引导不能自动请求权限，只能在步骤里放按钮（`Tour` 的 `step.action` / `step.nextLabel`）；第一次引导结束后先用自己的确认框问，用户点「开启通知」才调 `push.toggle()`。每台设备只问一次（`localStorage` 的 `mlg.notifyAsked.v1`）；已开启、浏览器不支持、iPhone 还没添加到桌面都不问。
+33. **保存后问推送只在手动保存时问。** 活动详情页 `save()` 成功返回 true，只有 💾 按钮走 `saveAndAsk`；自动保存不问（否则改一个字问一次）。画板保存后选「去写通知」跳 `/staff/admin/a/:id#notify`，详情页用回调 ref 等推送卡片挂上再滚动并聚焦标题。
+34. **报名码二维码用 H 级纠错，中间徽章占宽 24%（含白边约 28%）。** 已用 jsQR 对 360/900px、长短活动 id 实测盖上徽章后都能解码。点阵固定近黑色，不随护照主题变色；徽章颜色写死在 `activityQr.js`。报名码和护照页脚的「护照码」是两回事，分享面板里写明了，别合并。
+35. **使用统计里「未登录的人」不是系统外的访客**：是打开了不用登录的页面（活动报名页、领护照页）但当时没登录护照的设备，比如扫了海报/朋友分享的报名码还没领护照、换手机还没找回。分享码进来的记 `share_visit`（活动转化表「其中扫分享码」列），另有 `qr_open`、`qr_share`、`install` 事件。
 27. **埋点走 `sendBeacon`，所以 `POST /api/t` 收的是 `text/plain`，护照令牌放在 body 的 `t` 字段**（beacon 带不了 Authorization 头）。不要改成 `application/json` 的 Blob，各浏览器对非简单类型 beacon 的处理不一致；服务端两种都认。`track(event, { once: true })` 的去重键带当天日期，同一天同样的事只记一次。新增事件名要前后端一起加 —— 服务端不认识的会被静默丢掉，报表里就是没有。
 28. **公网健康检查用 `curl`，不要用 Python `urllib`。** Cloudflare 按浏览器特征拦 urllib 默认 UA，三个域名一律回 `403 error code: 1010`，看起来像全站挂了；2026-09-15 重启核对时遇到过，换 curl 全部正常。
 
@@ -181,6 +190,15 @@ npm start
 5. 检查 `git diff --check` 和链接；最终回复说明记忆已同步。提交/推送/部署是否执行仍由当前用户请求决定。
 
 ### 开发记录
+
+#### 2026-09-15 · 活动报名码分享、保存后问推送、添加到桌面与通知引导、横转竖字号
+
+- 需求（一条消息里的五件事 + 追加一件）：①画布加「活动报名二维码」块并进默认模版，参与者在签证页分享给别人报名，码中间放特别图标；②活动页手动保存后主动问要不要推送；③统计里的「访客」是谁；④引导按 iOS/安卓教添加到桌面；⑤第一次看引导就问要不要开通知；⑥横屏再竖屏字号变大不恢复。
+- 服务端：`BLOCK_KINDS` 加 `qr`（只存 icon/label，强制不挂外链）；`USAGE_EVENTS` 加 `qr_open`、`qr_share`、`share_visit`、`install`；`/api/admin/usage` 的活动行加 `shareVisits`。`test-flow.mjs` 第 22 节加报名码块保存检查。
+- 前端：新增 `lib/activityQr.js`、`lib/install.js`；`VisaBlocks.jsx` 的 `QrBody`（小码 + 分享面板）；`bookVals.js` 默认版式按栏目行数放报名码、`blockData` 带 `joinUrl`、使用说明末条按系统写添加到桌面；`ActivityDesign.jsx` 新增块和属性面板、保存后问推送并跳 `#notify`；`ActivityDetail.jsx` 手动保存后问推送、推送卡片可定位；`Tour.jsx` 支持 `step.action` / `step.nextLabel`；`PassportBook.jsx` 引导加添加到桌面一步、通知一步带开启按钮、第一次引导后主动问；`Join.jsx` 记 `?from=share`；`Usage.jsx`「访客」改名「未登录的人」并加「其中扫分享码」列；`styles.css` 报名码块与面板样式、`text-size-adjust: 100%`。
+- 验证：`npm test` 302/302（迁移 27、流程 231、并发 11、只读 33）。node 里用 jsQR 对盖上徽章的码实测（3 种 id 长度 × 360/900px）全部解码成功。隔离实例 3224 浏览器（安卓 UA 手机尺寸）：签证页报名码可点、分享面板显示活动图标徽章，浏览器 BarcodeDetector 解出 `…/join/freshers?from=share`，复制链接有提示并记 `qr_open`/`qr_share`，关闭不误翻页；默认位置与栏目重叠 0（先测出贴边 1px，已下移 1%）；引导第 2 步显示安卓教程，模拟安装事件后「一键添加到桌面」可用并记 `install`；通知一步有「开启通知 / 以后再说」（预览浏览器通知权限默认拒绝，用替身对象验证），跳过后弹「要打开活动通知吗？」且只问一次；画板保存后问推送，「去写通知」跳到 `#notify` 并聚焦标题；活动页手动保存问、自动保存不问。**未验证**：真机 iPhone 的字号修复、真实权限弹窗与系统分享面板、iOS 教程步骤实机截图、使用说明浮层第 7 条的截图（入口不在当前护照页上，逻辑与引导共用平台判断）。
+- **部署：已执行（2026-09-15 14:57）。** 备份 `server/data/pre-qr-2026-09-15T14-56-51.db`（integrity_check=ok）；工作区核对只有本次 15 个文件；只重启 node，环境变量逐一相同、推送公钥未变、各表计数前后一致、隧道 PID 未变、启动日志无报错；前端构建后线上 bundle 与本地一致且含新功能；curl：game 200、staff 302、city 200；staff 域名下发的 `shareOrigin` 为 game 域名。
+- 待用户决定：线上 4 场活动都已排过版，报名码不会自动出现，要么同工在画板「＋ 新增 → 报名二维码」逐场加，要么由助手批量加（会改线上活动数据，需确认）。
 
 #### 2026-09-15 · 手机上竖版页铺满屏幕
 

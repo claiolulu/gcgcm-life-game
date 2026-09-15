@@ -86,6 +86,33 @@ export default function ActivityDetail() {
   const [pushPreview, setPushPreview] = useState(null);
   const pushAudience = pushAudiencePicked ?? (signups.length ? 'signed' : 'all');
   const pushTagKey = pushTags.join(',');
+
+  // 手动点「保存」成功后问一句要不要发通知（自动保存不问，否则改一个字问一次）。
+  // 从画板保存后跳过来的带 #notify，推送卡片一挂上就滚过去。
+  const pushCardRef = React.useRef(null);
+  const wantPushCard = React.useRef(typeof window !== 'undefined' && window.location.hash === '#notify');
+  const openPushCard = React.useCallback(() => {
+    const el = pushCardRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => el.querySelector('input')?.focus({ preventScroll: true }), 450);
+  }, []);
+  const attachPushCard = React.useCallback((el) => {
+    pushCardRef.current = el;
+    if (el && wantPushCard.current) {
+      wantPushCard.current = false;
+      setTimeout(openPushCard, 150);
+    }
+  }, [openPushCard]);
+  async function saveAndAsk() {
+    if (!(await save())) return;
+    const go = await ask({
+      title: '要推送通知告诉大家吗？',
+      body: '活动信息已经保存。要不要发一条通知提醒大家？下一步可以选发给谁、改标题和内容，发送前还会再确认一次。',
+      confirmText: '去写通知',
+    });
+    if (go) openPushCard();
+  }
   const loadPushPreview = React.useCallback(() => {
     if (!token) return;
     const q = pushTagKey ? `?tags=${encodeURIComponent(pushTagKey)}` : '';
@@ -350,11 +377,13 @@ export default function ActivityDetail() {
       // 自动保存不吐提示：每停手一次弹一个「已保存」，一页填下来能弹十几次。
       // 存没存成看右上角那个按钮就够了（灰掉 = 没有未保存的改动）
       if (!quiet) toast('已保存', 'ok');
+      return true;
     } catch (err) {
       // 失败一定要说，自动保存也一样 —— 不吭声的话人以为存上了
       // 同一版失败后不无限自动重试、反复弹错；继续编辑或手动保存会再试。
       failedAutoVersion.current = savingVersion;
       toast(err.message || '保存失败', 'err');
+      return false;
     } finally {
       setBusy(null);
     }
@@ -438,7 +467,7 @@ export default function ActivityDetail() {
           {/* 自动保存已经在管了，这个按钮是给「想立刻落盘」和
               「自动保存失败过一次」留的 */}
           <button className="btn btn--sm btn--primary" disabled={busy === 'save' || !dirty}
-            onClick={() => save()} title={dirty ? '立刻保存' : '没有未保存的改动'}>
+            onClick={saveAndAsk} title={dirty ? '立刻保存' : '没有未保存的改动'}>
             💾 保存
           </button>
           <button className="btn btn--sm btn--danger" onClick={remove} disabled={busy === 'save'}
@@ -652,7 +681,7 @@ export default function ActivityDetail() {
           tags: '挂着所选任一标签的人（一个人可以挂多个标签，挂中一个就会收到）。',
         }[pushAudience];
         return (
-          <div className="card stack" style={{ marginBottom: 12 }}>
+          <div className="card stack" style={{ marginBottom: 12 }} id="notify" ref={attachPushCard}>
             <div className="section-title">📣 通知推送</div>
             <input className="input" maxLength={60} aria-label="通知标题" placeholder="通知标题"
               value={pushTitle ?? defaults.title} onChange={(e) => setPushTitle(e.target.value)} />

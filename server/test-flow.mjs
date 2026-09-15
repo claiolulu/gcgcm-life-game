@@ -538,6 +538,7 @@ check('错误 PIN 被拒', badPin.status === 401);
     ] },
     { id: 'photos', kind: 'summary', title: '活动总结', blocks: [
       { id: 'summary', kind: 'text', x: 10, y: 25, w: 80, h: 50, text: '这一页是总结。' },
+      { id: 'join-qr', kind: 'qr', x: 4.5, y: 63, w: 34, h: 16, icon: '🎓', label: '', href: 'https://evil.example/x' },
     ] },
   ];
   const saved = await j('/api/admin/activities', {
@@ -556,6 +557,9 @@ check('错误 PIN 被拒', badPin.status === 401);
     JSON.stringify(gallery));
   check('图库首屏数量和列数会收进安全范围', gallery?.featured === 8 && gallery?.cols === 2,
     JSON.stringify(gallery));
+  const joinQr = extras[1]?.blocks?.find((b) => b.kind === 'qr');
+  check('报名二维码块能保存：保留图标、空说明回到「扫码报名」、不挂外链',
+    joinQr?.icon === '🎓' && joinQr?.label === '扫码报名' && joinQr?.href === '', JSON.stringify(joinQr));
 
   const tooManyPages = await j('/api/admin/activities', {
     method: 'POST', headers: adminH,

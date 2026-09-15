@@ -50,6 +50,9 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body, #root { height: 100%; }
+/* iPhone Safari 横屏时会自动把「看起来是大段正文」的字号放大，转回竖屏却经常不缩回来 ——
+   竖版页横屏铺满之后更容易触发，表现为横屏转竖屏字变大、不重新适配。字号全由我们自己定，关掉它 */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 body {
   margin: 0;
@@ -2055,6 +2058,46 @@ kbd {
   .pp-cover-seal { width: 53% !important; height: 53% !important; }
   .pp-cover-title { margin-top: 3cqh !important; }
 }
+
+/* 签证页上的活动报名二维码块。尺寸跟着块走（块自己是 size 容器，字号用 cqh） */
+.visa-qr {
+  width: 100%; height: 100%; display: flex; align-items: center; gap: 5cqh;
+  padding: 0; border: 0; background: transparent; color: var(--pp-ink);
+  text-align: left; font: inherit; cursor: pointer; container-type: size;
+}
+.visa-qr__code {
+  flex: none; height: 100cqh; aspect-ratio: 1; padding: 3cqh; box-sizing: border-box;
+  background: #fff; border: 1px solid rgba(var(--pp-ink-rgb), .35);
+}
+.visa-qr__code img { display: block; width: 100%; height: 100%; }
+.visa-qr__text { min-width: 0; display: grid; gap: 4cqh; }
+.visa-qr__label { font-size: 17cqh; font-weight: 700; letter-spacing: .08em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.visa-qr__hint { font-size: 11cqh; line-height: 1.35; color: rgba(var(--pp-text-rgb), .6); }
+
+/* 点开报名码后的分享面板。挂在 body 上，脱离旋转的书页 */
+.activity-qr-modal {
+  position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: rgba(10, 8, 7, .82); font-family: 'Noto Serif SC', 'EB Garamond', serif;
+}
+.activity-qr-modal__card {
+  width: min(360px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box;
+  padding: 18px 18px 14px; background: var(--pp-paper, #f4efe4); color: var(--pp-text, #2b211d);
+  border: 1px solid var(--pp-gold-2, #b99a48); border-radius: 3px; box-shadow: 0 18px 48px rgba(0, 0, 0, .5);
+  display: grid; gap: 10px; text-align: center;
+}
+.activity-qr-modal__eyebrow { font-family: 'EB Garamond', serif; font-size: 10px; letter-spacing: .22em; color: rgba(var(--pp-ink-rgb, 91,31,38), .65); }
+.activity-qr-modal__name { font-size: 18px; font-weight: 700; color: var(--pp-ink, #5b1f26); }
+.activity-qr-modal__img { width: min(260px, 70vw, 42vh); aspect-ratio: 1; margin: 2px auto; background: #fff; padding: 8px; box-sizing: content-box; border: 1px solid rgba(0, 0, 0, .12); }
+.activity-qr-modal__img img { display: block; width: 100%; height: 100%; -webkit-touch-callout: default; }
+.activity-qr-modal__tip { font-size: 12.5px; line-height: 1.75; color: rgba(var(--pp-text-rgb, 43,33,29), .75); }
+.activity-qr-modal__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.activity-qr-modal__actions button {
+  padding: 11px 8px; border-radius: 2px; font-size: 14px; font-weight: 700; cursor: pointer;
+  border: 1px solid rgba(var(--pp-ink-rgb, 91,31,38), .4); background: transparent; color: var(--pp-ink, #5b1f26);
+}
+.activity-qr-modal__actions .is-primary { background: var(--pp-ink, #5b1f26); color: var(--pp-gold, #e8c56a); border-color: transparent; }
+.activity-qr-modal__close { background: transparent; border: 0; padding: 6px; font-size: 13px; color: rgba(var(--pp-text-rgb, 43,33,29), .6); cursor: pointer; }
 
 /* 克隆出来的静态副本：不接受点击，边缘加一道阴影，压出纸张的厚度 */
 .book-ghost {

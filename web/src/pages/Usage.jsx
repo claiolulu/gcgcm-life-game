@@ -12,7 +12,9 @@ import { useStaff } from '../lib/staff.js';
  */
 const RANGES = [7, 30, 90, 180];
 const USERS = { key: 'users', label: '登录用户', color: '#3987e5' };
-const VISITORS = { key: 'visitors', label: '未登录访客', color: '#d95926' };
+// 「未登录的人」：打开了不用登录的页面（活动报名页、领护照页）、但当时没登录护照的设备 ——
+// 比如扫了海报或朋友分享的报名码、还没领护照；或者换了手机还没找回。不是系统外的访客
+const VISITORS = { key: 'visitors', label: '未登录的人', color: '#d95926' };
 const ACTIONS = { key: 'actions', label: '操作次数', color: '#3987e5' };
 
 const WEEK = '日一二三四五六';
@@ -155,7 +157,7 @@ function DailyTable({ rows }) {
     <div className="usage-table-wrap">
       <table className="usage-table">
         <thead>
-          <tr><th>日期</th><th>登录用户</th><th>未登录访客</th><th>操作次数</th></tr>
+          <tr><th>日期</th><th>登录用户</th><th>未登录的人</th><th>操作次数</th></tr>
         </thead>
         <tbody>
           {[...rows].reverse().map((r) => (
@@ -230,9 +232,9 @@ export default function Usage() {
         <div className="usage-body" style={{ opacity: loading ? 0.55 : 1 }}>
           <div className="admin-stats">
             {[
-              { icon: '📱', label: `今天活跃 · 访客 ${k.todayVisitors}`, value: k.todayUsers, tone: 'blue' },
+              { icon: '📱', label: `今天活跃 · 未登录 ${k.todayVisitors}`, value: k.todayUsers, tone: 'blue' },
               { icon: '📅', label: '近 7 天活跃', value: k.users7, tone: 'purple' },
-              { icon: '👥', label: `近 ${data.days} 天活跃 · 访客 ${k.visitorsRange}`, value: k.usersRange, tone: 'gold' },
+              { icon: '👥', label: `近 ${data.days} 天活跃 · 未登录 ${k.visitorsRange}`, value: k.usersRange, tone: 'gold' },
               { icon: '👆', label: `近 ${data.days} 天操作次数`, value: k.actionsRange, tone: 'green' },
             ].map((s) => (
               <div key={s.label} className={`admin-stat admin-stat--${s.tone}`}>
@@ -255,7 +257,7 @@ export default function Usage() {
             <div className="row-between usage-card__head">
               <div>
                 <h3>每天有多少人在用</h3>
-                <div className="tiny dim">登录用户按护照算，未登录访客按设备算（扫码进来还没领护照的人）</div>
+                <div className="tiny dim">登录用户按护照算。「未登录的人」按设备算：打开了报名页或领护照页、但当时没登录护照 —— 比如扫了海报或朋友分享的报名码还没领护照，或换了手机还没找回</div>
               </div>
               <button type="button" className="btn btn--sm btn--ghost" onClick={() => setAsTable((x) => !x)}>
                 {asTable ? '看图表' : '看表格'}
@@ -312,13 +314,14 @@ export default function Usage() {
               <div className="usage-table-wrap">
                 <table className="usage-table usage-table--acts">
                   <thead>
-                    <tr><th>活动</th><th>报名页</th><th>报名</th><th>已参加</th><th>签证页</th><th>通知 发出/点开</th></tr>
+                    <tr><th>活动</th><th>报名页</th><th>其中扫分享码</th><th>报名</th><th>已参加</th><th>签证页</th><th>通知 发出/点开</th></tr>
                   </thead>
                   <tbody>
                     {data.activities.map((a) => (
                       <tr key={a.id}>
                         <td className="usage-table__name">{a.name}</td>
                         <td>{a.joinPeople}</td>
+                        <td>{a.shareVisits || 0}</td>
                         <td>{a.signups}</td>
                         <td>{a.attended}</td>
                         <td>{a.visaPeople}</td>

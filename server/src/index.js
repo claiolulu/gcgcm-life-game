@@ -781,6 +781,7 @@ app.get('/api/admin/usage', staffAuth('admin'), (req, res) => {
       id: a.id,
       name: a.name,
       joinPeople: u.join?.people || 0,
+      shareVisits: u.share_visit?.people || 0,
       visaPeople: u.visa?.people || 0,
       signups: signed.get(a.id) || 0,
       attended: attended.get(a.id) || 0,
@@ -988,7 +989,7 @@ function num(v, min, max, fallback) {
 }
 
 const BLOCK_KINDS = new Set([
-  'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image', 'icon', 'gallery',
+  'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image', 'icon', 'gallery', 'qr',
 ]);
 
 function cleanBlocks(raw, where) {
@@ -1036,6 +1037,11 @@ function cleanBlocks(raw, where) {
       // 所以不是 1 而是 8），链接、大小、旋转都走 base 那份
       case 'icon':
         return { ...base, icon: str(b?.icon, 8) || '📍' };
+      // 这场活动的报名二维码。码里的报名链接由前端按活动 id 现算，这里只存外观：
+      // 中间的图标（空 = 跟活动图标，'M' = 护照徽章）和旁边那句说明。
+      // 不挂外链 —— 点它是打开分享面板
+      case 'qr':
+        return { ...base, href: '', icon: str(b?.icon, 8), label: str(b?.label, 16) || '扫码报名' };
       case 'fields':
         return { ...base, cols: Math.min(4, Math.max(1, Math.round(Number(b?.cols) || 2))),
                  rows: cleanRows(b?.rows || [], where), ...textStyle };

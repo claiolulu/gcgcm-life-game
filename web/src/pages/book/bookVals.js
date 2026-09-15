@@ -1,3 +1,6 @@
+import { installPlatform, INSTALL_HOWTO } from '../../lib/install.js';
+import { joinUrlFor } from '../../lib/activityQr.js';
+
 /**
  * 把实时数据喂给护照册的视觉层。
  *
@@ -174,6 +177,24 @@ function defaultBlocks(tpl, station) {
     push({ id: 'links', kind: 'links', x: 4.5, y: 80, w: 52, h: 8 });
   }
 
+  // 报名二维码：参与者点开能分享给朋友报名。放在栏目下面的空白处 ——
+  // 栏目是两列网格、从上往下排，一行（标题 + 值 + 间距）约占页高 8.4%。
+  // 行数是单数时最后一行右边那格是空的，二维码放那格（不会碰到下面的链接行）；
+  // 双数就放整个栏目下方。剩下的地方不够高就不放，同工可以在画板里手动加
+  if (tpl.showQr !== false && station?.id) {
+    const ROW = 8.4;
+    const n = (tpl.rows || []).length;
+    const odd = n % 2 === 1;
+    const gridRows = Math.ceil(n / 2);
+    const hasLinks = tpl.showLinks !== false && (station?.links || []).length > 0;
+    // +2：实测按 8.4% 算会和上一行的底边框相贴 1px，多留一点缝
+    const y = Math.round((27 + (odd ? gridRows - 1 : gridRows) * ROW + 2) * 10) / 10;
+    const h = Math.min(16, (hasLinks ? 79 : 86) - y);
+    if (h >= 10) {
+      push({ id: 'qr', kind: 'qr', x: odd ? 31 : 4.5, y, w: odd ? 25.5 : 34, h, icon: '', label: '扫码报名' });
+    }
+  }
+
   return out;
 }
 
@@ -204,7 +225,7 @@ export function resolveBlocks(template, station, theme) {
  */
 export function blockData({
   station, me, theme, passportNo, surname, given,
-  visaScore, isCheckin, stampTone, stampDate, doneCount, signed,
+  visaScore, isCheckin, stampTone, stampDate, doneCount, signed, shareOrigin,
 }) {
   // 签发机构：这一场自己填的优先，没填就用护照模版上的那个（整本护照的签发方）
   const issuer = String(station?.issuer || '').trim() || theme?.coverIssuer || 'GCGCM';
@@ -234,6 +255,10 @@ export function blockData({
     desc: station?.desc || station?.rule || '',
     photo: station?.photo || '',
     links: station?.links || [],
+    // 报名二维码块用：扫码去的报名页（分享域名见 /api/config 的 shareOrigin）和中间默认的图标
+    activityId: station?.id || '',
+    icon: station?.icon || '',
+    joinUrl: joinUrlFor(station?.id, shareOrigin),
     mrz1: visaMrzLine(1, { surname, given, visaNo, passportNo, code: me?.code }),
     mrz2: visaMrzLine(2, { surname, given, visaNo, passportNo, code: me?.code }),
   };
@@ -284,6 +309,16 @@ const GUIDE = [
     body: '为了把活动办得更好，我们会统计大家每天打开护照、报名和使用各个功能的次数，只有活动同工能看到。不记录 IP、位置和你填写的内容，记录保留半年后自动删除。' },
 ];
 
+
+/** 使用说明最后按手机系统教「添加到桌面」；已经从桌面图标打开的、电脑上看的不加 */
+function guideFor() {
+  const platform = installPlatform();
+  if (platform !== 'ios' && platform !== 'android') return GUIDE;
+  return [...GUIDE, {
+    n: GUIDE.length + 1, cn: platform === 'ios' ? '添加到 iPhone 桌面' : '添加到手机桌面', en: 'ADD TO HOME SCREEN',
+    body: INSTALL_HOWTO[platform],
+  }];
+}
 
 /** 页码表：每场活动至少一张信息页，后面可继续装订照片页和总结页。 */
 export function buildPages(stations) {
@@ -725,7 +760,7 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
         : (Array.isArray(visaExtraPage?.blocks) ? visaExtraPage.blocks : []))
       : [],
     visaBlockData: station ? blockData({
-      station, me, theme, passportNo, surname, given,
+      station, me, theme, passportNo, surname, given, shareOrigin: config?.shareOrigin,
       visaScore, isCheckin, doneCount,
       signed: (me?.signups || []).includes(station.id),
       stampDate: done[station.id]?.at ? fmtDay(done[station.id].at) : '',
@@ -769,7 +804,7 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
       actions.checkStamp();
     },
 
-    guide: GUIDE,
+    guide: guideFor(),
 
     /**
      * 导航页：讲清楚这本护照是什么、怎么盖章、活动在哪儿看。

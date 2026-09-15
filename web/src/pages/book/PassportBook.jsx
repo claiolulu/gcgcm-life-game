@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { usePush } from '../../lib/push.js';
+import { usePush, pushSupport } from '../../lib/push.js';
+import { installPlatform, canPromptInstall, promptInstall, onInstallChange, INSTALL_HOWTO } from '../../lib/install.js';
 import { track } from '../../lib/track.js';
-import { useToast } from '../../components/ui.jsx';
+import { useToast, useConfirm } from '../../components/ui.jsx';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import Avatar from '../../components/Avatar.jsx';
@@ -63,8 +64,11 @@ export default function PassportBook() {
 
   // 自动引导在“第一次实际打开”时就记为已展示，而不是等用户点完或关闭。
   // 这样用户直接退出网站，下次进来也不会被重复弹出；问号仍可手动重看。
+  // 这一次是不是自动弹出来的「第一次引导」：看完之后要顺手问一句开不开通知
+  const firstTourRef = useRef(false);
   useEffect(() => {
     if (!opened || tourDone) return;
+    firstTourRef.current = true;
     setTourOpen(true);
     setTourDone(true);
   }, [opened, tourDone, setTourDone]);
@@ -72,6 +76,36 @@ export default function PassportBook() {
   // 通知推送开关（护照顶部的 🔔）
   const pushToast = useToast();
   const push = usePush(pushToast);
+  const askConfirm = useConfirm();
+
+  // 安卓 Chrome 截下来的安装事件到了没有（到了，引导里才给「一键添加到桌面」按钮）
+  const [installReady, setInstallReady] = useState(canPromptInstall);
+  useEffect(() => onInstallChange(() => setInstallReady(canPromptInstall())), []);
+
+  /**
+   * 关掉引导。第一次自动弹出的那次看完（或跳过）后，主动问一句要不要开通知。
+   * 浏览器只允许在用户点击里弹权限框，所以先用自己的确认框问，
+   * 用户点「开启通知」的那一下才去请求权限。每台设备只问一次；
+   * 已经开了、浏览器不支持、iPhone 还没添加到桌面的都不问。
+   */
+  const closeTour = useCallback(async () => {
+    setTourOpen(false);
+    setTourDone(true);
+    if (!firstTourRef.current) return;
+    firstTourRef.current = false;
+    let asked = false;
+    try {
+      asked = localStorage.getItem('mlg.notifyAsked.v1') === '1';
+      localStorage.setItem('mlg.notifyAsked.v1', '1');
+    } catch { /* 存不了就当没问过，最多多问一次 */ }
+    if (asked || push.state === 'on' || pushSupport() !== 'ok') return;
+    const yes = await askConfirm({
+      title: '要打开活动通知吗？',
+      body: '开启后，新活动发布、报名的活动改了时间地点、活动后发照片，同工都能直接提醒到你的手机。以后随时可以点护照顶部的铃铛关掉。',
+      confirmText: '🔔 开启通知',
+    });
+    if (yes) push.toggle();
+  }, [setTourDone, push, askConfirm]);
 
   // 签证页的内容来源：每场活动一张信息页，可再加照片/总结页
   //
@@ -452,6 +486,18 @@ export default function PassportBook() {
   const notesPage = pages.findIndex((p) => p.kind === 'notes');
   const firstVisa = pages.findIndex((p) => p.kind === 'visa');
   const visaPageCount = pages.filter((p) => p.kind === 'visa').length;
+  const pushOk = pushSupport();
+  // 手机上还没从桌面图标打开的，引导第二步教「添加到桌面」（按 iPhone / 安卓分别说）
+  const platform = installPlatform();
+  const installStep = platform === 'ios' || platform === 'android' ? [{
+    eyebrow: 'ADD TO HOME SCREEN 添加到桌面', page: notesPage,
+    title: platform === 'ios' ? '先把护照放到 iPhone 桌面' : '把护照放到手机桌面',
+    body: INSTALL_HOWTO[platform],
+    action: platform === 'android' && installReady ? {
+      label: '📲 一键添加到桌面',
+      onClick: async () => { track('install', { label: await promptInstall() }); },
+    } : null,
+  }] : [];
   const tourSteps = [
     { eyebrow: 'YOUR PASSPORT 你的护照', page: notesPage,
       title: '这是一本会一直陪着你的活动护照',
@@ -462,9 +508,18 @@ export default function PassportBook() {
     { eyebrow: 'IDENTIFICATION 资料页', page: pages.findIndex((p) => p.kind === 'data'),
       title: '现场出示的是“护照二维码”',
       body: '活动海报上的二维码用来报名；这本护照里的二维码用来让同工认出你并盖章，盖完这一场就记为「已参加」。扫不出来时，直接报资料页上的个人编号即可。' },
+    // 这一步直接带「开启通知」按钮：点它就是用户手势，浏览器才肯弹权限框
     { eyebrow: 'NOTIFICATIONS 活动通知', page: notesPage, selector: '[data-tour="notify"]',
-      title: '点铃铛，活动有消息会提醒你',
-      body: '开启后，新活动发布、报名的活动改了时间地点、活动后发照片，同工都可以直接推送到你的手机上。安卓用 Chrome 直接开；iPhone 要先把这个网页「添加到主屏幕」，再从主屏幕图标打开。再点一次铃铛就关掉。' },
+      title: push.state === 'on' ? '活动通知已经开启' : '要打开活动通知吗？',
+      body: pushOk === 'ios-needs-home'
+        ? '开启后，新活动发布、报名的活动有变动、活动后发照片，同工都能提醒到你。iPhone 要先按前面说的把护照添加到桌面，再从桌面图标打开，点这个铃铛开启。'
+        : '开启后，新活动发布、报名的活动改了时间地点、活动后发照片，同工都可以直接推送到你的手机上。以后也可以点这个铃铛开关。',
+      action: push.state === 'on'
+        ? { label: '✓ 通知已开启', disabled: true }
+        : pushOk === 'ok'
+          ? { label: push.state === 'loading' ? '正在开启…' : '🔔 开启通知', disabled: push.state === 'loading', onClick: () => push.toggle() }
+          : null,
+      nextLabel: pushOk === 'ok' && push.state !== 'on' ? '以后再说' : undefined },
     { eyebrow: 'PERSONALISE 个性化', page: pages.findIndex((p) => p.kind === 'data'), selector: '[data-tour="theme"]',
       title: '这本护照可以有自己的颜色',
       body: '点“自定义”可以更换护照配色，只影响你自己的这一本，连这份说明也会跟着换颜色。姓名、头像或联系方式也可以随时回到个人资料里修改。' },
@@ -475,6 +530,7 @@ export default function PassportBook() {
       title: '想再看一遍就点这里',
       body: '问号里随时可以重看这份说明。记住个人编号和四位密码；换手机或清除浏览器数据后，可以用它们找回同一本护照。' },
   ];
+  tourSteps.splice(1, 0, ...installStep);
 
 
   return (
@@ -487,7 +543,7 @@ export default function PassportBook() {
         themeVars={v.themeVars}
         steps={tourSteps}
         onGoPage={jump}
-        onClose={() => { setTourOpen(false); setTourDone(true); }}
+        onClose={closeTour}
       />
 
       <ThemeSheet
