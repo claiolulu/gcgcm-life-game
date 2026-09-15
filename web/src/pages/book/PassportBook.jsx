@@ -66,8 +66,24 @@ export default function PassportBook() {
   // 这样用户直接退出网站，下次进来也不会被重复弹出；问号仍可手动重看。
   // 这一次是不是自动弹出来的「第一次引导」：看完之后要顺手问一句开不开通知
   const firstTourRef = useRef(false);
+  // 从活动通知点进来（/passport?activity=<id>&from=push）。先记进 sessionStorage：刚打开时
+  // 护照资料可能还没载入，这一页会先跳去首页、首页再送回 /passport，地址上的参数在这一来一回里
+  // 就丢了（2026-09-15 实测第一次打开停在封面）。重新挂载时从这里读回来，定位完再清掉。
+  // 这一次也不自动弹引导：引导第一步会翻去导航页，把刚定位到的签证页换走
+  const deepLinkRef = useRef(null);
+  if (deepLinkRef.current === null) {
+    const q = new URLSearchParams(loc.search);
+    let deep = null;
+    if (q.get('activity')) {
+      deep = { id: q.get('activity'), from: q.get('from') || '' };
+      try { sessionStorage.setItem('mlg.deepActivity', JSON.stringify(deep)); } catch { /* 存不了就只靠地址 */ }
+    } else {
+      try { deep = JSON.parse(sessionStorage.getItem('mlg.deepActivity') || 'null'); } catch { deep = null; }
+    }
+    deepLinkRef.current = deep && deep.id ? deep : false;
+  }
   useEffect(() => {
-    if (!opened || tourDone) return;
+    if (!opened || tourDone || deepLinkRef.current) return;
     firstTourRef.current = true;
     setTourOpen(true);
     setTourDone(true);
@@ -277,6 +293,32 @@ export default function PassportBook() {
     if (typeof backTo !== 'number' || !pageCount) return;
     jump(backTo);
   }, [backTo, pageCount, jump]);
+
+  /**
+   * 从活动通知点进来：/passport?activity=<id>&from=push，直接翻到这场活动的第一张签证页。
+   *
+   * 这场活动在自己的护照里看不到（比如按标签发给了全部人、他没挂那个标签），就退回
+   * 报名页 —— 至少看得到活动信息。处理完把参数从地址里去掉，免得刷新又跳一次、又记一次。
+   */
+  const deepHandled = useRef(false);
+  useEffect(() => {
+    const deep = deepLinkRef.current;
+    if (!deep || deepHandled.current || !me || !pageCount) return;
+    // 活动配置还没到（清过缓存后第一次打开时，护照资料可能比配置先到）就先别下结论：
+    // 封面、欢迎这几页总在，pageCount 不为 0，但活动一张都没装订进来，会被误判成「看不到」
+    if (!(config?.activities || []).length) return;
+    deepHandled.current = true;
+    try { sessionStorage.removeItem('mlg.deepActivity'); } catch { /* 忽略 */ }
+    const fromPush = deep.from === 'push';
+    const idx = pages.findIndex((p) => p.kind === 'visa' && !p.subPage && activities[p.i]?.id === deep.id);
+    if (idx < 0) {
+      nav(`/join/${encodeURIComponent(deep.id)}${fromPush ? '?from=push' : ''}`, { replace: true });
+      return;
+    }
+    if (fromPush) track('notif_open', { activityId: deep.id, once: true });
+    jump(idx);
+    if (loc.search) nav('/passport', { replace: true });
+  }, [me, config, pageCount, pages, activities, jump, nav, loc.search]);
 
   useEffect(() => {
     const onKey = (e) => {

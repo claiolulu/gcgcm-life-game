@@ -75,8 +75,15 @@ function BottomNav() {
 
 function PlayerRoute({ children }) {
   const { me, loading } = usePlayer();
+  const loc = useLocation();
   if (loading && !me) return <Loading label="正在打开你的护照…" />;
-  if (!me && !hasSession()) return <Navigate to="/" replace />;
+  if (!me && !hasSession()) {
+    // 点活动通知进来却没登录（换了手机、清了浏览器数据）：去那场活动的报名页，别落到首页
+    const q = new URLSearchParams(loc.search);
+    const act = q.get('activity');
+    if (act) return <Navigate to={`/join/${encodeURIComponent(act)}${q.get('from') === 'push' ? '?from=push' : ''}`} replace />;
+    return <Navigate to="/" replace />;
+  }
   return children;
 }
 

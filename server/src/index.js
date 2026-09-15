@@ -737,8 +737,12 @@ app.post('/api/admin/activity/:id/notify', staffAuth('admin'), async (req, res) 
     const title = String(req.body?.title || '').trim().slice(0, 60) || a.name;
     const body = String(req.body?.body || '').trim().slice(0, 200);
     const ids = notifyRecipients(a, audience, tagIds);
-    // ?from=push 让报名页知道这是从通知点进来的，记一笔「点开通知」（见 web/src/lib/track.js）
-    const result = await sendToPlayers(ids, { title, body, url: `/join/${a.id}?from=push`, tag: `activity-${a.id}` });
+    // 点通知直接打开护照、翻到这场活动的签证页（PassportBook 读 ?activity=）；这场活动在
+    // 他护照里看不到、或者手机上没登录，前端会退回 /join/:id 报名页。
+    // ?from=push 用来记一笔「点开通知」（见 web/src/lib/track.js）
+    const result = await sendToPlayers(ids, {
+      title, body, url: `/passport?activity=${encodeURIComponent(a.id)}&from=push`, tag: `activity-${a.id}`,
+    });
     recordServerUsage('notif_sent', { activityId: a.id, count: result.sent });
     res.json({ audience, people: ids.length, ...result });
   } catch (err) {
