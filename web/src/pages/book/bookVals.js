@@ -611,6 +611,17 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
 
     goBoard: () => actions.setOverlay(ui.overlay === 'board' ? null : 'board'),
     goBadge: () => actions.goBadge(),
+    // 护照顶部的 🔔 通知开关
+    togglePush: () => actions.togglePush?.(),
+    pushOn: ui.push === 'on',
+    pushLabel: ({
+      on: '已开启通知（点一下关闭）',
+      off: '开启活动通知',
+      loading: '通知设置加载中',
+      denied: '通知被浏览器关掉了',
+      unsupported: '这个浏览器不支持通知',
+      'ios-needs-home': 'iPhone 需先添加到主屏幕才能开启通知',
+    })[ui.push] || '开启活动通知',
     openContribution: () => station && actions.openContribution(station),
     // ? 按钮直接启动新手引导：静态说明读完还是不知道哪个按钮是哪个，
     // 不如把界面元素圈出来一条条指给他看

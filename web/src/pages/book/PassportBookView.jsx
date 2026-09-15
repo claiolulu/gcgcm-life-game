@@ -64,6 +64,12 @@ export default function PassportBookView({ v }) {
                       <div style={{position: "absolute", left: "6%", right: "6%", top: "14%", bottom: "16%", pointerEvents: "none", opacity: v.wmOpacity, backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
                       <div style={{position: "absolute", left: "0", top: "0", bottom: "0", width: "30px", pointerEvents: "none", zIndex: "2", background: "linear-gradient(90deg,rgba(60,40,30,.2),transparent)"}} />
                       <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "6px", padding: "12px 10px 8px", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.4)"}}>
+                        <button onClick={v.togglePush} aria-label={v.pushLabel} title={v.pushLabel} style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pp-ink)", background: v.pushOn ? "rgba(var(--pp-ink-rgb),.12)" : "transparent"}}>
+                          <svg viewBox="0 0 24 24" width="17" height="17" fill={v.pushOn ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15L6 16z" />
+                            <path d="M10 20.5a2 2 0 004 0" />
+                          </svg>
+                        </button>
                         <button onClick={v.goBoard} data-tour="board" style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pp-ink)"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
                           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" stroke-linejoin="round">
                             <path d="M8 4h8v5a4 4 0 01-8 0V4z" />

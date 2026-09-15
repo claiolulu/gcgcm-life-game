@@ -420,6 +420,17 @@ export const stmts = {
   addPlayerTag: db.prepare(
     'INSERT OR IGNORE INTO player_tags (player_id, tag_id, created_at) VALUES (?, ?, ?)'),
   clearPlayerTags: db.prepare('DELETE FROM player_tags WHERE player_id = ?'),
+  /* ---------------------------- 通知推送 ---------------------------- */
+  upsertPushSub: db.prepare(`
+    INSERT INTO push_subs (endpoint, player_id, p256dh, auth, created_at, updated_at)
+    VALUES (@endpoint, @player_id, @p256dh, @auth, @now, @now)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      player_id = excluded.player_id, p256dh = excluded.p256dh,
+      auth = excluded.auth, updated_at = excluded.updated_at
+  `),
+  pushSubByEndpoint: db.prepare('SELECT endpoint, player_id FROM push_subs WHERE endpoint = ?'),
+  deletePushSub: db.prepare('DELETE FROM push_subs WHERE endpoint = ?'),
+  allPushSubs: db.prepare('SELECT endpoint, player_id, p256dh, auth FROM push_subs'),
   // 花名册和排行榜要给每个人算一遍可见活动，逐人查报名会是 N 次往返；
   // 一次拉全再在内存里按人分组
   allSignups: db.prepare('SELECT activity_id, player_id FROM signups'),

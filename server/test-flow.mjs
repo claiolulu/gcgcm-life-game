@@ -1067,5 +1067,79 @@ check('错误 PIN 被拒', badPin.status === 401);
   await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
 }
 
+// 29. 通知推送：密钥、订阅、按可见范围算收件人（测试环境不真的发网络请求）
+{
+  const k1 = await j('/api/push/key');
+  const k2 = await j('/api/push/key');
+  check('能拿到推送公钥', k1.status === 200 && /^[A-Za-z0-9_-]{80,}$/.test(k1.body.publicKey || ''),
+    JSON.stringify(k1.body).slice(0, 60));
+  check('公钥是固定的，不会每次重新生成', k1.body.publicKey === k2.body.publicKey);
+  const cfgText = JSON.stringify((await j('/api/config')).body);
+  check('公开配置里不带推送私钥', !cfgText.includes('privateKey') && !cfgText.includes('_vapid'));
+
+  const base = (await j('/api/config')).body.activities;
+  const ACT = base[0].id;
+  const pa = await j('/api/register', { method: 'POST', body: { name: '推送报名者' } });
+  const pb = await j('/api/register', { method: 'POST', body: { name: '推送路人' } });
+  const ha = { authorization: `Bearer ${pa.body.token}` };
+  const hb = { authorization: `Bearer ${pb.body.token}` };
+  const subOf = (tag) => ({ endpoint: `https://push.example.test/${tag}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } });
+
+  const anon = await j('/api/push/subscribe', { method: 'POST', body: subOf('anon') });
+  check('没登录不能订阅', anon.status === 401, `状态码 ${anon.status}`);
+  const bad = await j('/api/push/subscribe', { method: 'POST', headers: ha, body: { endpoint: 'javascript:alert(1)', keys: {} } });
+  check('不合法的订阅被拒', bad.status === 400, `状态码 ${bad.status}`);
+  const sa = await j('/api/push/subscribe', { method: 'POST', headers: ha, body: subOf('a') });
+  const sb = await j('/api/push/subscribe', { method: 'POST', headers: hb, body: subOf('b') });
+  check('两个人都订阅成功', sa.status === 200 && sb.status === 200);
+
+  await j('/api/admin/activities', { method: 'POST', headers: adminH,
+    body: { activities: base.map((a) => (a.id === ACT ? { ...a, audience: 'all', audienceTags: [], state: 'upcoming' } : a)) } });
+  await j(`/api/activity/${ACT}/signup`, { method: 'POST', headers: ha });
+
+  // 推送路人设成同工，用来测「按标签」
+  await j(`/api/admin/player/${pb.body.player.id}/role`, { method: 'POST', headers: adminH, body: { role: 'staff' } });
+
+  const pv = await j(`/api/admin/activity/${ACT}/notify?tags=staff`, { headers: adminH });
+  check('预览给出三种范围', pv.status === 200 && !!pv.body.all && !!pv.body.signed && !!pv.body.tags, JSON.stringify(pv.body));
+  check('预览：全部人 = 两台设备', pv.body.all?.devices === 2, JSON.stringify(pv.body.all));
+  check('预览：已报名的人 = 只有报名者那一台', pv.body.signed?.devices === 1 && pv.body.signed?.people === 1, JSON.stringify(pv.body.signed));
+  check('预览：按「同工」标签 = 只有同工那一台', pv.body.tags?.devices === 1, JSON.stringify(pv.body.tags));
+  const pvNoTags = await j(`/api/admin/activity/${ACT}/notify`, { headers: adminH });
+  check('没选标签时预览不给按标签的数', pvNoTags.body.tags === null, JSON.stringify(pvNoTags.body.tags));
+
+  const send = (extra) => j(`/api/admin/activity/${ACT}/notify`, { method: 'POST', headers: adminH, body: { title: '测试通知', ...extra } });
+  const sAll = await send({ audience: 'all' });
+  check('发给全部人：两台', sAll.status === 200 && sAll.body.devices === 2, JSON.stringify(sAll.body));
+  const sSigned = await send({ audience: 'signed' });
+  check('发给已报名的人：一台', sSigned.body.devices === 1, JSON.stringify(sSigned.body));
+  const sTags = await send({ audience: 'tags', tags: ['staff'] });
+  check('按标签发：只发给挂着「同工」的那一台', sTags.body.devices === 1, JSON.stringify(sTags.body));
+  const sNoTag = await send({ audience: 'tags', tags: [] });
+  check('选了按标签却没选标签被拒', sNoTag.status === 400, `状态码 ${sNoTag.status}`);
+  const sWeird = await send({ audience: 'everyone!!' });
+  check('不认识的范围按已报名处理，不会误发给所有人', sWeird.body.audience === 'signed' && sWeird.body.devices === 1, JSON.stringify(sWeird.body));
+  const sDefault = await send({});
+  check('不指定范围默认只发已报名的人', sDefault.body.audience === 'signed' && sDefault.body.devices === 1, JSON.stringify(sDefault.body));
+
+  const staffTry = await j(`/api/admin/activity/${ACT}/notify`, { method: 'POST', headers: staffH, body: { title: 'x', audience: 'all' } });
+  check('普通同工令牌不能发通知', staffTry.status === 401 || staffTry.status === 403, `状态码 ${staffTry.status}`);
+  const playerTry = await j(`/api/admin/activity/${ACT}/notify`, { method: 'POST', headers: ha, body: { title: 'x', audience: 'all' } });
+  check('选手令牌不能发通知', playerTry.status === 401 || playerTry.status === 403, `状态码 ${playerTry.status}`);
+
+  const cross = await j('/api/push/unsubscribe', { method: 'POST', headers: hb, body: { endpoint: subOf('a').endpoint } });
+  const pv2 = await j(`/api/admin/activity/${ACT}/notify`, { headers: adminH });
+  check('不能替别人取消订阅', cross.status === 200 && pv2.body.signed?.devices === 1, JSON.stringify(pv2.body.signed));
+  await j('/api/push/unsubscribe', { method: 'POST', headers: ha, body: { endpoint: subOf('a').endpoint } });
+  const pv3 = await j(`/api/admin/activity/${ACT}/notify`, { headers: adminH });
+  check('报名者取消订阅后，已报名的人里就没有设备可发了', pv3.body.signed?.devices === 0 && pv3.body.all?.devices === 1,
+    JSON.stringify(pv3.body));
+
+  await j('/api/push/unsubscribe', { method: 'POST', headers: hb, body: { endpoint: subOf('b').endpoint } });
+  await j('/api/push/unsubscribe', { method: 'POST', headers: ha, body: { endpoint: subOf('a').endpoint } });
+  await j(`/api/activity/${ACT}/signup`, { method: 'DELETE', headers: ha });
+  await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: base } });
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===\n`);
 process.exit(fail > 0 ? 1 : 0);

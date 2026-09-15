@@ -11,6 +11,7 @@ import { Server as SocketServer } from 'socket.io';
 import {
   GAME, RESET_PIN, ACTIVITIES, THEME_PRESETS, VISA_ROW_SOURCES, normalizeActivityDate,
 } from './config.js';
+import { vapidPublicKey, sendToPlayers } from './push.js';
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
@@ -643,6 +644,98 @@ app.post('/api/admin/player/:id/tags', staffAuth('admin'), (req, res) => {
 
   broadcast('profile');
   res.json({ player: playerState(stmts.playerById.get(player.id)), serverTs: Date.now() });
+});
+
+/* ------------------------------ 通知推送 ------------------------------ */
+
+/** 浏览器订阅推送要用的公钥。公钥本来就是公开的，私钥不出服务端 */
+app.get('/api/push/key', (_req, res) => {
+  res.json({ publicKey: vapidPublicKey() });
+});
+
+/** 这台设备开启通知。同一台设备换了人登录，就改挂到新的人名下 */
+app.post('/api/push/subscribe', playerAuth, (req, res) => {
+  const endpoint = String(req.body?.endpoint || '');
+  const p256dh = String(req.body?.keys?.p256dh || '');
+  const auth = String(req.body?.keys?.auth || '');
+  if (!/^https:\/\/[^\s"'<>]+$/.test(endpoint) || endpoint.length > 1000
+      || !p256dh || p256dh.length > 200 || !auth || auth.length > 100) {
+    return res.status(400).json({ error: '订阅信息不完整' });
+  }
+  stmts.upsertPushSub.run({ endpoint, player_id: req.player.id, p256dh, auth, now: Date.now() });
+  res.json({ ok: true });
+});
+
+/** 这台设备关闭通知。只能关自己名下的 */
+app.post('/api/push/unsubscribe', playerAuth, (req, res) => {
+  const endpoint = String(req.body?.endpoint || '');
+  const row = stmts.pushSubByEndpoint.get(endpoint);
+  if (row && row.player_id === req.player.id) stmts.deletePushSub.run(endpoint);
+  res.json({ ok: true });
+});
+
+/**
+ * 这一场的通知发给谁 —— 每次由同工自己选：
+ *   all    所有领了护照的人（新活动刚发布、还没人报名时用；不管看不看得到这场活动）
+ *   signed 只发给报了名的人
+ *   tags   挂着所选任一标签的人（有效标签集，含内置的普通成员 / 同工）
+ * 不认识的范围按 signed 处理 —— 宁可少发，也不要因为一个错字发给所有人。
+ */
+const PUSH_AUDIENCES = ['all', 'signed', 'tags'];
+
+function notifyRecipients(activity, audience, tagIds = []) {
+  if (audience === 'all') return stmts.allPlayers.all().map((p) => p.id);
+  if (audience === 'tags') {
+    const want = new Set(tagIds);
+    return stmts.allPlayers.all()
+      .filter((p) => [...playerTagSet(p)].some((x) => want.has(x)))
+      .map((p) => p.id);
+  }
+  return stmts.signupsFor.all(activity.id).map((r) => r.player_id);
+}
+
+function parseTagIds(raw) {
+  const list = Array.isArray(raw) ? raw : String(raw || '').split(',');
+  return [...new Set(list.map((x) => String(x || '').trim()).filter(Boolean))].slice(0, 24);
+}
+
+function recipientCounts(ids) {
+  const want = new Set(ids);
+  const subs = stmts.allPushSubs.all().filter((s) => want.has(s.player_id));
+  return { people: want.size, withDevice: new Set(subs.map((s) => s.player_id)).size, devices: subs.length };
+}
+
+/**
+ * 发之前先看看：三种范围各有几个人、其中几个人开了通知、几台设备。
+ * 按标签的那一项要带 ?tags=a,b 才算（没选标签就给 null）。
+ */
+app.get('/api/admin/activity/:id/notify', staffAuth('admin'), (req, res) => {
+  const a = getActivities().find((x) => x.id === req.params.id);
+  if (!a) return res.status(404).json({ error: '找不到这场活动' });
+  const tagIds = parseTagIds(req.query.tags);
+  res.json({
+    all: recipientCounts(notifyRecipients(a, 'all')),
+    signed: recipientCounts(notifyRecipients(a, 'signed')),
+    tags: tagIds.length ? recipientCounts(notifyRecipients(a, 'tags', tagIds)) : null,
+  });
+});
+
+/** 发通知。点通知打开这场活动的页面 */
+app.post('/api/admin/activity/:id/notify', staffAuth('admin'), async (req, res) => {
+  try {
+    const a = getActivities().find((x) => x.id === req.params.id);
+    if (!a) return res.status(404).json({ error: '找不到这场活动' });
+    const audience = PUSH_AUDIENCES.includes(req.body?.audience) ? req.body.audience : 'signed';
+    const tagIds = parseTagIds(req.body?.tags);
+    if (audience === 'tags' && !tagIds.length) return res.status(400).json({ error: '请至少选一个标签' });
+    const title = String(req.body?.title || '').trim().slice(0, 60) || a.name;
+    const body = String(req.body?.body || '').trim().slice(0, 200);
+    const ids = notifyRecipients(a, audience, tagIds);
+    const result = await sendToPlayers(ids, { title, body, url: `/join/${a.id}`, tag: `activity-${a.id}` });
+    res.json({ audience, people: ids.length, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message || '发送失败' });
+  }
 });
 
 /** 删除参与者前先落一份完整备份；外键会一并删除其报名、印章和投稿。 */

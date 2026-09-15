@@ -38,6 +38,8 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],
         cleanupOutdatedCaches: true,
+        // 通知推送的处理代码单独放在 public/push-sw.js，引进生成的 SW 里
+        importScripts: ['/push-sw.js'],
         clientsClaim: true,
         skipWaiting: true,
         runtimeCaching: [

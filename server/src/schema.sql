@@ -118,3 +118,15 @@ CREATE TABLE IF NOT EXISTS player_tags (
   PRIMARY KEY (player_id, tag_id)
 );
 CREATE INDEX IF NOT EXISTS player_tags_tag ON player_tags(tag_id);
+
+-- 通知推送的订阅。一台设备（一个浏览器）一行 —— endpoint 是推送服务分给这台设备
+-- 的地址，天然唯一。同一台设备换了人登录，就把这一行改挂到新的人名下。
+CREATE TABLE IF NOT EXISTS push_subs (
+  endpoint   TEXT PRIMARY KEY,
+  player_id  TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS push_subs_player ON push_subs(player_id);

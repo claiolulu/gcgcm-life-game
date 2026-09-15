@@ -73,6 +73,54 @@ export default function ActivityDetail() {
 
   const [signups, setSignups] = useState([]);
   const qrRef = React.useRef(null);   // 复制二维码要拿到 canvas
+
+  /* ---- 通知推送 ----
+   * 发给谁由同工每次自己选：全部人 / 已报名的人 / 按标签。
+   * 新活动刚建好时往往还没人报名，所以没人报名时默认「全部人」，有人报名后默认「已报名的人」。
+   * 手动点「发送」才发，不跟着自动保存发 —— 详情页边改边存，自动发的话改一个字就推一条。
+   */
+  const [pushTitle, setPushTitle] = useState(null);   // null = 用默认
+  const [pushBody, setPushBody] = useState(null);
+  const [pushAudiencePicked, setPushAudience] = useState(null);   // null = 按有没有人报名自动选
+  const [pushTags, setPushTags] = useState([]);
+  const [pushPreview, setPushPreview] = useState(null);
+  const pushAudience = pushAudiencePicked ?? (signups.length ? 'signed' : 'all');
+  const pushTagKey = pushTags.join(',');
+  const loadPushPreview = React.useCallback(() => {
+    if (!token) return;
+    const q = pushTagKey ? `?tags=${encodeURIComponent(pushTagKey)}` : '';
+    api(`/api/admin/activity/${id}/notify${q}`, { token }).then(setPushPreview).catch(() => {});
+  }, [id, token, pushTagKey]);
+  useEffect(() => { loadPushPreview(); }, [loadPushPreview]);
+
+  const PUSH_AUDIENCE = { all: '全部人', signed: '已报名的人', tags: '按标签' };
+  const pushWhoLabel = () => (pushAudience === 'tags'
+    ? `挂着「${pushTags.map((x) => tagChoices.find((tg) => tg.id === x)?.name || x).join('、')}」的人`
+    : PUSH_AUDIENCE[pushAudience]);
+
+  async function sendPush(defaults) {
+    const title = (pushTitle ?? defaults.title).trim();
+    const body = (pushBody ?? defaults.body).trim();
+    const who = pushPreview?.[pushAudience];
+    const ok = await ask({
+      title: `发给${pushWhoLabel()}里开了通知的 ${who?.withDevice ?? 0} 人（${who?.devices ?? 0} 台设备）？`,
+      body: `「${title}」${body ? `\n${body}` : ''}\n\n通知发出去就收不回来了。`,
+    });
+    if (!ok) return;
+    setBusy('push');
+    try {
+      const r = await api(`/api/admin/activity/${id}/notify`, {
+        method: 'POST', token,
+        body: { title, body, audience: pushAudience, tags: pushAudience === 'tags' ? pushTags : [] },
+      });
+      toast(r.failed ? `发出 ${r.sent} 条，${r.failed} 条没发出去` : `已发出 ${r.sent} 条通知`, r.failed ? 'warn' : 'ok');
+      loadPushPreview();
+    } catch (err) {
+      toast(err.message || '发送失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
   const [checking, setChecking] = useState(null);   // 正在签到的人 id，或 'all'
 
   /**
@@ -589,6 +637,72 @@ export default function ActivityDetail() {
           </div>
         </div>
       </div>
+      {/* 通知推送 */}
+      {(() => {
+        const defaults = {
+          title: `「${draft.name || '活动'}」有新消息`.slice(0, 60),
+          body: `${draft.date ? `${draft.date} · ` : ''}${(draft.desc || '点开看看这场活动').slice(0, 80)}`,
+        };
+        const needTags = pushAudience === 'tags' && pushTags.length === 0;
+        const who = needTags ? null : pushPreview?.[pushAudience];
+        const hint = {
+          all: '所有领了护照的人 —— 不管报没报名、看不看得到这场活动。适合新活动刚发布、还没人报名的时候。',
+          signed: '只发给报了名这一场的人。适合时间、地点有变动的时候。',
+          tags: '挂着所选任一标签的人（一个人可以挂多个标签，挂中一个就会收到）。',
+        }[pushAudience];
+        return (
+          <div className="card stack" style={{ marginBottom: 12 }}>
+            <div className="section-title">📣 通知推送</div>
+            <input className="input" maxLength={60} aria-label="通知标题" placeholder="通知标题"
+              value={pushTitle ?? defaults.title} onChange={(e) => setPushTitle(e.target.value)} />
+            <textarea className="input" rows={3} maxLength={200} aria-label="通知内容" placeholder="通知内容（选填）"
+              style={{ resize: 'vertical', lineHeight: 1.6 }}
+              value={pushBody ?? defaults.body} onChange={(e) => setPushBody(e.target.value)} />
+            <div className="tiny dim">发给谁</div>
+            <div className="row" style={{ gap: 6 }}>
+              {Object.entries(PUSH_AUDIENCE).map(([k, label]) => (
+                <button key={k} type="button"
+                  className={`btn btn--sm grow ${pushAudience === k ? 'btn--primary' : 'btn--ghost'}`}
+                  aria-pressed={pushAudience === k}
+                  onClick={() => setPushAudience(k)}>{label}</button>
+              ))}
+            </div>
+            {pushAudience === 'tags' && (
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                {tagChoices.map((tg) => {
+                  const on = pushTags.includes(tg.id);
+                  return (
+                    <button key={tg.id} type="button"
+                      className={`admin-tag-pick ${on ? 'admin-tag-pick--on' : ''}`}
+                      aria-pressed={on}
+                      style={tagChipStyle(tg.color, on)}
+                      onClick={() => setPushTags(on ? pushTags.filter((x) => x !== tg.id) : [...pushTags, tg.id])}>
+                      {on ? '✓ ' : ''}{tg.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="tiny dim">{hint}</div>
+            <div className="tiny dim">
+              {needTags ? '先选至少一个标签。'
+                : !who ? '正在统计会发给谁…'
+                : who.people === 0 ? '这个范围里没有人，暂时发不出去。'
+                : who.devices === 0 ? `这 ${who.people} 人里还没有人开启通知，暂时发不出去。`
+                : `会发给这 ${who.people} 人里开了通知的 ${who.withDevice} 人（${who.devices} 台设备）。`}
+            </div>
+            <button type="button" className="btn btn--primary"
+              disabled={busy === 'push' || !(pushTitle ?? defaults.title).trim() || needTags || !who || who.devices === 0}
+              onClick={() => sendPush(defaults)}>
+              {busy === 'push' ? '发送中…' : '📣 发送通知'}
+            </button>
+            <div className="tiny dim">
+              大家要先在护照顶部点 🔔 开启通知才收得到。安卓 Chrome 直接开；iPhone 要先把网页「添加到主屏幕」、从主屏幕图标打开。
+              点通知会打开这场活动的页面。
+            </div>
+          </div>
+        );
+      })()}
       {/* 报名 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">📣 报名（{signups.length}）</div>

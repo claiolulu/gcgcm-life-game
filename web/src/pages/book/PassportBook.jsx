@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { usePush } from '../../lib/push.js';
+import { useToast } from '../../components/ui.jsx';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import Avatar from '../../components/Avatar.jsx';
@@ -65,6 +67,10 @@ export default function PassportBook() {
     setTourOpen(true);
     setTourDone(true);
   }, [opened, tourDone, setTourDone]);
+
+  // 通知推送开关（护照顶部的 🔔）
+  const pushToast = useToast();
+  const push = usePush(pushToast);
 
   // 签证页的内容来源：每场活动一张信息页，可再加照片/总结页
   //
@@ -389,6 +395,7 @@ export default function PassportBook() {
       me, rank, of, config, activities, board,
       ui: {
         page, overlay, modal, vpLandscape, flip,
+        push: push.state,
         qrThumb: qr.thumb, qrBigImg: qr.big, checking, screenGap,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
@@ -400,6 +407,7 @@ export default function PassportBook() {
         ),
       },
       actions: {
+        togglePush: push.toggle,
         move, goto, setOverlay, setModal, checkStamp,
         // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
         openTheme: () => setThemeOpen(true),
@@ -411,7 +419,7 @@ export default function PassportBook() {
         goBadge: () => nav('/badge', { state: { back: page } }),
       },
     });
-  }, [me, rank, of, config, activities, board, page, overlay, modal, vpLandscape, flip, qr, checking, screenGap,
+  }, [me, rank, of, config, activities, board, page, overlay, modal, vpLandscape, flip, qr, checking, screenGap, push,
       move, goto, checkStamp]);
 
   if (loading && !me) {
