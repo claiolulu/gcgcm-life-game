@@ -246,6 +246,8 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
           style={{ width: '100%', height: '100%' }}
           railClassName="list-rail--visa"
           deps={`${data.desc || ''}|${b.h}`}
+          // 编辑器里没在改字时，手势留给外层去拖动这个块
+          interactive={!editing || inlineEditing}
         >
           {inlineEditing ? (
             <InlineValue value={b.label} field="label" blockId={b.id} maxLength={30}
@@ -337,6 +339,8 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
         <ScrollBox
           railClassName="list-rail--visa"
           deps={`${b.text || ''}|${b.h}|${b.size}|${b.lh}`}
+          // 编辑器里没在改字时，手势留给外层去拖动这个块
+          interactive={!editing || inlineEditing}
           style={{
             width: '100%', height: '100%',
             fontFamily: FONTS[b.font] || FONTS.sans,

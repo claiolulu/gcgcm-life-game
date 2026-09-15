@@ -215,7 +215,13 @@ function useCrossAxisScroll(ref) {
   }, [ref]);
 }
 
-export default function ScrollBox({ children, style, className = '', railClassName = '', deps }) {
+/**
+ * interactive = false 时整块不接手势：画布编辑器里没在改字的时候，手指按在块上
+ * 是要拖动这个块的。不这么做的话，装不下的文字块自己是个滚动区，手指一按浏览器
+ * 就开始滚它、顺手发 pointercancel 把拖动掐断 —— 用户看到的是「点中了就在滑，
+ * 框挪不动」。进入改字模式后再打开，长文字照样能滚着看。
+ */
+export default function ScrollBox({ children, style, className = '', railClassName = '', deps, interactive = true }) {
   const ref = useRef(null);
   useCrossAxisScroll(ref);
   // 只有真的装不下时才给滑杆让出那几个像素。
@@ -235,7 +241,7 @@ export default function ScrollBox({ children, style, className = '', railClassNa
         的点击吞掉。装得下的块仍然整块穿透。
       */}
       <div ref={ref} className={`scroll-box__body${over ? ' scroll-box__body--over' : ''}`}
-        style={{ pointerEvents: over ? 'auto' : 'none' }}>
+        style={{ pointerEvents: over && interactive ? 'auto' : 'none' }}>
         {children}
       </div>
       <ScrollRail targetRef={ref} className={railClassName} deps={deps} onOverflow={onOverflow} />

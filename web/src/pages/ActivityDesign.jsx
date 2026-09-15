@@ -1146,6 +1146,11 @@ export default function ActivityDesign() {
             <div className="design__selection-tools"
               style={{ top: selected.y < 11 ? 3 : -32 }}
               onPointerDown={(e) => e.stopPropagation()}>
+              {/* 移动把手。点一下文字块就进了改字模式，这时在字上拖是选字 / 滚动，
+                  块挪不动 —— 按住这个拖，任何时候都能移动（顺带退出改字） */}
+              <button title="按住拖动来移动" aria-label="拖动移动区块"
+                style={{ cursor: 'move' }}
+                onPointerDown={(e) => drag(e, selected, 'move')}>✥</button>
               <button title="文字样式" aria-label="文字样式"
                 onClick={() => openInspector(selected.id)}>⚙</button>
               <button title="删除" aria-label="删除区块" onClick={() => remove(selected.id)}>🗑</button>
