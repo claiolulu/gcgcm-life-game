@@ -145,6 +145,29 @@ export default function ActivityDetail() {
   const pendingCheckIn = useMemo(
     () => checkInRoster.filter((p) => !p.done && p.eligible), [checkInRoster]);
 
+  /* ---- 未报名：其他用户 ----
+   *
+   * 既没报名、也还没在这一场盖章的人。没报名直接来的人在这里找，点「签到」
+   * 就是盖章 —— 盖完他就满足「已盖章」，自动挪到上面「已报名」那一框（标「未报名」）。
+   * 不在可见范围里的人不列出：服务端不会收他的章，列出来只会给一个点了没用的按钮。
+   * 这一框**不做一键全签到** —— 那会给所有没来的人都盖上章，而且撤不掉。
+   */
+  const [wiQuery, setWiQuery] = useState('');
+  const walkIn = useMemo(() => {
+    const signedIds = new Set(signups.map((s) => s.id));
+    const pool = players.filter((p) => !signedIds.has(p.id) && !p.stations?.[id]);
+    const eligible = pool.filter((p) => !savedActivity
+      || activityVisibleTo(savedActivity, playerTags(p), p.signups || []));
+    const kw = wiQuery.trim().toLowerCase();
+    const tags = allTags(config);
+    const shown = eligible
+      .filter((p) => !kw || [p.name, p.code, p.contact,
+        ...(p.tags || []).map((x) => tags.find((tg) => tg.id === x)?.name || '')]
+        .some((v) => String(v || '').toLowerCase().includes(kw)))
+      .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    return { shown, total: eligible.length, hidden: pool.length - eligible.length };
+  }, [players, signups, id, savedActivity, wiQuery, config]);
+
 
   /**
    * 一键全签到。
@@ -701,6 +724,56 @@ export default function ActivityDetail() {
               </div>
             )}
           </>
+        )}
+      </div>
+      {/* 未报名：其他用户。点签到就是盖章，签完他会挪到上面「已报名」那一框 */}
+      <div className="card stack" style={{ marginBottom: 12 }}>
+        <div className="section-title">🙋 未报名（{walkIn.total}）</div>
+        <input
+          className="input"
+          type="search"
+          value={wiQuery}
+          onChange={(e) => setWiQuery(e.target.value)}
+          placeholder="搜名字、编号或标签"
+          aria-label="搜索未报名的人"
+        />
+        <div className="tiny dim">
+          没报名直接来的人在这里找，点「签到」就是盖章，签完会挪到上面「已报名」那一框。
+          {walkIn.hidden > 0 ? ` 另有 ${walkIn.hidden} 人不在这场的可见范围里，没有列出。` : ''}
+        </div>
+        {walkIn.shown.length === 0 ? (
+          <div className="tiny dim">
+            {wiQuery.trim() ? `没有匹配「${wiQuery.trim()}」的人` : '其他人都已经在上面那一框了。'}
+          </div>
+        ) : (
+          <div className="stack-sm attend-list">
+            {walkIn.shown.map((p) => (
+              <div key={p.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
+                <Avatar config={p.avatar} size={28} />
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.name}
+                  </div>
+                  <div className="tiny dim">{p.code}</div>
+                  {p.contact && (
+                    <button type="button" className="tiny signup-contact copy-text"
+                      title="点一下复制" onClick={() => copyContact(p.contact)}>
+                      {p.contact}
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  style={{ flex: '0 0 auto' }}
+                  disabled={!!checking}
+                  onClick={() => checkIn(p)}
+                >
+                  {checking === p.id ? '…' : '签到'}
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
       </div>
