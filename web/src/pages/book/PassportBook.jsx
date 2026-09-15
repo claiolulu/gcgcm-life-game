@@ -395,11 +395,9 @@ export default function PassportBook() {
    * 失败无所谓，水印只是底纹。
    */
   useEffect(() => {
-    // 签证页现在按活动装订，水印要跟着活动的 landmarkKey 取 ——
-    // 原来读的是 stations（游戏版的八个关卡），预取的是一批翻不到的图
+    // 签证页不再画地标水印，只预取其余页面还在用的那 3 张
     const acts = activities;
-    const urls = acts.map((a) => (a.landmarkKey ? `/wm/${a.landmarkKey}.png` : null))
-      .concat(['cathedral', 'university', 'wellington'].map((k) => `/wm/${k}.png`))
+    const urls = ['cathedral', 'university', 'wellington'].map((k) => `/wm/${k}.png`)
       // 活动配图也一起预取：它比水印更值得提前拿，那是页面上唯一的实照
       .concat(acts.map((a) => a.photo || null))
       .filter(Boolean);

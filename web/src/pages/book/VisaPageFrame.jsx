@@ -4,9 +4,9 @@ import { themeVarsOf } from './bookVals.js';
 /**
  * 编辑器里那张纸。
  *
- * 只画页面上「不属于块」的那几样：纸色、地标水印、页眉那排按钮、右下角
- * 的二维码。中间留给 children —— 编辑器把可拖的块塞进来，层叠位置和真
- * 页面一致（页眉压得住块，水印压不住）。
+ * 只画页面上「不属于块」的那几样：纸色、页眉那排按钮、右下角的二维码。
+ * 中间留给 children —— 编辑器把可拖的块塞进来，层叠位置和真页面一致
+ * （页眉压得住块）。签证页不再有地标水印（见 bookVals.js 的 landmarkKey）。
  *
  * 页面固定为 1.9:1。真护照在竖屏手机上把同一张横版纸转 90° 后等比缩放，
  * 横屏则直接等比缩放；编辑器也用这个比例，因此两边的坐标和字号一致。
@@ -21,16 +21,6 @@ export default function VisaPageFrame({ theme, activity, children }) {
       background: theme?.paper || '#f3ede0',
       overflow: 'hidden', containerType: 'size',
     }}>
-      {/* 地标水印：在块之下 */}
-      {activity?.landmarkKey && (
-        <div style={{
-          position: 'absolute', right: '3%', top: '12%', width: '40%', bottom: '14%',
-          backgroundImage: `url("/wm/${activity.landmarkKey}.png")`,
-          backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
-          opacity: theme?.watermark ?? 0.13, pointerEvents: 'none',
-        }} />
-      )}
-
       {children}
 
       {/* 页眉：App 的导航，不是这一页的内容，所以不是块，也不给拖 */}

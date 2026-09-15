@@ -513,11 +513,13 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
   // 封面和结语页不放：封面本身就是整版设计，结语是全书收尾，
   // 留白比再压一层地标更像一本护照的最后一页。
   //
-  // 8 个关卡各自带 landmarkKey，剩下 3 张（大教堂、大学、威灵顿）
-  // 分给非关卡页。页数比图多，重复使用是有意的 —— guide 和 board
-  // 是浮层，不会和正文页同屏出现。
-  const landmarkKey = station
-    ? station.landmarkKey
+  // 签证页不放地标水印（2026-09-15 用户要求移除）：出厂那几场活动带着默认的
+  // landmarkKey，而同工新建的活动没有，结果有的签证页有底纹、有的没有；签证页
+  // 现在是同工在画板里整页排的，底纹也会和配图、文字抢。活动数据里的 landmarkKey
+  // 留着不删，只是不再画。其余页面仍用这 3 张（大教堂、大学、威灵顿），
+  // guide 和 board 是浮层，不会和正文页同屏出现，重复使用是有意的。
+  const landmarkKey = kind === 'visa'
+    ? null
     : { inside: 'cathedral', notes: 'wellington', data: 'university',
         guide: 'wellington', board: 'university',
         closing: null }[kind] || null;
