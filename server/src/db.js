@@ -431,6 +431,8 @@ export const stmts = {
   pushSubByEndpoint: db.prepare('SELECT endpoint, player_id FROM push_subs WHERE endpoint = ?'),
   deletePushSub: db.prepare('DELETE FROM push_subs WHERE endpoint = ?'),
   allPushSubs: db.prepare('SELECT endpoint, player_id, p256dh, auth FROM push_subs'),
+  // 在这一场盖过章的人（「已参加」）—— 不管有没有报名，章才是算数的
+  attendeesOf: db.prepare("SELECT DISTINCT player_id FROM events WHERE kind = 'station' AND station_id = ?"),
   // 花名册和排行榜要给每个人算一遍可见活动，逐人查报名会是 N 次往返；
   // 一次拉全再在内存里按人分组
   allSignups: db.prepare('SELECT activity_id, player_id FROM signups'),

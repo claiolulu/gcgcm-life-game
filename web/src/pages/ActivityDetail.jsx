@@ -93,7 +93,7 @@ export default function ActivityDetail() {
   }, [id, token, pushTagKey]);
   useEffect(() => { loadPushPreview(); }, [loadPushPreview]);
 
-  const PUSH_AUDIENCE = { all: '全部人', signed: '已报名的人', tags: '按标签' };
+  const PUSH_AUDIENCE = { all: '全部人', signed: '已报名的人', attended: '已参加的人', tags: '按标签' };
   const pushWhoLabel = () => (pushAudience === 'tags'
     ? `挂着「${pushTags.map((x) => tagChoices.find((tg) => tg.id === x)?.name || x).join('、')}」的人`
     : PUSH_AUDIENCE[pushAudience]);
@@ -147,7 +147,7 @@ export default function ActivityDetail() {
       }
       const bad = issueFor(op.opId);
       if (bad) { toast(bad.message || '服务端没有接受这次签到', 'err'); return; }
-      toast(`${p.name} 已签到`, 'ok');
+      toast(`${p.name} 已参加`, 'ok');
     } catch (err) {
       toast(err.message || '签到失败', 'err');
     } finally {
@@ -227,7 +227,7 @@ export default function ActivityDetail() {
   async function checkInAll() {
     if (!pendingCheckIn.length) return;
     const ok = await ask({
-      title: `给${ciQuery.trim() ? `搜到的「${ciQuery.trim()}」里` : '列表里'}还没签到的 ${pendingCheckIn.length} 人全部签到？`,
+      title: `给${ciQuery.trim() ? `搜到的「${ciQuery.trim()}」里` : '列表里'}还没参加的 ${pendingCheckIn.length} 人全部签到？`,
       body: '章盖下去就撤不掉了 —— 那是一条写进记录的事实，不是可以来回拨的开关。'
         + '只会给还没签到的人盖，已经签到的不动。',
     });
@@ -247,9 +247,9 @@ export default function ActivityDetail() {
       }
       const failed = ops.map(({ p, op }) => ({ p, bad: issueFor(op.opId) })).filter((x) => x.bad);
       const done = ops.length - failed.length;
-      if (!failed.length) { toast(`${done} 人已全部签到`, 'ok'); return; }
+      if (!failed.length) { toast(`${done} 人都已标为已参加`, 'ok'); return; }
       // 说清楚是谁、为什么 —— 只报个数字的话，同工不知道该去补谁
-      toast(`${done} 人签到成功，${failed.length} 人没成：`
+      toast(`${done} 人已标为已参加，${failed.length} 人没成：`
         + failed.slice(0, 3).map((x) => x.p.name).join('、')
         + (failed.length > 3 ? ' 等' : '')
         + `（${failed[0].bad.message || '服务端拒绝'}）`, 'err');
@@ -648,6 +648,7 @@ export default function ActivityDetail() {
         const hint = {
           all: '所有领了护照的人 —— 不管报没报名、看不看得到这场活动。适合新活动刚发布、还没人报名的时候。',
           signed: '只发给报了名这一场的人。适合时间、地点有变动的时候。',
+              attended: '在这一场盖过章的人 —— 不管有没有报名。适合活动后发照片、总结的时候。',
           tags: '挂着所选任一标签的人（一个人可以挂多个标签，挂中一个就会收到）。',
         }[pushAudience];
         return (
@@ -659,7 +660,7 @@ export default function ActivityDetail() {
               style={{ resize: 'vertical', lineHeight: 1.6 }}
               value={pushBody ?? defaults.body} onChange={(e) => setPushBody(e.target.value)} />
             <div className="tiny dim">发给谁</div>
-            <div className="row" style={{ gap: 6 }}>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
               {Object.entries(PUSH_AUDIENCE).map(([k, label]) => (
                 <button key={k} type="button"
                   className={`btn btn--sm grow ${pushAudience === k ? 'btn--primary' : 'btn--ghost'}`}
@@ -759,7 +760,7 @@ export default function ActivityDetail() {
       {/* 已报名 + 签到：报了名的人都在这里，点一下就是盖章 */}
       <div className="card stack" style={{ marginBottom: 12 }}>
         <div className="section-title">
-          📋 已报名（{signups.length}）· 已签到 {attended.length}
+          📋 已报名（{signups.length}）· 已参加 {attended.length}
         </div>
         {signups.length === 0 && attended.length === 0 ? (
           <div className="tiny dim">还没有人报名，也还没有人盖章。把报名码发出去，报了名或盖了章的人会出现在这里。</div>
@@ -782,7 +783,7 @@ export default function ActivityDetail() {
                 onClick={checkInAll}
               >
                 {checking === 'all' ? '签到中…'
-                  : pendingCheckIn.length ? `一键全签到（${pendingCheckIn.length}）` : '都签到了'}
+                  : pendingCheckIn.length ? `一键全签到（${pendingCheckIn.length}）` : '都已参加'}
               </button>
             </div>
             <div className="tiny dim">
@@ -816,7 +817,7 @@ export default function ActivityDetail() {
                       )}
                     </div>
                     {p.done ? (
-                      <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已签到 ✓</span>
+                      <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已参加 ✓</span>
                     ) : !p.eligible ? (
                       /* 报名后活动才限定了标签：服务端不会收这一章，别给个点了没反应的按钮 */
                       <span className="tiny dim" style={{ flex: '0 0 auto' }} title="这场活动的可见范围不包含他的标签">

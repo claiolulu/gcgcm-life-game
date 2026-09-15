@@ -1115,6 +1115,20 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('发给已报名的人：一台', sSigned.body.devices === 1, JSON.stringify(sSigned.body));
   const sTags = await send({ audience: 'tags', tags: ['staff'] });
   check('按标签发：只发给挂着「同工」的那一台', sTags.body.devices === 1, JSON.stringify(sTags.body));
+  // 推送路人没报名，但在这一场盖了章 → 他属于「已参加的人」
+  const stampB = await j('/api/staff/sync', { method: 'POST', headers: staffH,
+    body: { ops: [{ opId: 'push-attend-b', type: 'score', playerId: pb.body.player.id, stationId: ACT, points: 1, checkin: true }], since: 0 } });
+  check('推送路人在这一场盖上章', stampB.body.results?.[0]?.status === 'ok', JSON.stringify(stampB.body.results));
+  const pvAttend = await j(`/api/admin/activity/${ACT}/notify`, { headers: adminH });
+  // 前面的小节在同一场活动上给别人也盖过章，所以「已参加」的人数不止 1；
+  // 但开了通知的只有推送路人这一台
+  check('预览：已参加的人里，开了通知的只有盖过章的那一台（没报名也算）',
+    pvAttend.body.attended?.devices === 1 && pvAttend.body.attended?.withDevice === 1
+    && pvAttend.body.attended?.people >= 1, JSON.stringify(pvAttend.body.attended));
+  check('预览：已报名的人不因为别人盖章而变多', pvAttend.body.signed?.devices === 1, JSON.stringify(pvAttend.body.signed));
+  const sAttend = await send({ audience: 'attended' });
+  check('发给已参加的人：只发盖过章的那一台', sAttend.status === 200 && sAttend.body.audience === 'attended'
+    && sAttend.body.devices === 1, JSON.stringify(sAttend.body));
   const sNoTag = await send({ audience: 'tags', tags: [] });
   check('选了按标签却没选标签被拒', sNoTag.status === 400, `状态码 ${sNoTag.status}`);
   const sWeird = await send({ audience: 'everyone!!' });

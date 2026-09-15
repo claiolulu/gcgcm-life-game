@@ -677,14 +677,18 @@ app.post('/api/push/unsubscribe', playerAuth, (req, res) => {
 /**
  * 这一场的通知发给谁 —— 每次由同工自己选：
  *   all    所有领了护照的人（新活动刚发布、还没人报名时用；不管看不看得到这场活动）
- *   signed 只发给报了名的人
- *   tags   挂着所选任一标签的人（有效标签集，含内置的普通成员 / 同工）
+ *   signed   只发给报了名的人
+ *   attended 在这一场盖过章的人（不管有没有报名；活动后发照片、总结用）
+ *   tags     挂着所选任一标签的人（有效标签集，含内置的普通成员 / 同工）
  * 不认识的范围按 signed 处理 —— 宁可少发，也不要因为一个错字发给所有人。
  */
-const PUSH_AUDIENCES = ['all', 'signed', 'tags'];
+const PUSH_AUDIENCES = ['all', 'signed', 'attended', 'tags'];
 
 function notifyRecipients(activity, audience, tagIds = []) {
   if (audience === 'all') return stmts.allPlayers.all().map((p) => p.id);
+  if (audience === 'attended') {
+    return stmts.attendeesOf.all(activity.id).map((r) => r.player_id);
+  }
   if (audience === 'tags') {
     const want = new Set(tagIds);
     return stmts.allPlayers.all()
@@ -706,7 +710,7 @@ function recipientCounts(ids) {
 }
 
 /**
- * 发之前先看看：三种范围各有几个人、其中几个人开了通知、几台设备。
+ * 发之前先看看：每种范围各有几个人、其中几个人开了通知、几台设备。
  * 按标签的那一项要带 ?tags=a,b 才算（没选标签就给 null）。
  */
 app.get('/api/admin/activity/:id/notify', staffAuth('admin'), (req, res) => {
@@ -716,6 +720,7 @@ app.get('/api/admin/activity/:id/notify', staffAuth('admin'), (req, res) => {
   res.json({
     all: recipientCounts(notifyRecipients(a, 'all')),
     signed: recipientCounts(notifyRecipients(a, 'signed')),
+    attended: recipientCounts(notifyRecipients(a, 'attended')),
     tags: tagIds.length ? recipientCounts(notifyRecipients(a, 'tags', tagIds)) : null,
   });
 });
