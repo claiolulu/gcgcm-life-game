@@ -1204,6 +1204,10 @@ html.book-locked,
 html.book-locked body {
   overflow: hidden;
   height: 100%;
+  /* 护照册外围始终是黑的。参与者端全局配色会把 --ink（body 的底色）换成纸色，
+     护照册自己盖着黑底，但 iPhone 底部 Home 条那一截、Safari 工具栏后面露的是
+     html/body 的底色 —— 不固定成黑色，护照下沿就多出一条白边 */
+  background: #000;
 }
 
 /* ------------------------- 宽屏自适配 ------------------------- */
