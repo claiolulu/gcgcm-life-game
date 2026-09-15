@@ -354,6 +354,8 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
           }}
         >{inlineEditing ? (
           <InlineValue as="div" multiline value={b.text} field="text" blockId={b.id} maxLength={TEXT_BLOCK_MAX}
+            // 撑满整个块：点在字下面的空白处也是在改字，而不是落到块上变成拖动
+            style={{ minHeight: '100%' }}
             placeholder="直接输入文字" onTextChange={onTextChange} />
         ) : b.text}</ScrollBox>
       );

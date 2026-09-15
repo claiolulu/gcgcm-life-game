@@ -1522,6 +1522,11 @@ html.book-locked body {
   -webkit-user-select: text;
   user-select: text;
   caret-color: #8c5312;
+  /* 改字区域必须始终接得住点击。外层 ScrollBox 在文字装得下时是
+     pointer-events: none（为了护照上不挡翻页），这个值会继承下来 —— 于是在短文字上
+     再点一下，点击穿过改字区落到块上，块把它当成「开始拖动」，改字模式被关掉，
+     手机上长按也调不出粘贴菜单。子元素可以把它改回 auto。 */
+  pointer-events: auto;
 }
 .visa-inline-input:focus {
   outline: 1px dotted rgba(140, 83, 18, .72);

@@ -1328,6 +1328,7 @@ export default function ActivityDesign() {
 
 /** 每种块自己那几项 */
 function Inspector({ b, patch, sources, busy, onPickImage }) {
+  const toast = useToast();
   if (b.kind === 'icon') {
     return (
       <>
@@ -1443,7 +1444,38 @@ function Inspector({ b, patch, sources, busy, onPickImage }) {
 
   return (
     <>
-      <div className="tiny dim">文字内容请直接在画布中点击修改。</div>
+      {b.kind === 'text' ? (
+        <>
+          <div className="tiny dim">
+            可以直接在画布里点字修改。手机上在画布里粘贴不顺手的话，就在下面这个框里改 ——
+            长按就有粘贴、复制、全选。
+          </div>
+          {/* 普通的多行输入框：系统长按菜单（粘贴 / 复制 / 全选）在它上面一定可用，
+              画布里的 contentEditable 在手机浏览器上没这么可靠 */}
+          <ImeInput
+            as="textarea"
+            className="input"
+            rows={6}
+            value={b.text || ''}
+            maxLength={TEXT_BLOCK_MAX}
+            aria-label="文字内容"
+            placeholder="在这里输入或粘贴文字"
+            style={{ resize: 'vertical', lineHeight: 1.6 }}
+            // 浏览器的 maxLength 会把超出的粘贴内容悄悄吞掉，得在粘贴那一下说出来
+            onPaste={(e) => {
+              const el = e.currentTarget;
+              const pasted = e.clipboardData?.getData('text') || '';
+              const after = el.value.length - (el.selectionEnd - el.selectionStart) + pasted.length;
+              if (after > TEXT_BLOCK_MAX) {
+                toast(`这一块最多 ${TEXT_BLOCK_MAX} 字，这次粘贴超出了 ${after - TEXT_BLOCK_MAX} 字，超出的部分没有进来。剩下的内容请放到另一个文字块里`, 'warn');
+              }
+            }}
+            onValue={(v) => patch({ text: v })}
+          />
+        </>
+      ) : (
+        <div className="tiny dim">文字内容请直接在画布中点击修改。</div>
+      )}
       <TextStyleControls b={b} patch={patch} defaults={{ size: 4, lh: 1.5, font: 'sans', align: 'left', bold: false }} />
     </>
   );
