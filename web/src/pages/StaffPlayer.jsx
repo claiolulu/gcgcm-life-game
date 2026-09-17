@@ -166,7 +166,7 @@ export default function StaffPlayer() {
         )}
       </div>
 
-      {/* 已完成关卡一览 */}
+      {/* 已参加的活动一览 */}
       <div className="card" style={{ marginTop: 12 }}>
         <div className="section-title">已参加 {player.stationsDone}/{player.stationsTotal ?? stations.length}</div>
         <div className="stack-sm">

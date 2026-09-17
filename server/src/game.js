@@ -1,19 +1,6 @@
 import { db, stmts, getSettings, setSetting, getActivities } from './db.js';
-import {
-  ACTIVITIES,
-} from './config.js';
 import { safeJSON, clamp, uid } from './util.js';
 
-/**
- * 按 id 找一个可盖章的条目：8 个游戏关卡，或者任意一场活动。
- *
- * 活动清单现在存在设置表里、总控台随时能改，所以**不能**在模块加载时
- * 算好一张静态表 —— 那样同工加了新活动，服务端会一直说「未知关卡」，
- * 直到重启为止。每次现查，活动一共几条，开销可以忽略。
- *
- * 两边共用同一张 events 表和那条「一站只能盖一次」的唯一索引：
- * 语义正好一致（一场活动也只盖一次章）。
- */
 export function normalizedPlayerRole(role) {
   return role === 'staff' ? 'staff' : 'normal';
 }
@@ -165,7 +152,6 @@ export function playerState(player, settings = getSettings(), live = null, signe
     // 这个人自己调过的护照配色。没调过是 null，护照按默认那套渲染
     theme: player.theme ? safeJSON(player.theme, null) : null,
     contact: player.contact,
-    // 关卡访问顺序。赛前是空的，签证页据此留白（见 bookVals 的 buildPages）
     notes: player.notes,
     total,
     stations,

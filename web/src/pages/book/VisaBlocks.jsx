@@ -18,7 +18,7 @@ import { track } from '../../lib/track.js';
  * 有些活动就想放一张海报。
  *
  * 留在外面的那四样是有理由的：
- *   页眉  是 App 的导航（队伍、分数、恩典站），不是这一页的内容
+ *   页眉  是 App 的导航（排行榜、通知、使用说明），不是这一页的内容
  *   水印  跟着地标走，护照模版里统一调
  *   二维码 同工要扫它盖章，挪走了现场就乱
  *   章    活动当天盖上去的，任何块都不该盖住它
@@ -299,8 +299,6 @@ export function bindRow(row, data) {
     case 'code':      return { value: data.code };
     case 'passport':  return { value: data.passport };
     case 'contact':   return { value: data.contact };
-    case 'identity':  return { value: data.identity };
-    case 'team':      return { value: data.team };
     case 'visited':   return { value: data.visited };
     // 这一场
     case 'name':      return { value: data.name };

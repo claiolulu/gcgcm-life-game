@@ -29,7 +29,7 @@ console.log('\n=== Mini Life Game 后端流程测试 ===\n');
   await j('/api/admin/settings', {
     method: 'POST',
     headers: { authorization: `Bearer ${admin.body.token}` },
-    body: { gameState: 'lobby', registrationOpen: true },
+    body: { gameState: 'lobby' },
   });
 }
 

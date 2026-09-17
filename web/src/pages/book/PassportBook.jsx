@@ -24,8 +24,8 @@ import ActivityContributionSheet from './ActivityContributionSheet.jsx';
 /**
  * 选手护照册 —— 唯一的选手端界面。
  *
- * 纯展示：只从服务端拉数据，不做任何写入。记分、盖章、抽盲盒、收 Token
- * 全部发生在工作人员端，这里只负责把结果漂亮地呈现出来。
+ * 盖章发生在工作人员端，这里负责把活动和盖章结果呈现出来；
+ * 自己能改的只有个人资料、配色、投稿和通知开关。
  */
 export default function PassportBook() {
   const nav = useNavigate();
@@ -41,7 +41,7 @@ export default function PassportBook() {
   const lastBoardRequestRef = useRef(0);
   const [themeOpen, setThemeOpen] = useState(false);
   const [contributionActivity, setContributionActivity] = useState(null);
-  // 抽到身份后自动弹一次队友面板 —— 这是选手最需要立刻知道的事
+  // 新手引导（第一次翻开护照时自动弹一次，问号按钮可以重看）
   const [tourOpen, setTourOpen] = useState(false);
   // 自动引导要等人先把封面翻开。否则新用户一进来就被拽到导航页，
   // 连封面都没看见，还以为程序坏了。
@@ -631,14 +631,3 @@ function BookSplash({ text }) {
     </div>
   );
 }
-
-/**
- * 抽完盲盒之后，把结果给本人看一遍。
- *
- * 之前只有同工那边看得到抽了什么，选手只知道分数变了 ——
- * 加了几分、为什么加、下一关有没有附带限制，全靠同工口头转述，
- * 现场吵起来根本听不清。
- *
- * 卡片数据在 /api/config 里本来就有，选手的 history 带 cardId，
- * 对一下就能还原完整的卡面，不用加接口。
- */

@@ -1,6 +1,6 @@
 # Mini Life Game · 共享项目记忆
 
-最后更新：2026-09-15（Europe/London）
+最后更新：2026-09-17（Europe/London）
 本次核对代码基线：`98cdae5` 之后的两个提交（照片图库、使用情况统计），已推送到 `origin/passport-checkin`。这只是核对时的提交，不要求开发始终停留在该提交。
 用途：让 Claude Code、Codex 和人工维护者从同一份项目现状继续工作。代码是事实来源；本文件是交接摘要，不替代源码或 Git 历史。
 
@@ -47,7 +47,7 @@
 | 其他页面 | `Register.jsx`、`Join.jsx`、`Badge.jsx`、`Leaderboard.jsx`、`StaffLogin.jsx`、`StaffScan.jsx`、`StaffPlayer.jsx` |
 | 通用组件/样式 | `ImeInput.jsx`、`Avatar*.jsx`、`Scanner.jsx`、`ui.jsx`；`styles.css` 与 `fonts.css` |
 | 构建/PWA | `web/vite.config.js`、`web/scripts/make-icons.mjs`、`web/public/staff.webmanifest` |
-| 部署 | `scripts/tunnel.sh`、`Dockerfile`、`fly.toml`、`render.yaml` |
+| 部署 | `scripts/start-local-server.sh`（`npm start`）、`Dockerfile`、`fly.toml` |
 | 历史设计资产 | `design/` 是原始设计/转换材料，不是当前应用渲染入口 |
 
 技术栈：Node.js ESM + Express 4 + better-sqlite3 + Socket.IO；React 18 + React Router 6 + Vite 5 + vite-plugin-pwa。二维码使用 qrcode/jsQR。当前本机核对运行环境 Node 22。
@@ -63,6 +63,7 @@
 - 删除活动保留历史章；已删除或角色不可见活动的章不计入该用户当前场次/分数。恢复同 id 活动可重新关联。活动 id 是历史锚，不能随改名或排序改变。
 - `settings._activities` 保存完整活动数组；排序就是数组顺序，服务端重写 `order`。API 是整份替换，多编辑器同时保存可能覆盖彼此，保存前需留意最新配置。
 - 活动第一页用 `activity.blocks`，后续页用 `extraPages[{id,title,kind,blocks}]`。`blocks` 缺省意味着生成默认版式，`[]` 意味着明确留白，两者不能混同。
+- 附加分享页另有 `requireCheckin` 布尔开关（缺省 false）；画板可逐页设置。参与者未在该活动盖章时，该页只显示锁定提示，不渲染正文和照片；活动信息首页始终可见，活动 `done` 且本人未盖章时灰置并标「未参加」。报名二维码块仍只在 `upcoming` 显示。**这是 UI 可见性，不是保密边界**：公开 `/api/config` 与 `/uploads` 仍可直接读取原始配置和图片；若需强保密，要另设计鉴权接口和受保护的图片服务。
 - 区块类型：banner/fields/station/note/photo/links/text/image/icon/gallery/qr。`qr` 是这场活动的报名二维码：码里的链接由前端按活动 id + `/api/config` 的 `shareOrigin` 现算（`/join/:id?from=share`），块上只存 `icon`（空 = 跟活动图标，`M` = 护照徽章，其它为 emoji）和 `label`（≤16 字，空回到「扫码报名」），服务端强制不挂外链。默认版式按栏目行数把它放进栏目下方空位；**已经排过版（`blocks` 是数组）的活动不会自动出现**，要在画板「＋ 新增」里加。`gallery` 最多保存 100 个安全图片地址，首屏 1–8 张、2–4 列；护照先显示精选缩略图和总数，点击进入全屏网格/大图浏览。坐标与宽高是页面百分比，字号按页高 cqh；页面比例 `PAGE_ASPECT = 1.9`。页眉、水印、二维码、章与 MRZ footer 是固定模板。服务端保存时剔除旧 mrz 区块。
 - fields 的 `src` 来自 `VISA_ROW_SOURCES`：固定文字、持照人信息、活动数据、报名/盖章信息。不能把示例持照人值当作所有人的固定正文。
 - `signups`：activity/player 组合主键，报名与实际盖章分离。仅 upcoming 可报名/取消；同一时刻最多一个 live。全局 gameState 是兼容派生值，不再是报名/个人资料锁定开关。
@@ -77,6 +78,8 @@
 ## 4. UI 与回归注意点
 
 - 护照内部横版页在竖屏旋转 90°、横屏不旋转，当前 CSS 是按真实可见视口完整 contain；比例不同会留黑边。不要按物理屏幕尺寸补偿普通浏览器地址栏。独立 PWA 才计算 screenGap。
+- 地标水印：`web/src/lib/visaWatermark.js` 现有 14 张候选（原 11 张 + AI 生成的中央车站、人民宫、格拉斯哥墓园 v2 3 张）；较大的首版文件保留但不在候选池。v2 缩小建筑、增加简洁云朵和透明留白，使用新文件名避免旧图片缓存。每张 Visa 信息/附加页由 `visaWatermarkKey(activityId, pageId)` 稳定选一张，画板预览与护照相同；刷新不重抽，不写活动数据库。欢迎/导航/资料页及说明/参与记录沿用原固定水印。弱网只预取本人的 Visa 页实际会用到的候选与其余固定 3 张，不把所有 14 张放进 PWA 预缓存。
+- 护照 VISAS 进度口径：分母是该用户当前可见活动数，分子只数这些活动里已有参与章的场数；历史上已删除或对本人不可见的章不得使进度出现 5/4。导航/活动介绍页不展示进度条或大号成员二维码；进度条在「参与记录」，使用说明解释右下角可点开的个人护照码。
 - PWA manifest 声明 portrait，但不能保证 iPhone 浏览器取消系统横竖屏动画。用户之前多次调整方向方案，后续以当前 CSS、用户最新要求和真机结果为准，不照旧聊天直接改回锁屏方案。
 - 翻页热点应与屏幕点击方向、实际坐标保持一致；翻页 ghost 不应捕获点击或重复提供 tour 锚点。
 - 新手高亮用 `mlg.tourDone.v2` 持久记录，自动进入即标已看；`?` 可手动重开。不能改回每次打开网站都显示。
@@ -94,11 +97,11 @@ npm run build
 npm start
 ```
 
-生产式本地服务默认 `http://127.0.0.1:3000`，服务前端 `web/dist`。后端逻辑修改要重启进程；前端修改要重新 build。未构建前端时首页可能 503。
+生产式本地服务默认 `http://127.0.0.1:3000`，服务前端 `web/dist`。本机启动一律用根目录 `npm start` 或 `bash scripts/start-local-server.sh`：脚本将 `MLG_DATA_DIR` 强制设为项目 `server/data` 的绝对路径，并打开 `MLG_REQUIRE_EXISTING_DB=1`。该保护会在数据库不存在、没有用户/活动或完整性检查失败时拒绝启动，不会自动建空库。首次安装或隔离测试不要打开此保护；容器的 `/data` 部署仍需独立配置和核对。后端逻辑修改要重启进程；前端修改要重新 build。未构建前端时首页可能 503。
 
 开发热更新：`npm run dev:server` 与 `npm run dev:web` 分别运行，Vite 默认 5173，代理 API/socket/health 到 3000；涉及上传图片开发浏览时留意 Vite 当前没有单独 `/uploads` 代理。
 
-测试：`npm test` 自动启动隔离 3199 服务与 `server/data-test/`，迁移测试另用专用库。`TEST_PORT` 可覆盖。不能将独立测试脚本的 BASE 指向线上服务；它们有清库动作。**不要运行当前过时的 `npm run seed` 去处理真实库。**
+测试：`npm test` 自动启动隔离 3199 服务与 `server/data-test/`，迁移测试另用专用库。`TEST_PORT` 可覆盖。不能将独立测试脚本的 BASE 指向线上服务；它们有清库动作。
 
 环境变量：`PORT`、`MLG_DATA_DIR`、`WEB_DIST`（隔离视觉构建）、`NODE_ENV`、`STAFF_PIN`、`ADMIN_PIN`。后台 PIN 环境变量优先于已存数据库值；开发 fallback 见 `db.js` 的 `seedSettings()`，只用于本地开发。**仓库是公开的，代码里的默认值绝不能改成线上实际 PIN**（2026-09-15 发现过一次，推送前已恢复），真实值也不写进本文件。PIN 相关风险已与用户确认，线上 PIN 暂不更换。生产缺失会产生随机 fallback。实际部署仍优先使用明确环境变量，不要用 fallback 猜生产配置。
 
@@ -107,13 +110,14 @@ npm start
 部署机制上有两件必须知道的事：
 
 - **前端不需要重启**。服务以 `express.static` 从磁盘读 `web/dist`，`vite build` 完成即生效。**服务端改动必须重启**才生效 —— 曾出现前端已是新版、服务端还跑着十几小时前进程的情况，导致纪元修复和新块类型都没生效。
-- 目前进程由维护者手动启动（`STAFF_PIN=… ADMIN_PIN=… ./scripts/tunnel.sh`）。若由助手在独立会话中代启，它会过继给 launchd：机器重启、合盖或手动 kill 之后不会自行恢复，也没有开机自启。活动前应由维护者在自己的终端启动，或另行配置常驻服务。
+- 目前进程由维护者手动启动（带 `STAFF_PIN`/`ADMIN_PIN` 环境变量执行 `npm start`，隧道 `cloudflared tunnel run gcgcm-life-game` 单独启动）。若由助手在独立会话中代启，它会过继给 launchd：机器重启、合盖或手动 kill 之后不会自行恢复，也没有开机自启。活动前应由维护者在自己的终端启动，或另行配置常驻服务。
 
-- `scripts/tunnel.sh` 会构建、收旧进程、启动服务和隧道，并检查公网健康；有固定域名配置才使用 named tunnel，否则随机 trycloudflare。**脚本旧进程清理按宽模式匹配 node，可能误伤其他项目，运行前先检查目标进程，不要当成无副作用操作。**
+- 旧的 `scripts/tunnel.sh`（会宽匹配 pkill node、快速隧道）与 `render.yaml`、`server/seed.mjs` 已于 2026-09-17 删除，不要恢复。
 - 凭据在机器 `~/.cloudflared/`，域名配置 `scripts/.tunnel-host` 被 Git 忽略。换机器 clone 仓库不会带来隧道授权或数据。
-- Fly/Render 配置已在仓库，存在不等于当前部署在这些平台。Fly `internal_port=3000`、实际 `primary_region=ams`，需同区持久卷；部分注释仍称 lhr 或 PIN 要删库才生效，代码行为优先。
+- Fly 配置已在仓库，存在不等于当前部署在这些平台。Fly `internal_port=3000`、实际 `primary_region=ams`，需同区持久卷；部分注释仍称 lhr 或 PIN 要删库才生效，代码行为优先。
 - 数据每分钟 JSON 快照，重置/用户删除前备份，进程正常退出也备份；备份含敏感信息，不能提交。现有 JSON 导出不代表有完备的一键恢复 UI。
 - 部署需用户授权。确认构建、具体服务与数据目录、实际 PIN 来源、健康检查、公网入口与页面新版本后才能记“已部署”。不要靠进程号或静态资源 hash 长期记部署身份。
+- **重启后必须核对进程实际打开的 SQLite 文件**（如 `lsof -p <pid>` 的 `game.db` 路径），并用已登录的 `/api/staff/sync` 核对花名册人数；只检查预期路径上的数据库计数是不够的。2026-09-17 一次重启沿用错误的 `MLG_DATA_DIR` 指向另一份空库，健康检查仍为 200，导致页面暂时看不到用户；已纠正为项目 `server/data` 的绝对路径。不要把另一份空库误当作生产数据或用其覆盖原库。
 - `city.claiolulu.com` 是独立 `3d-city` 项目，不是这个仓库的 Passport 页面；不要在本项目顺手修改或重启它。
 
 ## 6. 本次核对、已知问题与下一步
@@ -122,8 +126,7 @@ npm start
 
 已发现但本次没有修复：
 
-1. `README.md` 仍大篇幅介绍已移除的组队、盲盒、恩典站、旧八关与旧测试清库说明。应按当前长期打卡产品重写；其“测试会清真实库并重灌”已不成立。
-2. `server/seed.mjs` 仍调用不存在的 `/api/admin/team`、旧站点与 life_event；可能先创建参与者再失败，不能当作可靠的演示初始化工具。
+1.–2. （2026-09-17 已解决：README 按打卡护照重写；`server/seed.mjs` 已删除。）
 3. 若继续完善协作编辑，活动全量替换接口没有版本冲突控制；当前不要承诺多人同时编辑不覆盖。
 4. 角色过滤用于体验/操作限制而非配置保密；若以后要求私密活动，需同时设计 `/api/config` 的服务端数据过滤。
 
@@ -193,6 +196,62 @@ npm start
 5. 检查 `git diff --check` 和链接；最终回复说明记忆已同步。提交/推送/部署是否执行仍由当前用户请求决定。
 
 ### 开发记录
+
+**2026-09-17 冗余清理（用户要求「都清理掉吧，v1水印图也删」）** —— 未提交、未部署。
+- 删除：`web/src/components/RowEditor.jsx`（无引用）、`server/seed.mjs` 与 `npm run seed`、`render.yaml`、`scripts/tunnel.sh`、v1 水印 `web/public/wm/{central-station,necropolis,peoples-palace}.png` 及 `design/wm/src/` 同名原图、16 份旧 `server/data/pre-*.db` 快照（保留 `pre-start-guard-2026-09-17.db`、`pre-share-gate-2026-09-17T14-06-55.db`、`pre-deeplink-2026-09-15T17-03-25.db`）。
+- 服务端行为：`getActivities` 空数组不再回填 6 个出厂活动（只有设置里根本没有活动清单时才用 `config.js` 的 `ACTIVITIES`）；`MLG_REQUIRE_EXISTING_DB` 守卫改为「至少 1 个用户 + 活动清单是数组（可空）」；启动清理旧设置加入 `registrationOpen`。排行榜隐藏时的响应去掉 `teams`。这些**需要重启 node 才生效**。
+- 死注释/死代码：`game.js` 未用 import 与旧关卡注释；`index.js` 排路线注释；`VisaBlocks.jsx` 的 `identity`/`team` 栏目分支；`PassportBook.jsx` 盲盒/游戏注释；`styles.css` 抽卡动画与组队排行榜样式注释；`test-flow.mjs` setup 去掉旧字段；`fly.toml` PIN 注释改为 secrets 用法；`generated-to-watermark.py` 只处理 v2 三张。
+- 文档：README 全文重写为当前打卡护照（去掉游戏手册、seed、Render/tunnel.sh、抽卡/组队 API；水印改为 `visaWatermark.js` 14 张）。
+- 验证：`npm test` 全过（迁移 27、流程 232、并发 11、只读 33）；隔离目录 `vite build` 成功后删除。未做真机测试。
+- 工作区同时含用户未提交的水印系统 / 启动守卫改动，提交时注意分开。
+
+
+#### 2026-09-17 · 新增水印缩小并补云朵
+
+- 用内置图像生成工具以 `design/wm/src/grid.png` 为风格参考，分别编辑新增的中央车站、人民宫、墓园原图：主体缩小约三分之一，周围留透明空白并加入简洁轮廓云；v2 源图在 `design/wm/src/*-v2.png`。`design/wm/generated-to-watermark.py` 对 v2 不再自动裁透明边，否则会把主体放大回去；酒红色 PNG8 在 `web/public/wm/*-v2.png`（三张合计约 148KB）。
+- `web/src/lib/visaWatermark.js` 候选池改用 v2 文件名，v1 文件保留但不再引用；用户缓存中的旧图不会盖掉新版。14 张候选路径校验通过，隔离构建通过；生产 `npm run build` 后公网护照页引用新 bundle，三张 v2 水印 URL 均为 200。未做真机视觉检查；服务端和数据库未改。
+
+#### 2026-09-17 · Visa 每页格拉斯哥地标水印
+
+- 用内置图像生成工具，以 `design/wm/src/grid.png` 为风格参考，新增中央车站、人民宫、墓园 3 张透明插画原图到 `design/wm/src/`；`design/wm/generated-to-watermark.py` 将它们压成与旧素材相同的酒红色透明 PNG8，产物在 `web/public/wm/`。现共 14 张候选。生成图是风格化插画，并非建筑测绘图。
+- `web/src/lib/visaWatermark.js` 按活动 id + 页 id 稳定选图，既用于 `bookVals.js` 正式护照，也用于 `VisaPageFrame.jsx` 画板预览；`ActivityDesign.jsx` 传入当前页 id。`PassportBook.jsx` 空闲时只预取本人的页面实际用到的水印。旧活动数据里的 `landmarkKey` 保留但不再决定 Visa 水印。
+- 验证：14 个候选文件齐全；样例信息页/附加页映射到不同图且重复调用稳定；隔离构建与生产 `npm run build` 均通过。公网护照页引用新 JS，三张新水印 URL 均返回 200。未做真机视觉检查；服务端与数据库未改。
+
+#### 2026-09-17 · 护照二维码提示与可见活动进度
+
+- `PassportBookView.jsx`：导航/活动介绍页移除大号「MEMBER CODE 同工扫码盖章」区和原进度条；使用说明的「两种二维码」说明底部增加靠右、可点击放大的个人护照码提示；参与记录顶部显示「已参加x/x场活动」和进度条（不写 VISAS、可见活动）。各页固定的页脚/右下角护照码仍保留。
+- `bookVals.js`：VISAS 分子改为当前可见活动中已有参与章的场数，分母仍为可见活动数；首次/最近章日期也只取当前可见活动。页眉与身份页 MRZ 中标为 VISAS 的数字改用同一场数，不再误把积分当签证数。历史章仍在数据中，不删除。
+- 验证：隔离前端构建通过；用含隐藏历史章的样例调用 `buildVals` 得到 1/2、50%、页眉 01；`npm run build` 已写入线上 `web/dist`，公网护照页引用新 bundle、健康 200。未做真机视觉/点击检查；服务端和数据库未改。
+- 文案跟进：按用户要求将参与记录的进度文字精确改为「已参加x/x场活动」；重新构建并确认公网护照页引用新 JS。统计口径不变，未做真机视觉检查。
+
+#### 2026-09-17 · 报名页隐藏底部护照/徽章导航
+
+- `web/src/App.jsx` 的 `BottomNav` 对 `/join/:id` 不再渲染底栏「护照 / 徽章」。报名卡片里按状态提供的报名、领/找回护照以及「打开我的护照」操作保留。
+- `npm run build` 通过并写入线上读取的 `web/dist`；公网报名页引用新 JS bundle，健康检查 200。仅前端更新，服务端和数据库未改；未做真机视觉点击检查。
+
+#### 2026-09-17 · 报名码弹层直接打开链接；Visa 内容差异排查
+
+- `VisaBlocks.jsx` 报名二维码弹层增加「直接打开报名页」链接，复用二维码本身的 `joinUrl`；`styles.css` 将其放在分享、复制按钮上方。活动开始后隐藏二维码的规则不变。
+- 只读排查 Visa 与总控台差异：参与者和画板均用 `resolveBlocks` 渲染已存 `activity.blocks`，画板修改须点保存后经 `/api/admin/activities` 整份写入；参与者配置先读本机缓存，再从 `/api/config` 更新，断网时可能暂显旧内容。当前线上 4 场活动中两场 `done`、两场 `upcoming`；所有附加页的 `requireCheckin` 当前均未开启，因此现有活动不存在该开关导致的锁页。两场已结束活动对未签到者会按新规则灰置并标「未参加」。用户尚未说明具体哪场、哪项内容不同，无法仅凭服务器数据确定设备上看到的差异；未改活动数据。
+- 验证与部署：先在隔离 `/private/tmp/mlg-visa-link-check` 构建通过；随后应用户反馈，`npm run build` 写入生产 `web/dist`。公网首页引用新 JS/CSS 资源，公网 JS 内已包含「直接打开报名页」，健康检查 200。后端未重启、数据库未改。未做真机视觉/点击检查；PWA 若仍用旧缓存，需关闭后重新打开或刷新。
+
+#### 2026-09-17 · 防止本机服务误连空库
+
+- 根因：上次人工重启沿用错误的 `MLG_DATA_DIR`；原服务允许在不存在的目录自动建库，HTTP 健康仍成功。现在 `scripts/start-local-server.sh` 固定项目 `server/data` 的绝对路径并设置生产校验开关；根目录 `npm start`、`scripts/tunnel.sh` 改走这个脚本。`server/src/db.js` 在保护模式下先用只读连接核对已有数据库、非空用户/活动、`quick_check`，失败即退出，且不会创建缺失目录。
+- 验证：隔离副本上错目录被拒且未建目录、空库被拒、有效库通过；`npm test` 全部通过（首次沙箱无端口权限失败，获准运行后通过）。
+- 部署：重启前备份 `server/data/pre-start-guard-2026-09-17.db`（`integrity_check=ok`，17 用户、4 活动）；已用受保护脚本重启本机服务。实际打开路径由 `lsof` 确认为项目 `server/data/game.db`；管理员登录后的只读同步返回 17 用户，公网活动接口 4 场，game/staff 健康均为 200。未修改活动或用户数据；容器部署未改、未验证。
+
+#### 2026-09-17 · 活动数据反馈排查（只读）
+
+- 用户反馈纠正空库后「活动数据也不对」。只读核对当前进程仍打开项目 `server/data/game.db`；本地当前库、部署前 `pre-share-gate-2026-09-17T14-06-55.db`、9 月 15 日 `pre-deeplink` 备份的 `_activities` 哈希一致，均为 4 场。公网 `/api/config` 也返回 4 场（2 场 done、2 场 upcoming）。错误目录里的空库为 6 场出厂默认活动、0 用户；未将其数据写回原库。
+- 尚未确定用户所指的是场次、状态、详情内容、排序、报名数还是个人可见范围；未修改活动配置或恢复备份，待用户指出具体异常再定位。
+
+#### 2026-09-17 · 活动分享页按签到可见、已结束未参加状态
+
+- `ActivityDesign.jsx` 的每张附加照片/总结页加「仅已签到的人可看」开关，随撤销/重做和保存一起存；`server/src/index.js` 清洗为布尔值，旧页缺省公开。
+- `bookVals.js` / `PassportBookView.jsx`：未盖章且开关开启时不渲染该页块，只显示锁定说明；活动 `done` 且本人未盖章时，信息页正文灰置、标「未参加」。报名二维码的 `upcoming` 可见、`live/done` 隐藏逻辑保持原样。
+- 验证：`npm run build` 通过，`npm test` 303/303（迁移 27、流程 232、并发 11、只读 33）；新增服务端测试覆盖逐页开关保存及旧页默认公开。未做真机触摸/视觉检查。
+- 部署与故障纠正：先备份项目内 SQLite 到 `server/data/pre-share-gate-2026-09-17T14-06-55.db`（完整性正常，17 位用户）。第一次重启时错误沿用 `MLG_DATA_DIR=/Users/claio/Desktop/Code/claude`，服务实际打开了该目录中新建的空库；当时只检查了项目内原库和 HTTP 健康，错误报告了部署成功，用户页面因此短暂显示为空。收到反馈后确认原库与备份均有 17 位用户，未被删除；重启为项目 `server/data` 的绝对路径（PID 39846）。`lsof` 已确认进程打开项目内 `game.db`；已登录的 `/api/staff/sync` 返回完整 17 位花名册；本机及 game/staff 公网健康均为 200。另一份空库未清理或覆盖。未修改生产活动配置，也未做真机视觉检查。强保密未实现，公开配置和图片直链仍可访问。
 
 #### 2026-09-15 · 修手机上护照下沿出现白边
 

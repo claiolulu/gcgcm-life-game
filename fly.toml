@@ -12,10 +12,8 @@
 #   fly volumes create mlg_data --size 1 --region lhr --yes   # lhr = 伦敦，离格拉斯哥最近
 #   fly deploy
 #
-# 正式活动前务必改掉默认 PIN：
+# 正式上线前务必设置 PIN（环境变量优先于数据库里存的值，set 之后自动重启即生效）：
 #   fly secrets set STAFF_PIN=你们的PIN ADMIN_PIN=只有负责人知道的PIN
-#   （set 之后会自动重启，PIN 存在数据库里，改完要重置一次或删库才生效 ——
-#     见 README「换掉默认 PIN」一节）
 
 app = "gcgcm-life-game"
 # 卷建在了 ams，机器必须和卷同区，所以这里跟着写 ams。

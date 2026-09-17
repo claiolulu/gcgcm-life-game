@@ -218,9 +218,11 @@ export function normalizeTagColor(c) {
 
 // 迎新游戏那套留下的设置项。rebuildIfLegacy 只对还没重建过的库跑，
 // 已经重建过的库里这几行还留着 —— 无害，但会让人以为功能还在。
+// registrationOpen 是旧的全局报名开关（报名早已改成按场次），一并清掉。
 {
   const gone = db.prepare(`DELETE FROM settings WHERE key IN
-    ('identitiesDrawnAt', 'scoreTiers', 'maxStationScore', 'lifeEventThresholds', 'helpTokens')`).run().changes;
+    ('identitiesDrawnAt', 'scoreTiers', 'maxStationScore', 'lifeEventThresholds', 'helpTokens',
+     'registrationOpen')`).run().changes;
   if (gone) console.log(`[db] 清掉 ${gone} 项迎新游戏留下的设置`);
 }
 
@@ -293,7 +295,9 @@ export function normalizeAudience(a) {
 }
 
 /**
- * 当前的活动清单。总控台改过就用库里的，没改过就是 config.js 的默认值。
+ * 当前的活动清单，以库里那份为准。config.js 的出厂活动只在新库第一次启动时
+ * 由 seedSettings() 写入一次；之后清单是空的就是空的 —— 原来「空列表就回填出厂的
+ * 6 场」，同工把活动删光后，那 6 场老活动会自己冒出来。
  *
  * 不放进 getSettings() 一起返回：它是个数组，而 settings 那个对象
  * 到处在传，混进去会让每个用到设置的地方都白背这份数据。
@@ -301,7 +305,7 @@ export function normalizeAudience(a) {
 export function getActivities() {
   const row = getSettingStmt.get('_activities');
   const list = row ? safeJSON(row.value, null) : null;
-  const out = Array.isArray(list) && list.length ? list : ACTIVITIES;
+  const out = Array.isArray(list) ? list : ACTIVITIES;
   // state 是后加的字段，库里存着的老记录没有它。补上默认值，
   // 免得前端拿到 undefined 之后各处都得写一遍兜底
   const normalized = out.map((a) => ({
@@ -388,7 +392,7 @@ export function seedSettings() {
   // 之后以库里的为准 —— 否则同工改完，一升级代码就被覆盖回去了。
   if (!getSettingStmt.get('_activities')) setSetting('_activities', ACTIVITIES);
 
-  // 兜底 PIN。开发环境用固定值，测试脚本和 npm run seed 依赖它；
+  // 兜底 PIN。开发环境用固定值，测试脚本依赖它；
   // 生产环境（NODE_ENV=production）绝不能有写死的默认值 —— 这个仓库是公开的，
   // 写死等于把总控台的钥匙贴在门上。没设环境变量就随机生成并打到日志里，
   // 部署方用 `fly logs` 能看到，正确做法仍然是 `fly secrets set`。

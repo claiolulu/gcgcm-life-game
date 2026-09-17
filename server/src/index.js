@@ -237,9 +237,6 @@ app.post('/api/register', (req, res) => {
   }
   if (!player) return res.status(500).json({ error: '编号分配失败，请重试' });
 
-  // 已经开赛还在报名（同工手动开了通道），立刻按当前各关的排队情况
-  // 给他排一条路线，从最空的那一关切入。赛前不排 —— 等宣布开始时统一排。
-
   broadcast('register');
 
   const row = stmts.playerById.get(player.id);
@@ -439,7 +436,7 @@ app.post('/api/me', playerAuth, (req, res) => {
 app.get('/api/leaderboard', (req, res) => {
   const settings = getSettings();
   if (!settings.leaderboardPublic && !req.get('authorization')) {
-    return res.json({ board: [], teams: [], hidden: true, serverTs: Date.now() });
+    return res.json({ board: [], hidden: true, serverTs: Date.now() });
   }
   const limit = Number(req.query.limit) || 0;
   res.json({
@@ -899,8 +896,8 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
   /**
    * 全局的 gameState 从此由活动状态推出来，不再单独设置。
    *
-   * 它还在被几处用着：护照信息锁定（活动期间锁住，两场之间可以改名）、
-   * 报名时要不要排路线。留着这层映射，那些地方就不用跟着改。
+   * 它还在被几处用着（比如护照信息锁定：活动期间锁住，两场之间可以改名）。
+   * 留着这层映射，那些地方就不用跟着改。
    */
   const nextState = live.length ? 'running' : 'lobby';
   if (getSettings().gameState !== nextState) setSetting('gameState', nextState);
