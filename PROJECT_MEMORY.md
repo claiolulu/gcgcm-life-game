@@ -197,13 +197,12 @@ npm start
 
 ### 开发记录
 
-**2026-09-17 冗余清理（用户要求「都清理掉吧，v1水印图也删」）** —— 未提交、未部署。
+**2026-09-17 冗余清理（用户要求「都清理掉吧，v1水印图也删」）** —— 已提交推送（`6feefd6` 用户的水印/签到页锁/启动守卫，`562a43d` 清理），已构建前端并重启 node 上线：重启前备份 `server/data/pre-cleanup-restart-2026-09-17.db`；新进程经 `scripts/start-local-server.sh` 启动、打开的是项目 `server/data/game.db`，推送公钥指纹不变，管理员登录正常，`/api/staff/sync` 花名册 17 人、活动 4 场，game/staff/city 三个公网入口正常，隧道未动。
 - 删除：`web/src/components/RowEditor.jsx`（无引用）、`server/seed.mjs` 与 `npm run seed`、`render.yaml`、`scripts/tunnel.sh`、v1 水印 `web/public/wm/{central-station,necropolis,peoples-palace}.png` 及 `design/wm/src/` 同名原图、16 份旧 `server/data/pre-*.db` 快照（保留 `pre-start-guard-2026-09-17.db`、`pre-share-gate-2026-09-17T14-06-55.db`、`pre-deeplink-2026-09-15T17-03-25.db`）。
 - 服务端行为：`getActivities` 空数组不再回填 6 个出厂活动（只有设置里根本没有活动清单时才用 `config.js` 的 `ACTIVITIES`）；`MLG_REQUIRE_EXISTING_DB` 守卫改为「至少 1 个用户 + 活动清单是数组（可空）」；启动清理旧设置加入 `registrationOpen`。排行榜隐藏时的响应去掉 `teams`。这些**需要重启 node 才生效**。
 - 死注释/死代码：`game.js` 未用 import 与旧关卡注释；`index.js` 排路线注释；`VisaBlocks.jsx` 的 `identity`/`team` 栏目分支；`PassportBook.jsx` 盲盒/游戏注释；`styles.css` 抽卡动画与组队排行榜样式注释；`test-flow.mjs` setup 去掉旧字段；`fly.toml` PIN 注释改为 secrets 用法；`generated-to-watermark.py` 只处理 v2 三张。
 - 文档：README 全文重写为当前打卡护照（去掉游戏手册、seed、Render/tunnel.sh、抽卡/组队 API；水印改为 `visaWatermark.js` 14 张）。
 - 验证：`npm test` 全过（迁移 27、流程 232、并发 11、只读 33）；隔离目录 `vite build` 成功后删除。未做真机测试。
-- 工作区同时含用户未提交的水印系统 / 启动守卫改动，提交时注意分开。
 
 
 #### 2026-09-17 · 新增水印缩小并补云朵
