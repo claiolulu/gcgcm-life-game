@@ -9,6 +9,7 @@ import Avatar from '../../components/Avatar.jsx';
 
 import PassportBookView from './PassportBookView.jsx';
 import { buildVals, buildPages } from './bookVals.js';
+import { visaWatermarkKey } from '../../lib/visaWatermark.js';
 import { FLIP_MS, FLIP_EASE } from './bookVals.js';
 import { useConfig, activitiesForPlayer } from '../../lib/config.js';
 import { usePlayer, refreshMe } from '../../lib/player.js';
@@ -432,14 +433,18 @@ export default function PassportBook() {
    * globIgnores）—— 那样会让安装包大一截，弱网下装不完就整个离线能力都没有。
    * 代价是每翻到一页才现去下载，手机上肉眼可见地慢半拍。
    *
-   * 折中：开场之后趁空闲把它们全拉一遍，运行时的 CacheFirst 规则会存下来。
-   * 一共十来张、约 260KB，等真翻到那一页时已经在缓存里了。
+   * 折中：开场后趁空闲只拉这本护照实际会出现的水印，运行时 CacheFirst
+   * 会存下来；不把所有地标塞进预缓存或一口气下载。
    * 失败无所谓，水印只是底纹。
    */
   useEffect(() => {
-    // 签证页不再画地标水印，只预取其余页面还在用的那 3 张
     const acts = activities;
-    const urls = ['cathedral', 'university', 'wellington'].map((k) => `/wm/${k}.png`)
+    const visaKeys = buildPages(acts)
+      .filter((p) => p.kind === 'visa')
+      .map((p) => visaWatermarkKey(acts[p.i]?.id, p.pageId))
+      .filter(Boolean);
+    const urls = [...new Set(['cathedral', 'university', 'wellington', ...visaKeys])]
+      .map((k) => `/wm/${k}.png`)
       // 活动配图也一起预取：它比水印更值得提前拿，那是页面上唯一的实照
       .concat(acts.map((a) => a.photo || null))
       .filter(Boolean);

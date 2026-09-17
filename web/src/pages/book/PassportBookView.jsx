@@ -159,38 +159,6 @@ export default function PassportBookView({ v }) {
                               </div>
 
                             </div>
-                            <div style={{display: "flex", alignItems: "center", gap: "16px", paddingTop: "4px"}}>
-                              <button onClick={v.openQr} style={{flex: "none", width: "84px", height: "84px", padding: "6px", background: "#fff", border: "1px solid rgba(var(--pp-ink-rgb),.45)"}} style-active="opacity:.85">
-                                {v.qrReady ? (
-                                  <>
-                                    <div style={{width: "100%", height: "100%"}}>
-                                      {v.qrThumb}
-                                    </div>
-                                  </>
-                                ) : null}
-                                {v.qrLoading ? (
-                                  <>
-                                    <div style={{width: "100%", height: "100%", background: "repeating-linear-gradient(45deg,rgba(var(--pp-text-rgb),.14) 0 3px,transparent 3px 6px)"}} />
-                                  </>
-                                ) : null}
-                              </button>
-                              <div style={{flex: "1", minWidth: "0"}}>
-                                <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
-                                  MEMBER CODE 同工扫码盖章
-                                </div>
-                                <div style={{marginTop: "8px", fontFamily: "'Courier Prime',monospace", fontWeight: "700", fontSize: "12px", letterSpacing: ".16em", color: "var(--pp-ink)"}}>
-                                  {v.passportNo}
-                                </div>
-                                <div style={{marginTop: "8px", display: "flex", alignItems: "center", gap: "10px"}}>
-                                  <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".16em", color: "var(--pp-ink)"}}>
-                                    VISAS {v.doneCount}/{v.visaTotal}
-                                  </div>
-                                  <div style={{flex: "1", height: "6px", background: "rgba(var(--pp-ink-rgb),.12)", border: "1px solid rgba(var(--pp-ink-rgb),.28)"}}>
-                                    <div style={{width: `${v.pct}%`, height: "100%", background: "linear-gradient(90deg,var(--pp-gold-3),var(--pp-gold-2))"}} />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
                             <div style={{marginTop: "auto", paddingTop: "12px", borderTop: "1px solid rgba(var(--pp-ink-rgb),.22)", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px"}}>
                               <div style={{fontFamily: "'EB Garamond',serif", fontSize: "9px", letterSpacing: ".16em", color: "rgba(var(--pp-text-rgb),.55)"}}>
                                 ISSUED BY GCGCM
@@ -277,6 +245,12 @@ export default function PassportBookView({ v }) {
                               <div style={{marginTop: "8px", fontSize: "13px", fontWeight: "600", lineHeight: "1.95", color: "var(--pp-text)"}}>
                                 活动海报上的二维码用来查看活动和报名；护照里的二维码属于你本人，到了现场出示给同工扫码盖章。不要把两者弄反。
                               </div>
+                              <div style={{display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "10px", marginTop: "12px"}}>
+                                <span style={{fontSize: "11px", color: "var(--pp-text)"}}>右下角护照码 · 点开可放大</span>
+                                <button onClick={v.openQr} aria-label="放大我的护照二维码" style={{flex: "none", width: "54px", height: "54px", padding: "4px", background: "#fff", border: "1px solid rgba(var(--pp-ink-rgb),.45)"}}>
+                                  {v.qrThumb}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </>
@@ -287,6 +261,12 @@ export default function PassportBookView({ v }) {
                             <button onClick={v.closeAside} style={{alignSelf: "flex-start", padding: "8px 14px", border: "1px solid rgba(var(--pp-ink-rgb),.4)", color: "var(--pp-ink)", fontFamily: "'EB Garamond',serif", fontSize: "10px", letterSpacing: ".2em", textIndent: ".2em"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
                               ← BACK 返回
                             </button>
+                            <div style={{padding: "12px 14px", border: "1px solid rgba(var(--pp-ink-rgb),.28)", background: "rgba(var(--pp-ink-rgb),.04)"}}>
+                              <div style={{fontFamily: "'EB Garamond',serif", fontSize: "11px", color: "var(--pp-ink)"}}>已参加{v.doneCount}/{v.visaTotal}场活动</div>
+                              <div style={{marginTop: "8px", height: "6px", background: "rgba(var(--pp-ink-rgb),.12)", border: "1px solid rgba(var(--pp-ink-rgb),.28)"}}>
+                                <div style={{width: `${v.pct}%`, height: "100%", background: "linear-gradient(90deg,var(--pp-gold-3),var(--pp-gold-2))"}} />
+                              </div>
+                            </div>
                             {(v.boardRows || []).map((row, i) => (
                               <React.Fragment key={i}>
                                 <div style={{display: "flex", alignItems: "center", gap: "12px", padding: "12px 10px", background: row.bg, borderBottom: "1px solid rgba(var(--pp-ink-rgb),.18)"}}>
@@ -453,9 +433,21 @@ export default function PassportBookView({ v }) {
                 ) : null}
                 {v.isVisa && !v.visaBlank ? (
                   <>
-                    <div onClick={v.stampTap} style={{position: "absolute", inset: "0", zIndex: "3", cursor: "pointer"}}>
+                    <div onClick={v.stampTap} style={{position: "absolute", inset: "0", zIndex: "3", cursor: "pointer", filter: v.missedActivity ? 'grayscale(1)' : undefined, opacity: v.missedActivity ? .45 : 1}}>
                       <VisaBlocks blocks={v.visaBlocks} data={v.visaBlockData} />
                     </div>
+                    {v.shareLocked ? (
+                      <div style={{position: 'absolute', zIndex: 4, inset: '18% 12% 18%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2cqh', color: 'var(--pp-text)', textAlign: 'center', pointerEvents: 'none'}}>
+                        <div style={{fontSize: '8cqh'}}>🔒</div>
+                        <strong style={{fontSize: '4cqh'}}>仅已参加的人可查看</strong>
+                        <span style={{fontSize: '2.5cqh'}}>这页的照片与内容在签到后开放</span>
+                      </div>
+                    ) : null}
+                    {v.missedActivity ? (
+                      <div style={{position: 'absolute', zIndex: 4, inset: '28% 28%', display: 'grid', placeItems: 'center', color: 'rgba(var(--pp-text-rgb),.65)', fontSize: '6cqh', fontWeight: 700, letterSpacing: '.12em', transform: 'rotate(-12deg)', pointerEvents: 'none'}}>
+                        未参加
+                      </div>
+                    ) : null}
                     <div style={{position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 4, height: "12%", pointerEvents: "none"}}>
                       <PassportMrz line1={v.visaBlockData?.mrz1} line2={v.visaBlockData?.mrz2} />
                     </div>

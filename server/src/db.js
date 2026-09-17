@@ -9,10 +9,38 @@ import {
 import { randomToken, safeJSON } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = process.env.MLG_DATA_DIR || path.join(__dirname, '..', 'data');
-fs.mkdirSync(DATA_DIR, { recursive: true });
-
+const DATA_DIR = path.resolve(process.env.MLG_DATA_DIR || path.join(__dirname, '..', 'data'));
 export const DB_PATH = path.join(DATA_DIR, 'game.db');
+
+// 已上线的服务必须明确选择一份已有数据，不能因目录拼错而自动建空库、
+// 再把出厂活动当成真实活动展示。新安装/隔离测试不启用此开关。
+if (process.env.MLG_REQUIRE_EXISTING_DB === '1') {
+  if (!process.env.MLG_DATA_DIR || !path.isAbsolute(process.env.MLG_DATA_DIR)) {
+    throw new Error('生产启动失败：MLG_DATA_DIR 必须是明确的绝对路径');
+  }
+  if (!fs.existsSync(DB_PATH) || !fs.statSync(DB_PATH).isFile()) {
+    throw new Error(`生产启动失败：数据库不存在：${DB_PATH}`);
+  }
+  const check = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+  try {
+    const players = check.prepare('SELECT COUNT(*) AS n FROM players').get().n;
+    const row = check.prepare("SELECT value FROM settings WHERE key = '_activities'").get();
+    const activities = row && JSON.parse(row.value);
+    // 活动清单可以是空的（同工把活动删光是合法状态，出厂活动不会再回填），
+    // 但必须是库里真实存在的一份数组；再加上至少一个用户，就足以认出「开到了一个新建空库」
+    if (players < 1 || !Array.isArray(activities)) {
+      throw new Error('数据库没有用户或活动清单');
+    }
+    if (check.pragma('quick_check', { simple: true }) !== 'ok') {
+      throw new Error('数据库完整性检查失败');
+    }
+  } catch (error) {
+    throw new Error(`生产启动失败：数据库校验未通过（${DB_PATH}）：${error.message}`);
+  } finally {
+    check.close();
+  }
+}
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /**
  * 总控台上传的活动配图。跟数据库放在一起 —— data/ 是整个部署里唯一

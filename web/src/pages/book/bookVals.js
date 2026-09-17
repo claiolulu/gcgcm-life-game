@@ -1,5 +1,6 @@
 import { installPlatform, INSTALL_HOWTO } from '../../lib/install.js';
 import { joinUrlFor } from '../../lib/activityQr.js';
+import { visaWatermarkKey } from '../../lib/visaWatermark.js';
 
 /**
  * 把实时数据喂给护照册的视觉层。
@@ -392,12 +393,12 @@ export function visaNoOf(station, issuer = 'GCGCM') {
   return authority + (dateCodeOf(station?.date) || 'TBC');
 }
 
-function mrzLine(n, { surname, given, passportNo, code, total }) {
+function mrzLine(n, { surname, given, passportNo, code, visasCount }) {
   const pad = (s, len) => (s + '<'.repeat(Math.max(0, len - s.length))).slice(0, len);
   if (n === 1) return pad('P<GCGCM' + clean(surname, 'PLAYER') + '<<' + clean(given, 'ONE'), 38);
   // 尾巴上那个数字是参加过几场，不是分数 —— 页眉那两处早就从 PTS 改成
   // VISAS 了，机读码这一行是最后一处还写着 PTS 的地方
-  return pad(passportNo + '<GCGCM<' + clean(code, '00') + '<' + String(total).padStart(2, '0') + 'VISAS', 38);
+  return pad(passportNo + '<GCGCM<' + clean(code, '00') + '<' + String(visasCount).padStart(2, '0') + 'VISAS', 38);
 }
 
 function visaMrzLine(n, { surname, given, visaNo, passportNo, code }) {
@@ -442,11 +443,13 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
   const kind = ui.overlay || cur.kind;
 
   const done = me?.stations || {};
-  const total = me?.total ?? 0;
-  const doneCount = Object.keys(done).length;
+  // 历史章仍保存在 me.stations，但护照只装订当前对本人可见的活动。
+  // 分子分母必须来自同一份列表，不能出现已删除/不可见活动造成的 5/4。
+  const attendedStations = stations.filter((st) => !!done[st.id]);
+  const doneCount = attendedStations.length;
 
   // 打卡本的汇总看的是「什么时候来的」，不是分数结算
-  const stampDates = Object.values(done)
+  const stampDates = attendedStations.map((st) => done[st.id])
     .map((d) => d?.at).filter(Boolean).sort((a, b) => a - b);
   const fmtDay = (ts) => {
     const d = new Date(ts);
@@ -484,6 +487,8 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
   const visaPageCount = station ? 1 + (station.extraPages || []).length : 1;
   const visaScore = station ? done[station.id]?.points ?? null : null;
   const isCheckin = station ? done[station.id]?.meta?.checkin === true : false;
+  const shareLocked = !!visaExtraPage?.requireCheckin && !isCheckin;
+  const missedActivity = station?.state === 'done' && !isCheckin && visaSubPage === 0;
   const landscape = kind === 'data' || kind === 'visa';
 
   const kickers = {
@@ -502,7 +507,7 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     visa: station
       ? (visaSubPage
         ? `PAGE ${visaSubPage + 1}/${visaPageCount}`
-        : (visaScore != null ? '已参加 ✓' : `NO.${String(cur.i + 1).padStart(2, '0')} 待参加`))
+        : (visaScore != null ? '已参加 ✓' : missedActivity ? '未参加' : `NO.${String(cur.i + 1).padStart(2, '0')} 待参加`))
       : '',
     guide: 'GUIDE · 点问号返回', board: 'RECORDS · 点奖杯返回',
     closing: 'JOHN 15:12',
@@ -513,13 +518,10 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
   // 封面和结语页不放：封面本身就是整版设计，结语是全书收尾，
   // 留白比再压一层地标更像一本护照的最后一页。
   //
-  // 签证页不放地标水印（2026-09-15 用户要求移除）：出厂那几场活动带着默认的
-  // landmarkKey，而同工新建的活动没有，结果有的签证页有底纹、有的没有；签证页
-  // 现在是同工在画板里整页排的，底纹也会和配图、文字抢。活动数据里的 landmarkKey
-  // 留着不删，只是不再画。其余页面仍用这 3 张（大教堂、大学、威灵顿），
-  // guide 和 board 是浮层，不会和正文页同屏出现，重复使用是有意的。
+  // 活动配置里旧的 landmarkKey 不可靠（新活动没有）；按活动和页 id 稳定选一张。
+  // 与画板同用 visaWatermarkKey，避免编辑预览和最终护照不一致。
   const landmarkKey = kind === 'visa'
-    ? null
+    ? visaWatermarkKey(station?.id, cur.pageId)
     : { inside: 'cathedral', notes: 'wellington', data: 'university',
         guide: 'wellington', board: 'university',
         closing: null }[kind] || null;
@@ -633,6 +635,8 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     kicker: visaBlank ? '' : (kickers[kind] || ''),
     corner: visaBlank ? '' : (corners[kind] || ''),
     visaBlank,
+    shareLocked,
+    missedActivity,
     pageNo: ui.overlay ? '——' : String(ui.page).padStart(2, '0'),
     label: ui.overlay === 'board' ? '排行 LEADERBOARD'
          : ui.overlay === 'guide' ? '使用说明 HOW TO USE' : cur.label,
@@ -699,8 +703,8 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     ].map((f) => ({ ...f, fg: f.fg || 'var(--pp-text)' })),
 
     mrzOn: true,
-    mrz1: mrzLine(1, { surname, given, passportNo, code: me?.code, total }),
-    mrz2: mrzLine(2, { surname, given, passportNo, code: me?.code, total }),
+    mrz1: mrzLine(1, { surname, given, passportNo, code: me?.code, visasCount: doneCount }),
+    mrz2: mrzLine(2, { surname, given, passportNo, code: me?.code, visasCount: doneCount }),
     bars: code39(passportNo),
 
     /* ---- 二维码（由容器异步生成后传入） ---- */
@@ -729,7 +733,7 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
       { label: 'MEMBER SINCE 入册', value: joinedOn },
     ],
     doneCount,
-    totalPad: String(total).padStart(2, '0'),
+    totalPad: String(doneCount).padStart(2, '0'),
     // 进度条走「参加过几场」，不是分数百分比
     pct: visaTotal ? Math.min(100, Math.round((doneCount / visaTotal) * 100)) : 0,
     visaTotal,
@@ -761,7 +765,7 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     visaBlocks: station
       ? (visaSubPage === 0
         ? resolveBlocks(config?.visaTemplate, station, theme)
-        : (Array.isArray(visaExtraPage?.blocks) ? visaExtraPage.blocks : []))
+        : shareLocked ? [] : (Array.isArray(visaExtraPage?.blocks) ? visaExtraPage.blocks : []))
       : [],
     visaBlockData: station ? blockData({
       station, me, theme, passportNo, surname, given, shareOrigin: config?.shareOrigin,

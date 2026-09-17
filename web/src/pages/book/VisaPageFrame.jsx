@@ -1,19 +1,21 @@
 import React from 'react';
 import { themeVarsOf } from './bookVals.js';
+import { visaWatermarkKey } from '../../lib/visaWatermark.js';
 
 /**
  * 编辑器里那张纸。
  *
  * 只画页面上「不属于块」的那几样：纸色、页眉那排按钮、右下角的二维码。
  * 中间留给 children —— 编辑器把可拖的块塞进来，层叠位置和真页面一致
- * （页眉压得住块）。签证页不再有地标水印（见 bookVals.js 的 landmarkKey）。
+ * （页眉压得住块）。背景地标按活动/页 id 和正式护照选同一张。
  *
  * 页面固定为 1.9:1。真护照在竖屏手机上把同一张横版纸转 90° 后等比缩放，
  * 横屏则直接等比缩放；编辑器也用这个比例，因此两边的坐标和字号一致。
  */
 export const PAGE_ASPECT = 1.9;
 
-export default function VisaPageFrame({ theme, activity, children }) {
+export default function VisaPageFrame({ theme, activity, pageId = 'info', children }) {
+  const watermarkKey = visaWatermarkKey(activity?.id, pageId);
   return (
     <div style={{
       ...themeVarsOf(theme),
@@ -21,6 +23,11 @@ export default function VisaPageFrame({ theme, activity, children }) {
       background: theme?.paper || '#f3ede0',
       overflow: 'hidden', containerType: 'size',
     }}>
+      {watermarkKey && <div style={{
+        position: 'absolute', right: '3%', top: '12%', width: '40%', bottom: '14%', pointerEvents: 'none',
+        backgroundImage: `url("/wm/${watermarkKey}.png")`, backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center', backgroundSize: 'contain', opacity: theme?.watermark ?? 0.13,
+      }} />}
       {children}
 
       {/* 页眉：App 的导航，不是这一页的内容，所以不是块，也不给拖 */}

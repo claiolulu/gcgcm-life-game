@@ -35,7 +35,7 @@ const FONTS = {
 
 /**
  * 活动报名二维码块。签证页上是一个小码 + 一句说明；点开是分享面板：
- * 大码（可长按保存）、系统分享（能带图就带图）、复制链接。
+ * 大码（可长按保存）、直接打开报名页、系统分享（能带图就带图）、复制链接。
  *
  * 中间的图标：块上没选 = 跟这场活动的图标，'M' = 护照徽章，其余是自选的。
  * 和护照页脚那个「护照码」是两回事 —— 那个给同工扫了盖章，这个给朋友扫了报名，
@@ -129,6 +129,7 @@ function QrBody({ b, data, editing }) {
           <br />这是报名码；现场盖章请出示护照页脚的护照码。
         </div>
         <div className="activity-qr-modal__actions">
+          <a className="is-primary activity-qr-modal__open" href={url}>直接打开报名页</a>
           <button type="button" className="is-primary" onClick={share}>分享给朋友</button>
           <button type="button" onClick={copy}>复制链接</button>
         </div>

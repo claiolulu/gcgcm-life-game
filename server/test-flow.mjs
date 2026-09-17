@@ -531,7 +531,7 @@ check('错误 PIN 被拒', badPin.status === 401);
   const base = cfg.body.activities;
   const activityId = base[0].id;
   const pages = [
-    { id: 'photos', kind: 'photo', title: '活动照片', blocks: [
+    { id: 'photos', kind: 'photo', title: '活动照片', requireCheckin: true, blocks: [
       { id: 'photo-title', kind: 'text', x: 8, y: 14, w: 84, h: 10, text: '我们在一起' },
       { id: 'gallery', kind: 'gallery', x: 8, y: 26, w: 84, h: 58,
         photos: ['/uploads/one.jpg', '', 'javascript:bad'], featured: 99, cols: 1 },
@@ -549,6 +549,8 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('一场活动能保存多张附加页', saved.status === 200 && extras.length === 2,
     JSON.stringify(extras));
   check('照片页和总结页类型被保留', extras[0]?.kind === 'photo' && extras[1]?.kind === 'summary');
+  check('照片页可设为仅已签到可见，未设置的总结页保持公开',
+    extras[0]?.requireCheckin === true && extras[1]?.requireCheckin === false);
   check('重复的附加页 id 会自动错开', extras[0]?.id !== extras[1]?.id,
     `${extras[0]?.id} / ${extras[1]?.id}`);
   check('附加页里的画布块能保存', extras[1]?.blocks?.[0]?.text === '这一页是总结。');

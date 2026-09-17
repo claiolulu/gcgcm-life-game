@@ -120,6 +120,7 @@ function newExtraPage(kind, index) {
   return {
     id: `p${stamp}`,
     kind,
+    requireCheckin: false,
     title: isPhoto ? `照片页 ${index}` : `活动总结 ${index}`,
     blocks: isPhoto ? [
       { id: `t${stamp}`, kind: 'text', x: 6, y: 15, w: 88, h: 9, rot: 0, opacity: 1,
@@ -493,6 +494,17 @@ export default function ActivityDesign() {
     if (pageIndex === 0) return;
     setDesignPages((cur) => {
       const next = cur.map((p, i) => (i === pageIndex ? { ...p, title } : p));
+      pagesRef.current = next;
+      return next;
+    });
+    setDirty(true);
+  }
+
+  function setPageCheckin(required) {
+    if (pageIndex === 0) return;
+    checkpoint();
+    setDesignPages((cur) => {
+      const next = cur.map((p, i) => i === pageIndex ? { ...p, requireCheckin: required } : p);
       pagesRef.current = next;
       return next;
     });
@@ -969,7 +981,8 @@ export default function ActivityDesign() {
         ...activityFieldsRef.current,
         blocks: pages[0]?.blocks || [],
         extraPages: pages.slice(1).map((p) => ({
-          id: p.id, kind: p.kind, title: p.title, blocks: p.blocks || [],
+          id: p.id, kind: p.kind, title: p.title, requireCheckin: p.requireCheckin === true,
+          blocks: p.blocks || [],
         })),
         name: nameRef.current.trim() || a.name,
       } : a));
@@ -1080,7 +1093,13 @@ export default function ActivityDesign() {
         </div>
         {pageIndex === 0 ? (
           <div className="tiny dim">第 1 页是活动信息页，始终保留；后续页面可以新增、排序或删除。</div>
-        ) : null}
+        ) : (
+          <label className="row" style={{ gap: 8, alignItems: 'center', marginTop: 8 }}>
+            <input type="checkbox" checked={designPages[pageIndex].requireCheckin === true}
+              onChange={(e) => setPageCheckin(e.target.checked)} />
+            <span>仅已签到的人可看这一页的内容和照片</span>
+          </label>
+        )}
       </div>
 
       <div className="design__body">
@@ -1143,7 +1162,7 @@ export default function ActivityDesign() {
           transformOrigin: 'center center',
         }}
       >
-        <VisaPageFrame theme={config.theme} activity={workingActivity}>
+        <VisaPageFrame theme={config.theme} activity={workingActivity} pageId={designPages?.[pageIndex]?.id}>
           <div style={{ position: 'absolute', inset: 0, zIndex: 3, containerType: 'size' }}>
             {blocks.map((b) => {
               const on = b.id === sel;

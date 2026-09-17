@@ -53,7 +53,8 @@ function BottomNav() {
   if (pathname === '/badge') return null;
   // 画布编辑器在所有设备上都只保留自己的工具，不叠「扫码 / 总控」。
   if (pathname.endsWith('/design')) return null;
-  if (pathname === '/' || pathname === '/register') return null;
+  // 扫码报名页只保留卡片里的报名和后续入口，不叠「护照 / 徽章」底栏。
+  if (pathname === '/' || pathname === '/register' || pathname.startsWith('/join/')) return null;
 
   const tabs = PLAYER_TABS;
 
