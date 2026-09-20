@@ -1270,26 +1270,33 @@ app.get('/api/activity/:id', (req, res) => {
 
 /**
  * 活动状态同时就是这场活动的报名状态：
- *   upcoming  报名中；live 报名截止、活动进行中；done 活动已结束。
+ *   upcoming  报名中；live 活动进行中；done 活动已结束。
  * 护照签发完全不看这里，避免一场活动关报名把整个护照系统一起关掉。
+ *
+ * 三种状态都收报名：扫码进来的人多半是活动开场了才扫，结束之后来补登记的也有。
+ * 晚到的报名照样落库，只是带上 late 标记 —— 他们没赶上现场那轮扫码，
+ * 总控台把这些人单独标出来，管理员自己补章。
  */
 function activityRegistration(a) {
   if (a.state === 'live') {
     return {
       status: 'live',
-      label: '报名已截止 · 活动进行中',
-      message: '活动已经开始，线上报名已截止。如果你刚到现场，请直接找同工。',
+      late: true,
+      label: '活动进行中 · 仍可报名',
+      message: '活动已经开始，你仍然可以报名；到了现场请找同工扫码盖章。',
     };
   }
   if (a.state === 'done') {
     return {
       status: 'ended',
-      label: '活动已结束',
-      message: '这场活动已经结束，报名记录和护照印章会继续保留。',
+      late: true,
+      label: '活动已结束 · 可以补登记',
+      message: '这场活动已经结束，你仍然可以补登记；章要请同工或管理员手动补盖。',
     };
   }
   return {
     status: 'open',
+    late: false,
     label: '报名中',
     message: '活动还没开始，现在可以报名。报名成功后，活动当天带上人生护照。',
   };
@@ -1304,13 +1311,12 @@ app.post('/api/activity/:id/signup', playerAuth, (req, res) => {
   if (!activityOpenForSignup(a, playerTagSet(req.player))) {
     return res.status(403).json({ error: '这场活动只对特定标签的成员开放，你不在名单里。如有疑问请联系同工。' });
   }
+  // 开场之后报名不再拦，但要标出来：这些人没赶上现场那轮扫码，
+  // 总控台得知道该找谁补章（见 /api/admin/activity/:id/signups 里的 late）
   const registration = activityRegistration(a);
-  if (registration.status !== 'open') {
-    return res.status(409).json({ error: registration.message, registration });
-  }
-  stmts.addSignup.run(a.id, req.player.id, Date.now());
+  stmts.addSignup.run(a.id, req.player.id, Date.now(), registration.late ? 1 : 0);
   broadcast('signup');
-  res.json({ ok: true, signedUp: true });
+  res.json({ ok: true, signedUp: true, late: !!registration.late, registration });
 });
 
 /** 取消报名。人会变卦，别让他只能来找同工改。 */
@@ -1319,10 +1325,9 @@ app.delete('/api/activity/:id/signup', playerAuth, (req, res) => {
   // 取消报名**不看标签**：已经报上的人永远能把自己撤下来。
   // 万一标签后来被改掉，他既看不到也退不掉，那就只能来麻烦同工
   if (!a) return res.status(404).json({ error: '找不到这场活动' });
-  const registration = activityRegistration(a);
-  if (registration.status !== 'open') {
-    return res.status(409).json({ error: '报名已经截止，不能再取消。如需变更请联系同工。', registration });
-  }
+  // 不看活动状态：什么时候能报名，就什么时候能撤，两边规则对称。
+  // 盖过章的人撤掉报名也不影响那一章 —— 章是独立的事件，总控台照样把他
+  // 列成「未报名 · 已参加」
   stmts.dropSignup.run(a.id, req.player.id);
   broadcast('signup');
   res.json({ ok: true, signedUp: false });
@@ -1342,6 +1347,7 @@ app.get('/api/admin/activity/:id/signups', staffAuth('admin'), (req, res) => {
     signups: rows.map((r) => ({
       id: r.player_id, name: r.name, code: r.code,
       avatar: safeJSON(r.avatar, {}), contact: r.contact || '', at: r.created_at,
+      late: r.late === 1,
     })),
   });
 });

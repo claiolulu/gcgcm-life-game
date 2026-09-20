@@ -48,9 +48,10 @@ function QrBody({ b, data, editing }) {
   const [thumb, setThumb] = useState('');
   const [big, setBig] = useState('');
   const [open, setOpen] = useState(false);
-  // 活动进入「进行中」（报名截止）或「已办完」，护照上自动不显示报名码；
+  // 活动「已办完」之后护照上自动不显示报名码 —— 进行中还留着，
+  // 开场后扫码进来的人照样能登记（服务端会标成补报名，章由管理员补）。
   // 画板里照样画出来（变淡 + 注明），同工才知道这个块还在
-  const closed = (data?.activityState || 'upcoming') !== 'upcoming';
+  const closed = (data?.activityState || 'upcoming') === 'done';
   // 码中间的徽章用这本护照的主色和金色：从块自己身上读 --pp-* 变量
   // （护照册和画板的签证页容器都挂着它们），读到了才开始画，免得先画一张默认色的再换
   const btnRef = useRef(null);
@@ -152,7 +153,7 @@ function QrBody({ b, data, editing }) {
         <span className="visa-qr__code">{thumb ? <img src={thumb} alt="" /> : null}</span>
         <span className="visa-qr__text">
           <span className="visa-qr__label" style={{ fontFamily: FONTS.sans }}>{b.label || '扫码报名'}</span>
-          <span className="visa-qr__hint">{closed ? '报名截止后自动隐藏' : '点开分享给朋友'}</span>
+          <span className="visa-qr__hint">{closed ? '活动结束后自动隐藏' : '点开分享给朋友'}</span>
         </span>
       </button>
       {modal}

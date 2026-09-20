@@ -818,6 +818,7 @@ export default function ActivityDetail() {
             </div>
             <div className="tiny dim">
               签到就是盖章 —— 和同工扫码盖的是同一个章，一场只盖一次，盖下去撤不掉。
+              标「补报名」的是活动开始或结束之后才报上的人，现场没扫到，章在这里补。
               {ciQuery.trim() ? '一键全签到只作用于当前搜到的人。' : ''}
               没报名的人盖了章也会列在这里；还没盖章的，扫他的码或去「👥 用户」里标记。
             </div>
@@ -833,6 +834,10 @@ export default function ActivityDetail() {
                       <div className="small bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.name}
                         {!p.signed && <span className="tiny dim" style={{ fontWeight: 400 }}> · 未报名</span>}
+                        {/* 开场之后才报上的：现场那轮扫码没扫到他，章得在这里手动补 */}
+                        {p.signed && p.late && (
+                          <span className="tiny" style={{ fontWeight: 400, color: 'var(--yellow)' }}> · 补报名</span>
+                        )}
                       </div>
                       <div className="tiny dim">
                         {p.code}

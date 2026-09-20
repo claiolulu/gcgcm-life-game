@@ -194,6 +194,15 @@ export function normalizeTagColor(c) {
   return /^#[0-9a-f]{6}$/.test(s) ? s : '';
 }
 
+// signups.late 是后加的列，老库里没有。同样得赶在准备语句之前补上。
+{
+  const cols = db.prepare('PRAGMA table_info(signups)').all().map((c) => c.name);
+  if (cols.length && !cols.includes('late')) {
+    db.exec('ALTER TABLE signups ADD COLUMN late INTEGER NOT NULL DEFAULT 0');
+    console.log('[db] 已为 signups 表添加 late 列');
+  }
+}
+
 // tags.color 是后加的列。老库里 tags 表已经在，CREATE IF NOT EXISTS 不会补列，
 // 得在准备语句之前手动加上 —— 否则下面 allTags 那条 SELECT color 直接报错起不来。
 // 加完顺手给没颜色的标签按顺序各发一个不重复的颜色。
@@ -431,10 +440,10 @@ export const adminPin = () => String(process.env.ADMIN_PIN || getSetting('_admin
 export const stmts = {
   /* ---------------------------- 报名 ---------------------------- */
   addSignup: db.prepare(
-    'INSERT OR IGNORE INTO signups (activity_id, player_id, created_at) VALUES (?, ?, ?)'),
+    'INSERT OR IGNORE INTO signups (activity_id, player_id, created_at, late) VALUES (?, ?, ?, ?)'),
   dropSignup: db.prepare('DELETE FROM signups WHERE activity_id = ? AND player_id = ?'),
   signupsFor: db.prepare(`
-    SELECT s.player_id, s.created_at, p.name, p.code, p.avatar, p.contact
+    SELECT s.player_id, s.created_at, s.late, p.name, p.code, p.avatar, p.contact
       FROM signups s JOIN players p ON p.id = s.player_id
      WHERE s.activity_id = ?
      ORDER BY s.created_at

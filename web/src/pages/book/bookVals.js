@@ -258,7 +258,7 @@ export function blockData({
     links: station?.links || [],
     // 报名二维码块用：扫码去的报名页（分享域名见 /api/config 的 shareOrigin）和中间默认的图标
     activityId: station?.id || '',
-    // 报名码只在「还没到」（报名中）时显示；进行中 = 报名已截止，已办完 = 结束，扫进去也报不了名
+    // 报名码在「还没到」和「进行中」都显示；已办完才收起来（那之后扫进去是补登记）
     activityState: station?.state || 'upcoming',
     icon: station?.icon || '',
     joinUrl: joinUrlFor(station?.id, shareOrigin),
@@ -301,7 +301,7 @@ const GUIDE = [
   { n: 1, cn: '领取并保管', en: 'GET YOUR PASSPORT',
     body: '人生护照随时都可以领取，不受任何活动是否开始影响。记住个人编号和四位密码，换手机后可以找回同一本。' },
   { n: 2, cn: '扫描活动海报', en: 'SIGN UP',
-    body: '海报二维码打开的是那一场活动：显示“报名中”时可以报名；活动开始后会显示报名截止；办完后会显示活动已结束。' },
+    body: '海报二维码打开的是那一场活动：显示“报名中”时可以直接报名；活动开始后仍然可以报名，办完之后也能补登记，只是章要请同工或管理员补盖。' },
   { n: 3, cn: '翻到活动签证', en: 'YOUR VISA PAGES',
     body: '每场活动至少有一张信息页，也可以继续装订照片页和总结页。页顶的“上传”可以把文字或照片交给活动同工。' },
   { n: 4, cn: '到场出示护照码', en: 'GET STAMPED',

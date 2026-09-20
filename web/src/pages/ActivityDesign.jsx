@@ -1417,7 +1417,7 @@ function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages }
     const mode = !b.icon ? 'activity' : b.icon === 'M' ? 'badge' : 'custom';
     return (
       <>
-        <div className="tiny dim">这场活动的报名二维码。参与者在自己的签证页上点开，能放大、分享给朋友；朋友扫码进入报名页。中间的图标可以换。活动改成「进行中」或「已办完」后（报名已截止），护照上会自动隐藏这个码，改回「还没到」又会出现。</div>
+        <div className="tiny dim">这场活动的报名二维码。参与者在自己的签证页上点开，能放大、分享给朋友；朋友扫码进入报名页。中间的图标可以换。活动改成「已办完」之后，护照上会自动隐藏这个码，改回「还没到」或「进行中」又会出现；开场后扫码进来的人照样能登记，总控台会标成「补报名」。</div>
         <div className="tiny dim">中间的图标</div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           {[['activity', '跟活动图标'], ['badge', '护照徽章 M'], ['custom', '自选图标']].map(([k, label]) => (

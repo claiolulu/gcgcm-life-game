@@ -197,6 +197,17 @@ npm start
 
 ### 开发记录
 
+**2026-09-20 扫码报名放开到活动开始 / 结束之后** —— 已提交，未部署（服务端改动要重启才生效）。
+- `signups` 加 `late` 列（schema.sql + db.js 里在准备语句前 ALTER，老库自动补）。
+- `activityRegistration()` 三种状态都收报名：live/done 返回 `late: true` 和各自的话术；
+  `POST /api/activity/:id/signup` 不再 409，按 late 落库并回传；`DELETE` 也不再看状态
+  （能报就能撤，盖过章的人撤报名不影响那一章）。
+- `GET /api/admin/activity/:id/signups` 每行带 `late`；总控台「已报名」列表标黄字「· 补报名」，
+  管理员用原有的「签到」按钮手动补章。
+- 签证页报名码改成只在 `state === 'done'` 时隐藏（进行中继续显示）。
+- 测试：`npm test` 全过（迁移 27、流程 239、并发 11、只读 33）；另起 3233 隔离实例用真实前端核对了
+  进行中/已结束两种报名话术和总控台的「补报名」标记。
+
 **2026-09-17 冗余清理（用户要求「都清理掉吧，v1水印图也删」）** —— 已提交推送（`6feefd6` 用户的水印/签到页锁/启动守卫，`562a43d` 清理），已构建前端并重启 node 上线：重启前备份 `server/data/pre-cleanup-restart-2026-09-17.db`；新进程经 `scripts/start-local-server.sh` 启动、打开的是项目 `server/data/game.db`，推送公钥指纹不变，管理员登录正常，`/api/staff/sync` 花名册 17 人、活动 4 场，game/staff/city 三个公网入口正常，隧道未动。
 - 删除：`web/src/components/RowEditor.jsx`（无引用）、`server/seed.mjs` 与 `npm run seed`、`render.yaml`、`scripts/tunnel.sh`、v1 水印 `web/public/wm/{central-station,necropolis,peoples-palace}.png` 及 `design/wm/src/` 同名原图、16 份旧 `server/data/pre-*.db` 快照（保留 `pre-start-guard-2026-09-17.db`、`pre-share-gate-2026-09-17T14-06-55.db`、`pre-deeplink-2026-09-15T17-03-25.db`）。
 - 服务端行为：`getActivities` 空数组不再回填 6 个出厂活动（只有设置里根本没有活动清单时才用 `config.js` 的 `ACTIVITIES`）；`MLG_REQUIRE_EXISTING_DB` 守卫改为「至少 1 个用户 + 活动清单是数组（可空）」；启动清理旧设置加入 `registrationOpen`。排行榜隐藏时的响应去掉 `teams`。这些**需要重启 node 才生效**。

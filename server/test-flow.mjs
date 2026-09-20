@@ -385,14 +385,25 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('全局状态确实写进去了', after.body.settings.gameState === 'running');
 
   const liveInfo = await j(`/api/activity/${base[0].id}`);
-  check('进行中的活动二维码显示报名截止话术',
+  check('进行中的活动说明仍可报名',
     liveInfo.body.registration?.status === 'live'
-      && /报名已截止/.test(liveInfo.body.registration?.label || ''),
+      && liveInfo.body.registration?.late === true
+      && /仍可报名/.test(liveInfo.body.registration?.label || ''),
     JSON.stringify(liveInfo.body.registration));
   const liveSignup = await j(`/api/activity/${base[0].id}/signup`, {
     method: 'POST', headers: { authorization: `Bearer ${playerToken}` },
   });
-  check('进行中的活动不再接受线上报名', liveSignup.status === 409, `状态码 ${liveSignup.status}`);
+  check('进行中的活动照收报名，并标成补报名',
+    liveSignup.status === 200 && liveSignup.body.late === true,
+    `状态码 ${liveSignup.status} ${JSON.stringify(liveSignup.body)}`);
+  const liveRoster = await j(`/api/admin/activity/${base[0].id}/signups`, { headers: adminH });
+  check('补报名在总控台名单里带 late 标记',
+    liveRoster.body.signups?.some((x) => x.late === true),
+    JSON.stringify(liveRoster.body.signups));
+  const liveCancel = await j(`/api/activity/${base[0].id}/signup`, {
+    method: 'DELETE', headers: { authorization: `Bearer ${playerToken}` },
+  });
+  check('补报名同样可以自己撤销', liveCancel.status === 200, `状态码 ${liveCancel.status}`);
 
   const upcomingInfo = await j(`/api/activity/${base[1].id}`);
   check('还没开始的活动二维码显示报名中', upcomingInfo.body.registration?.status === 'open',
@@ -429,13 +440,15 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('没有进行中的时候，全局状态回到 lobby', none.body.gameState === 'lobby');
 
   const endedInfo = await j(`/api/activity/${base[0].id}`);
-  check('已结束的活动二维码显示结束话术', endedInfo.body.registration?.status === 'ended'
+  check('已结束的活动说明可以补登记', endedInfo.body.registration?.status === 'ended'
+    && endedInfo.body.registration?.late === true
     && /已结束/.test(endedInfo.body.registration?.label || ''),
     JSON.stringify(endedInfo.body.registration));
   const endedSignup = await j(`/api/activity/${base[0].id}/signup`, {
     method: 'POST', headers: { authorization: `Bearer ${playerToken}` },
   });
-  check('已结束的活动不接受报名', endedSignup.status === 409, `状态码 ${endedSignup.status}`);
+  check('已结束的活动也能补登记', endedSignup.status === 200 && endedSignup.body.late === true,
+    `状态码 ${endedSignup.status} ${JSON.stringify(endedSignup.body)}`);
 
   const bad = await j('/api/admin/activities', {
     method: 'POST', headers: adminH,

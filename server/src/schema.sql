@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS signups (
   activity_id TEXT NOT NULL,
   player_id   TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   created_at  INTEGER NOT NULL,
+  -- 活动开始或结束之后才报上的名。总控台要把这些人挑出来单独确认，
+  -- 他们没赶上现场那轮扫码，章得管理员手动补
+  late        INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (activity_id, player_id)
 );
 

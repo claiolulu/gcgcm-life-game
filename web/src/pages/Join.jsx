@@ -53,14 +53,19 @@ export default function Join() {
   const signedUp = !!me?.signups?.includes(id);
   const registration = info?.registration || {
     status: info?.activity?.state === 'done' ? 'ended' : info?.activity?.state === 'live' ? 'live' : 'open',
-    label: info?.activity?.state === 'done' ? '活动已结束' : info?.activity?.state === 'live' ? '报名已截止 · 活动进行中' : '报名中',
+    label: info?.activity?.state === 'done' ? '活动已结束 · 可以补登记'
+      : info?.activity?.state === 'live' ? '活动进行中 · 仍可报名' : '报名中',
     message: '',
+    late: info?.activity?.state !== 'upcoming',
   };
-  const signupOpen = registration.status === 'open';
+  // 开场后和结束后都照收报名，只是提示语不一样、总控台会标成「补报名」。
+  // 旧版服务端没有 late 字段，那时只有 open 收报名 —— 保持兼容
+  const signupLate = registration.late === true;
+  const signupOpen = registration.status === 'open' || signupLate;
 
   async function toggle() {
     if (!player.session) {
-      // 报名中：领完护照顺手报名；截止后：仍然可以领护照，但不偷偷补报名。
+      // 领完护照顺手把这场报上 —— 开场后扫码进来的人同样走这条路
       const next = encodeURIComponent(`/join/${id}`);
       nav(signupOpen ? `/register?next=${next}&signup=${encodeURIComponent(id)}` : `/register?next=${next}`);
       return;
@@ -73,7 +78,9 @@ export default function Join() {
       track(signedUp ? 'cancel' : 'signup', { activityId: id });
       await refreshMe();
       await load();
-      toast(signedUp ? '已取消报名' : '报名成功，活动当天带上护照', 'ok');
+      toast(signedUp ? '已取消报名'
+        : signupLate ? '已记下你的报名 · 章要请同工补盖'
+        : '报名成功，活动当天带上护照', 'ok');
     } catch (e) {
       toast(e.message || '没报上，再试一次', 'err');
     } finally {
@@ -176,12 +183,14 @@ export default function Join() {
         !player.session ? (
           <>
             <div className="small">
-              {signupOpen
-                ? '先领一本人生护照 —— 领完会自动报名这场活动。'
-                : '即使这场活动不再接受报名，你仍然可以领取自己的人生护照，用于之后的活动。'}
+              {!signupOpen
+                ? '即使这场活动不再接受报名，你仍然可以领取自己的人生护照，用于之后的活动。'
+                : signupLate
+                  ? '先领一本人生护照 —— 领完会把你记在这场活动里；章要请同工或管理员补盖。'
+                  : '先领一本人生护照 —— 领完会自动报名这场活动。'}
             </div>
             <button className="btn btn--primary btn--full" onClick={toggle}>
-              {signupOpen ? '领护照并报名 →' : '领取人生护照 →'}
+              {!signupOpen ? '领取人生护照 →' : signupLate ? '领护照并登记 →' : '领护照并报名 →'}
             </button>
             <Link className="btn btn--ghost btn--full" to={`/restore?next=${encodeURIComponent(`/join/${id}`)}`}>
               我已经有护照了，用编号找回
@@ -191,15 +200,19 @@ export default function Join() {
           <>
             <div className="small">
               {signedUp
-                ? `${me?.name}，你已经报名了。活动当天带上护照，找同工扫码盖章。`
-                : `${me?.name}，报个名让同工知道你会来。`}
+                ? signupLate
+                  ? `${me?.name}，你的报名已经记下了。${registration.message}`
+                  : `${me?.name}，你已经报名了。活动当天带上护照，找同工扫码盖章。`
+                : signupLate
+                  ? `${me?.name}，${registration.message}`
+                  : `${me?.name}，报个名让同工知道你会来。`}
             </div>
             <button
               className={`btn btn--full ${signedUp ? 'btn--ghost' : 'btn--primary'}`}
               disabled={busy}
               onClick={toggle}
             >
-              {busy ? '…' : signedUp ? '取消报名' : '我要报名'}
+              {busy ? '…' : signedUp ? '取消报名' : signupLate ? '我也来了 · 登记一下' : '我要报名'}
             </button>
             <Link className="btn btn--ghost btn--full" to="/passport">打开我的护照</Link>
           </>
