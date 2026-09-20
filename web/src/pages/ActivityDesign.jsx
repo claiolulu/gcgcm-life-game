@@ -588,14 +588,39 @@ export default function ActivityDesign() {
     });
     const from = slots.findIndex((sl) => sl.index === i);
     if (from < 1) return;
-    tabDragRef.current = { from, to: from, startX: e.clientX, slots, moved: false };
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 浏览器会自己继续派发 */ }
+    const touch = e.pointerType === 'touch';
+    tabDragRef.current = {
+      from, to: from, startX: e.clientX, slots, moved: false,
+      // 手指按下先不接管：页签这一条本身要能左右滑着看。
+      // 按住不动半秒才进入排序，这之前一滑就交给浏览器滚动 ——
+      // 两个手势都是横向的，只能靠「按住」把它们分开
+      armed: !touch,
+      el: e.currentTarget,
+      pointerId: e.pointerId,
+      timer: touch ? setTimeout(() => {
+        const d = tabDragRef.current;
+        if (!d) return;
+        d.armed = true;
+        d.moved = true;
+        setDragTab(d.slots[d.from].index);
+        navigator.vibrate?.(12);
+        try { d.el.setPointerCapture(d.pointerId); } catch { /* 浏览器会自己继续派发 */ }
+      }, 320) : null,
+    };
+    if (!touch) {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 同上 */ }
+    }
   }
 
   function moveTabDrag(e) {
     const d = tabDragRef.current;
     if (!d) return;
     const dx = e.clientX - d.startX;
+    // 还没「按住」就动了：这是在滑页签条，放手让浏览器滚，别抢
+    if (!d.armed) {
+      if (Math.abs(dx) > 8) { clearTimeout(d.timer); tabDragRef.current = null; }
+      return;
+    }
     if (!d.moved && Math.abs(dx) < 6) return;   // 手抖不算拖动
     if (!d.moved) { d.moved = true; setDragTab(d.slots[d.from].index); }
     e.preventDefault();
@@ -626,6 +651,7 @@ export default function ActivityDesign() {
   function endTabDrag(e, i) {
     const d = tabDragRef.current;
     if (!d) return;
+    clearTimeout(d.timer);
     tabDragRef.current = null;
     setDragTab(null);
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* 已自动释放 */ }
@@ -1283,7 +1309,8 @@ export default function ActivityDesign() {
               className={`design__page-tab ${pageIndex === i ? 'design__page-tab--on' : ''}`
                 + `${dragTab === i ? ' design__page-tab--dragging' : ''}`}
               title={i === 0 ? '活动信息页固定在第一页' : '拖动可以调整装订顺序'}
-              style={{ touchAction: i === 0 ? undefined : 'none', cursor: i === 0 ? undefined : 'grab' }}
+              // pan-x：手指横滑照样能滚这条页签条，按住 0.3 秒才进入排序
+              style={{ touchAction: 'pan-x', cursor: i === 0 ? undefined : 'grab' }}
               onPointerDown={(e) => startTabDrag(e, i)}
               onPointerMove={moveTabDrag}
               onPointerUp={(e) => endTabDrag(e, i)}

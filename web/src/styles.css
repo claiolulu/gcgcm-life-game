@@ -1190,7 +1190,8 @@ body.has-sheet .toast-wrap { bottom: auto; top: calc(var(--safe-top, 0px) + 12px
     padding: 4px;
     border-radius: 10px;
   }
-  .design__page-tabs { min-width: 0; padding-bottom: 0; }
+  /* 上下各留一点：页签条是要用手指横滑的，贴着别的控件很容易滑错 */
+  .design__page-tabs { min-width: 0; padding: 5px 0 7px; }
   /* 页签之外的东西自己换行：按钮一排，页名单独占满一行 */
   .design__page-actions { flex-wrap: wrap !important; max-width: none !important; overflow: visible !important; }
   .design__page-move { display: none; }          /* 拖页签就能排序，箭头省了 */
@@ -1746,15 +1747,21 @@ html.book-locked body {
   .design__canvas-toolbar .design__zoom-reset { width: auto; min-width: 36px; font-size: 8px; }
   /* 吸附 / 全屏这两个按钮带文字，不能按正方形图标按钮裁 */
   .design__canvas-toolbar .design__mode-button { width: auto; min-width: 0; padding: 0 6px !important; }
+  /* 横屏同样分层：页签一行、按钮一行。挤在一行的话，横滑页签和拖着排序
+     两个手势叠在同一条轨道上，很难分清 */
   .design__pages {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 4px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 3px;
     margin-bottom: 4px;
     padding: 3px 4px;
     border-radius: 10px;
   }
-  .design__page-tabs { min-width: 0; padding-bottom: 0; }
+  .design__page-tabs { min-width: 0; padding: 4px 0 6px; }
+  .design__page-actions { flex-wrap: wrap !important; max-width: none !important; overflow: visible !important; }
+  .design__page-move { display: none; }
+  .design__narrow-hide { display: none; }
+  .design__page-title { flex: 1 1 140px !important; width: auto !important; }
   .design__page-tab {
     min-width: 82px;
     min-height: 30px;
