@@ -83,6 +83,27 @@ check('盖章记下来了', s5.body.results[0].status === 'ok', JSON.stringify(s
 check('盖章带 checkin 标记（印章据此写「已参加」）',
   s5.body.results[0].event.meta?.checkin === true, JSON.stringify(s5.body.results[0].event.meta));
 
+const revokeUrl = `/api/admin/activity/christmas/checkin/${player.id}`;
+const staffRevoke = await j(revokeUrl, { method: 'DELETE', headers: staffH });
+check('普通同工不能撤销签到', staffRevoke.status === 403);
+const adminRevokeLogin = await j('/api/staff/login', {
+  method: 'POST', body: { pin: process.env.ADMIN_PIN || 'stm2026', name: '管理员' },
+});
+const adminRevokeH = { authorization: `Bearer ${adminRevokeLogin.body.token}` };
+const revoke = await j(revokeUrl, { method: 'DELETE', headers: adminRevokeH });
+check('管理员可撤销指定活动的签到', revoke.status === 200 && revoke.body.ok);
+const afterRevoke = await j('/api/me', { headers: { authorization: `Bearer ${playerToken}` } });
+check('撤销后章和对应分数消失', !afterRevoke.body.player.stations.christmas && afterRevoke.body.player.total === 18);
+const replayRevoked = await j('/api/staff/sync', {
+  method: 'POST', headers: staffH, body: { ops: [chk], since: 0 },
+});
+check('旧离线操作重放不能恢复被撤销的章', replayRevoked.body.results[0].status === 'conflict');
+const checkInAgain = await j('/api/staff/sync', {
+  method: 'POST', headers: staffH,
+  body: { ops: [{ ...chk, opId: 'op-test-005-new' }], since: 0 },
+});
+check('撤销后可以重新签到', checkInAgain.body.results[0].status === 'ok');
+
 // 9. 迎新游戏那几种操作已经不认了
 for (const [label, op] of [
   ['人生盲盒', { opId: 'gone-1', type: 'life_event', playerId: player.id, cardId: 'crypto_crash' }],

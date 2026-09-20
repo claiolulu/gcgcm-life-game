@@ -48,6 +48,14 @@ export default function PassportBook() {
   const [opened, setOpened] = useState(false);
   // v2 是打卡护照的新说明。换一个键，让看过旧游戏引导的人也会自动看到一次。
   const [tourDone, setTourDone] = useLocalState('mlg.tourDone.v2', false);
+  // 全书同一个开关：默认只翻每场的 Visa 信息页，按需展开照片与总结。
+  const [showReviews, setShowReviews] = useLocalState('mlg.reviewPagesOpen.v1', false);
+  const [reviewNotice, setReviewNotice] = useState(null);
+  useEffect(() => {
+    if (!reviewNotice) return undefined;
+    const timer = setTimeout(() => setReviewNotice(null), 3200);
+    return () => clearTimeout(timer);
+  }, [reviewNotice]);
   const [board, setBoard] = useState([]);
   const [qr, setQr] = useState({ thumb: null, big: null });
   const [vpLandscape, setVpLandscape] = useState(
@@ -138,7 +146,7 @@ export default function PassportBook() {
   // 签证页按活动装订，顺序就是配置里的先后（大致按时间）。
   // 游戏版那套「按各关忙闲排班」在这里用不上 —— 活动分散在几个月里，
   // 不存在开局全挤在一个门口的问题。
-  const pages = useMemo(() => buildPages(activities), [activities]);
+  const pages = useMemo(() => buildPages(activities, showReviews), [activities, showReviews]);
   const pageCount = pages.length;
 
   // 使用统计：翻到了哪页、打开了哪些浮层。只记类别和活动 id（见 lib/track.js）
@@ -281,6 +289,39 @@ export default function PassportBook() {
     targetRef.current = to;
     setPage(to);
   }, [pageCount]);
+
+  const toggleReviews = useCallback(() => {
+    const current = pages[page] || pages[0];
+    const nextOpen = !showReviews;
+    const nextPages = buildPages(activities, nextOpen);
+    // 收起时若正停在附页，退到该活动的信息页；其他页按身份重找索引，
+    // 否则前面活动少了附页之后，当前页会错位到另一场活动。
+    const target = current?.kind === 'visa' && !nextOpen && current.subPage
+      ? { kind: 'visa', i: current.i, pageId: 'info' } : current;
+    const nextIndex = nextPages.findIndex((p) => p.kind === target?.kind
+      && (p.kind !== 'visa' || (p.i === target.i && p.pageId === target.pageId)));
+    flipTimers.current.forEach(clearTimeout);
+    flipTimers.current = [];
+    document.querySelectorAll('.book-ghost').forEach((g) => g.remove());
+    flipping.current = false;
+    pending.current = null;
+    setFlip(null);
+    targetRef.current = Math.max(0, nextIndex);
+    setPage(targetRef.current);
+    setShowReviews(nextOpen);
+    setReviewNotice({ open: nextOpen, id: Date.now() });
+  }, [pages, page, showReviews, activities, setShowReviews]);
+
+  const openReview = useCallback(() => {
+    const current = pages[page];
+    if (showReviews || current?.kind !== 'visa' || current.subPage) return;
+    const firstExtra = buildPages(activities, true).findIndex((p) =>
+      p.kind === 'visa' && p.i === current.i && p.subPage === 1);
+    if (firstExtra < 0) return;
+    toggleReviews();
+    targetRef.current = firstExtra;
+    setPage(firstExtra);
+  }, [pages, page, showReviews, activities, toggleReviews]);
 
   /**
    * 从徽章页返回时，回到点进去时的那一页。
@@ -439,7 +480,7 @@ export default function PassportBook() {
    */
   useEffect(() => {
     const acts = activities;
-    const visaKeys = buildPages(acts)
+    const visaKeys = buildPages(acts, true)
       .filter((p) => p.kind === 'visa')
       .map((p) => visaWatermarkKey(acts[p.i]?.id, p.pageId))
       .filter(Boolean);
@@ -489,7 +530,7 @@ export default function PassportBook() {
     return buildVals({
       me, rank, of, config, activities, board,
       ui: {
-        page, overlay, modal, vpLandscape, flip,
+        page, overlay, modal, vpLandscape, flip, showReviews, reviewNotice,
         push: push.state,
         qrThumb: qr.thumb, qrBigImg: qr.big, checking, screenGap,
         // 资料页的证件照就是选手自己捏的头像。
@@ -503,7 +544,7 @@ export default function PassportBook() {
       },
       actions: {
         togglePush: push.toggle,
-        move, goto, setOverlay, setModal, checkStamp,
+        move, goto, setOverlay, setModal, checkStamp, toggleReviews, openReview,
         // 资料页右上角那个「✎ 自定义」：改这本护照的配色，只影响自己
         openTheme: () => setThemeOpen(true),
         openContribution: (activity) => setContributionActivity(activity),
@@ -515,7 +556,7 @@ export default function PassportBook() {
       },
     });
   }, [me, rank, of, config, activities, board, page, overlay, modal, vpLandscape, flip, qr, checking, screenGap, push,
-      move, goto, checkStamp]);
+      showReviews, reviewNotice, move, goto, checkStamp, toggleReviews, openReview]);
 
   if (loading && !me) {
     return <BookSplash text="正在打开你的护照…" />;
@@ -530,7 +571,6 @@ export default function PassportBook() {
   // page 表示这一步需要先翻到第几页（页码见 buildPages）。
   const notesPage = pages.findIndex((p) => p.kind === 'notes');
   const firstVisa = pages.findIndex((p) => p.kind === 'visa');
-  const visaPageCount = pages.filter((p) => p.kind === 'visa').length;
   const pushOk = pushSupport();
   // 手机上还没从桌面图标打开的，引导第二步教「添加到桌面」（按 iPhone / 安卓分别说）
   const platform = installPlatform();
@@ -546,10 +586,13 @@ export default function PassportBook() {
   const tourSteps = [
     { eyebrow: 'YOUR PASSPORT 你的护照', page: notesPage,
       title: '这是一本会一直陪着你的活动护照',
-      body: `它不属于某一晚或某一场游戏。资料页、${visaPageCount} 张活动内容页和结语装订在一起；以后增加活动或照片页，也会自动装订进来。点左右边缘即可翻页。` },
+      body: `它不属于某一晚或某一场游戏。主线先装订每场活动的 Visa 信息页，目前共 ${activities.length} 场；点左右边缘翻页，照片和总结可按需展开。` },
     { eyebrow: 'VISA PAGES 签证页', page: firstVisa,
       title: '每场活动都有自己的页面',
-      body: '第一页是活动信息，后面还可以有照片和总结；文字多的地方可以用手指滑着看。页顶“上传”能把文字或照片交给同工。有些活动只对报了名的人、或者某个小组的人显示。' },
+      body: 'Visa 首页放活动信息，照片和总结默认收起；文字多的地方可以用手指滑着看。页顶“上传”能把素材交给同工。有些活动只对报了名的人、或者某个小组的人显示。' },
+    { eyebrow: 'ACTIVITY RECAP 活动回顾', page: firstVisa, selector: '[data-tour="reviews-toggle"]',
+      title: '想看照片和总结，打开附页',
+      body: '“详情页”浅色表示收起，此时有附页的 Visa 右下角会显示“活动回顾”，点它直接打开这场的照片或总结；点页眉“详情页”则全局展开，按钮变深色，附页进入正常翻页，“活动回顾”入口会隐藏。再点可收起。' },
     { eyebrow: 'IDENTIFICATION 资料页', page: pages.findIndex((p) => p.kind === 'data'),
       title: '现场出示的是“护照二维码”',
       body: '活动海报上的二维码用来报名；这本护照里的二维码用来让同工认出你并盖章，盖完这一场就记为「已参加」。扫不出来时，直接报资料页上的个人编号即可。' },

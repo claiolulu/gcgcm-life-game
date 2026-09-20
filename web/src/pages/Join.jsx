@@ -108,6 +108,7 @@ export default function Join() {
   if (!info) return <div className="page"><NetBar /><div className="dim">正在载入…</div></div>;
 
   const a = info.activity;
+  const passportUrl = `/passport?activity=${encodeURIComponent(id)}`;
 
   return (
     <div className="page">
@@ -214,7 +215,7 @@ export default function Join() {
             >
               {busy ? '…' : signedUp ? '取消报名' : signupLate ? '我也来了 · 登记一下' : '我要报名'}
             </button>
-            <Link className="btn btn--ghost btn--full" to="/passport">打开我的护照</Link>
+            <Link className="btn btn--ghost btn--full" to={passportUrl}>打开我的护照</Link>
           </>
         ) : (
           <>
@@ -223,7 +224,7 @@ export default function Join() {
                 ? `${me?.name}，你的报名记录还在。${registration.message}`
                 : `${me?.name}，${registration.message}`}
             </div>
-            <Link className="btn btn--primary btn--full" to="/passport">打开我的护照</Link>
+            <Link className="btn btn--primary btn--full" to={passportUrl}>打开我的护照</Link>
           </>
         )}
       </div>

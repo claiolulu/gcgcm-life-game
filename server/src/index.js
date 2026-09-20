@@ -805,6 +805,24 @@ app.delete('/api/admin/player/:id', staffAuth('admin'), (req, res) => {
   res.json({ ok: true, epoch: epoch(), serverTs: Date.now() });
 });
 
+/** 仅管理员可撤销指定用户在指定活动的一枚章；报名记录保持不变。 */
+app.delete('/api/admin/activity/:id/checkin/:playerId', staffAuth('admin'), (req, res) => {
+  const { id, playerId } = req.params;
+  const player = stmts.playerById.get(playerId);
+  if (!player) return res.status(404).json({ error: '找不到这个用户' });
+  const event = stmts.stationEvent.get(playerId, id);
+  if (!event) return res.status(404).json({ error: '这场活动没有可撤销的签到' });
+  // 先备份完整库，再在同一事务里删除章、记录墓碑并触发增量同步。
+  writeSnapshot();
+  db.transaction(() => {
+    stmts.revokeEvent.run(event.id, playerId, id, JSON.stringify(event), req.staff.name || '', Date.now());
+    stmts.deleteStationEvent.run(event.id);
+    stmts.touchPlayer.run(Date.now(), playerId);
+  })();
+  broadcast('sync');
+  res.json({ ok: true });
+});
+
 
 /**
  * 改活动清单。总控台整份替换，不做增量 —— 排序、删除、改字段
@@ -1050,12 +1068,16 @@ function cleanBlocks(raw, where) {
       case 'note':
         return { ...base, label: str(b?.label, 30), ...textStyle };
       case 'photo':
-        return { ...base, fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover' };
+        return { ...base, fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover',
+                 posX: num(b?.posX, 0, 100, 50), posY: num(b?.posY, 0, 100, 50),
+                 zoom: num(b?.zoom, 0.25, 4, 1) };
       case 'links':
         return base;
       case 'image':
         return { ...base, src: safePhoto(b?.src),
-                 fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover', radius: num(b?.radius, 0, 50, 0) };
+                 fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover', radius: num(b?.radius, 0, 50, 0),
+                 posX: num(b?.posX, 0, 100, 50), posY: num(b?.posY, 0, 100, 50),
+                 zoom: num(b?.zoom, 0.25, 4, 1) };
       case 'gallery':
         return {
           ...base, href: '',

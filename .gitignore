@@ -24,3 +24,9 @@ scripts/.tunnel-url
 scripts/.tunnel-host
 server/data-test/
 server/data-migrate-test/
+
+# 另一个会话（Codex）的展示稿构建产物：pptx/渲染图/临时 node_modules，共几十 MB，
+# 属于一次性交付物，不进公开仓库
+.codex-build/
+.codex-finalizer/
+outputs/

@@ -15,3 +15,10 @@ export function visaWatermarkKey(activityId, pageId = 'info') {
   }
   return VISA_WATERMARK_KEYS[(hash >>> 0) % VISA_WATERMARK_KEYS.length];
 }
+
+// 新版图片本身留白更多，因此在页面里用更大的显示区域；旧图保持原布局。
+export function visaWatermarkPlacement(key) {
+  return key?.endsWith('-v2')
+    ? { right: '3%', top: '8%', width: '72%', bottom: '8%' }
+    : { right: '3%', top: '12%', width: '40%', bottom: '14%' };
+}

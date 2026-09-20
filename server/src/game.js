@@ -312,6 +312,9 @@ function insertEvent(row) {
 }
 
 const applyOpTx = db.transaction((op, settings) => {
+  if (op.opId && stmts.revokedEvent.get(op.opId)) {
+    return { opId: op.opId, status: 'conflict', message: '这次签到已由管理员撤销，请重新签到' };
+  }
   const player = stmts.playerById.get(op.playerId);
   if (!player) return { status: 'error', message: '找不到该选手' };
 

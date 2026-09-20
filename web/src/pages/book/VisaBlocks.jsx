@@ -337,6 +337,76 @@ export function PassportMrz({ line1, line2, className = '' }) {
 }
 
 /** 一个块的内容，不含定位 —— 定位在外层，编辑器要在同一个盒子上挂拖拽 */
+/** 图的原始长宽比按 src 缓存：同一张图在画板和护照里会渲染很多次，不必每次重读。 */
+const imageAspects = new Map();
+
+function useImageAspect(src) {
+  const [aspect, setAspect] = useState(() => (src && imageAspects.get(src)) || 0);
+  useEffect(() => {
+    if (!src) return undefined;
+    const cached = imageAspects.get(src);
+    if (cached) { setAspect(cached); return undefined; }
+    let alive = true;
+    const img = new Image();
+    img.onload = () => {
+      if (!img.naturalWidth || !img.naturalHeight) return;
+      const ratio = img.naturalWidth / img.naturalHeight;
+      imageAspects.set(src, ratio);
+      if (alive) setAspect(ratio);
+    };
+    img.src = src;
+    return () => { alive = false; };
+  }, [src]);
+  return aspect;
+}
+
+/**
+ * 「配图」和「图片」共用的图面：posX/posY 选露出图的哪一部分，zoom 改图本身多大。
+ *
+ * zoom 必须落在 background-size 上，不能用 transform —— transform 缩的是「已经裁好的
+ * 那张画面」，裁掉的边角再也回不来；用户要的是缩小之后原来被裁掉的上下重新露出来。
+ * 所以这里得知道图的原始长宽比和框的实际像素，自己把 cover/contain 的基准算出来再乘 zoom。
+ * 这两样还没拿到时先退回纯 CSS 的 cover/contain，和以前的行为一致，拿到后再精确化。
+ */
+function CroppedImage({ src, b }) {
+  const ref = useRef(null);
+  const aspect = useImageAspect(src);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setBox((cur) => (cur.w === width && cur.h === height ? cur : { w: width, h: height }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const fit = b.fit || 'cover';
+  const posX = b.posX ?? 50;
+  const posY = b.posY ?? 50;
+  const zoom = b.zoom ?? 1;
+
+  let backgroundSize = fit;
+  if (aspect && box.w && box.h) {
+    // 铺满 = 两边都不小于框，完整显示 = 两边都不超过框；算出基准高度再乘 zoom
+    const baseH = fit === 'contain'
+      ? Math.min(box.w / aspect, box.h)
+      : Math.max(box.w / aspect, box.h);
+    const drawH = baseH * zoom;
+    backgroundSize = `${drawH * aspect}px ${drawH}px`;
+  }
+
+  return (
+    <div ref={ref} style={{
+      width: '100%', height: '100%', backgroundImage: `url("${src}")`,
+      backgroundSize, backgroundPosition: `${posX}% ${posY}%`, backgroundRepeat: 'no-repeat',
+    }} />
+  );
+}
+
 export function BlockBody({ b, data, editing, inlineEditing = false, onTextChange }) {
   switch (b.kind) {
     case 'banner':
@@ -472,10 +542,10 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
       }
       return (
         <div style={{ width: '100%', height: '100%', padding: '0.7cqh', background: '#fff', border: '1px solid rgba(var(--pp-ink-rgb),.35)', boxSizing: 'border-box' }}>
-          <div style={{
-            width: '100%', height: '100%', backgroundImage: `url("${data.photo}")`,
-            backgroundSize: b.fit || 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-          }} />
+          {/* 放大后要被这层白边框裁住，不然会糊出框外 */}
+          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            <CroppedImage src={data.photo} b={b} />
+          </div>
         </div>
       );
 
@@ -510,10 +580,11 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
       if (!b.src) return editing ? <Ghost text="还没选图" /> : null;
       return (
         <div style={{
-          width: '100%', height: '100%', backgroundImage: `url("${b.src}")`,
-          backgroundSize: b.fit || 'cover', backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat', borderRadius: `${b.radius || 0}%`,
-        }} />
+          width: '100%', height: '100%', overflow: 'hidden',
+          borderRadius: `${b.radius || 0}%`,
+        }}>
+          <CroppedImage src={b.src} b={b} />
+        </div>
       );
 
     case 'gallery':

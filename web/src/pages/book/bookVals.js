@@ -1,6 +1,6 @@
 import { installPlatform, INSTALL_HOWTO } from '../../lib/install.js';
 import { joinUrlFor } from '../../lib/activityQr.js';
-import { visaWatermarkKey } from '../../lib/visaWatermark.js';
+import { visaWatermarkKey, visaWatermarkPlacement } from '../../lib/visaWatermark.js';
 
 /**
  * 把实时数据喂给护照册的视觉层。
@@ -303,7 +303,7 @@ const GUIDE = [
   { n: 2, cn: '扫描活动海报', en: 'SIGN UP',
     body: '海报二维码打开的是那一场活动：显示“报名中”时可以直接报名；活动开始后仍然可以报名，办完之后也能补登记，只是章要请同工或管理员补盖。' },
   { n: 3, cn: '翻到活动签证', en: 'YOUR VISA PAGES',
-    body: '每场活动至少有一张信息页，也可以继续装订照片页和总结页。页顶的“上传”可以把文字或照片交给活动同工。' },
+    body: '主护照每场活动先显示一张 Visa 信息页。“详情页”浅色表示附页收起，此时 Visa 右下角的“活动回顾”可直达这场的照片和总结；深色表示附页已加入正常翻页，“活动回顾”入口会隐藏。点击切换时会弹出状态提示。页顶“上传”可以把素材交给同工。' },
   { n: 4, cn: '到场出示护照码', en: 'GET STAMPED',
     body: '现场打开护照二维码给同工扫描，同工会在对应活动页盖“已参加”章。每场只盖一次，盖完手机上立即更新。' },
   { n: 5, cn: '随时回来翻阅', en: 'KEEP THE JOURNEY',
@@ -323,8 +323,8 @@ function guideFor() {
   }];
 }
 
-/** 页码表：每场活动至少一张信息页，后面可继续装订照片页和总结页。 */
-export function buildPages(stations) {
+/** 页码表：默认每场只装订信息页；全局展开后才把照片/总结附页加入翻页。 */
+export function buildPages(stations, showReviews = false) {
   const visas = stations.flatMap((st, i) => {
     const extras = Array.isArray(st?.extraPages) ? st.extraPages : [];
     return [
@@ -332,7 +332,7 @@ export function buildPages(stations) {
         kind: 'visa', i, subPage: 0, pageId: 'info', pageTitle: '活动信息',
         label: `签证 ${String(i + 1).padStart(2, '0')} ${st.name} · 活动信息`,
       },
-      ...extras.map((p, j) => ({
+      ...(showReviews ? extras : []).map((p, j) => ({
         kind: 'visa', i, subPage: j + 1, pageId: p.id, pageTitle: p.title || `第 ${j + 2} 页`,
         label: `签证 ${String(i + 1).padStart(2, '0')}.${j + 2} ${st.name} · ${p.title || '附加页'}`,
       })),
@@ -438,7 +438,7 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
   // 一旦有活动设了可见范围（同工专属 / 报名可见），页码就会错位指到别的页，
   // 分母也会把看不见的那几场算进去。
   const stations = activities || config?.activities || [];
-  const pages = buildPages(stations);
+  const pages = buildPages(stations, ui.showReviews);
   const cur = pages[ui.page] || pages[0];
   const kind = ui.overlay || cur.kind;
 
@@ -604,6 +604,11 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     isNotes: kind === 'notes',
     isData: kind === 'data',
     isVisa: kind === 'visa',
+    showReviews: !!ui.showReviews,
+    reviewNotice: ui.reviewNotice,
+    hasReviewPages: kind === 'visa' && visaSubPage === 0 && (station?.extraPages || []).length > 0,
+    toggleReviews: () => actions.toggleReviews(),
+    openReview: () => actions.openReview(),
     isGuide: kind === 'guide',
     isBoard: kind === 'board',
     isClosing: kind === 'closing',
@@ -626,6 +631,7 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     // 关掉设计稿那层放射状底纹，只留地标水印，页面更干净
     guilloche: 0,
     watermark: landmarkKey ? `url("/wm/${landmarkKey}.png")` : 'none',
+    watermarkPlacement: kind === 'visa' ? visaWatermarkPlacement(landmarkKey) : null,
     // 页脚不再印地标名称，水印本身已经足够表达
     watermarkName: '',
 

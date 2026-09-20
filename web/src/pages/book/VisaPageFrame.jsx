@@ -1,6 +1,7 @@
 import React from 'react';
 import { themeVarsOf } from './bookVals.js';
-import { visaWatermarkKey } from '../../lib/visaWatermark.js';
+import { visaWatermarkKey, visaWatermarkPlacement } from '../../lib/visaWatermark.js';
+import VisaReviewButton from './VisaReviewButton.jsx';
 
 /**
  * 编辑器里那张纸。
@@ -14,7 +15,7 @@ import { visaWatermarkKey } from '../../lib/visaWatermark.js';
  */
 export const PAGE_ASPECT = 1.9;
 
-export default function VisaPageFrame({ theme, activity, pageId = 'info', children }) {
+export default function VisaPageFrame({ theme, activity, pageId = 'info', showReviewEntry = false, children }) {
   const watermarkKey = visaWatermarkKey(activity?.id, pageId);
   return (
     <div style={{
@@ -24,7 +25,7 @@ export default function VisaPageFrame({ theme, activity, pageId = 'info', childr
       overflow: 'hidden', containerType: 'size',
     }}>
       {watermarkKey && <div style={{
-        position: 'absolute', right: '3%', top: '12%', width: '40%', bottom: '14%', pointerEvents: 'none',
+        position: 'absolute', ...visaWatermarkPlacement(watermarkKey), pointerEvents: 'none',
         backgroundImage: `url("/wm/${watermarkKey}.png")`, backgroundRepeat: 'no-repeat',
         backgroundPosition: 'center', backgroundSize: 'contain', opacity: theme?.watermark ?? 0.13,
       }} />}
@@ -53,6 +54,7 @@ export default function VisaPageFrame({ theme, activity, pageId = 'info', childr
         alignItems: 'center', justifyContent: 'center', fontSize: '2cqh',
         color: 'rgba(var(--pp-ink-rgb),.6)', pointerEvents: 'none',
       }}>QR</div>
+      {showReviewEntry && <VisaReviewButton preview />}
     </div>
   );
 }

@@ -546,6 +546,10 @@ export const stmts = {
   stationEvent: db.prepare(
     "SELECT * FROM events WHERE player_id = ? AND station_id = ? AND kind = 'station'"
   ),
+  revokedEvent: db.prepare('SELECT event_id FROM revoked_events WHERE event_id = ?'),
+  allRevokedEvents: db.prepare('SELECT * FROM revoked_events ORDER BY revoked_at ASC'),
+  revokeEvent: db.prepare('INSERT INTO revoked_events (event_id, player_id, station_id, event_json, operator, revoked_at) VALUES (?, ?, ?, ?, ?, ?)'),
+  deleteStationEvent: db.prepare("DELETE FROM events WHERE id = ? AND kind = 'station'"),
   totals: db.prepare('SELECT player_id, SUM(points) AS total FROM events GROUP BY player_id'),
   totalFor: db.prepare('SELECT COALESCE(SUM(points), 0) AS total FROM events WHERE player_id = ?'),
   eventCounts: db.prepare(
@@ -560,6 +564,7 @@ export function snapshot() {
     settings: getSettings(),
     players: stmts.allPlayers.all(),
     events: stmts.allEvents.all(),
+    revokedEvents: stmts.allRevokedEvents.all(),
     activityMaterials: stmts.allMaterials.all(),
   };
 }
@@ -581,6 +586,7 @@ export function resetAll({ keepPlayers = false } = {}) {
     setSetting('_epoch', (getSetting('_epoch', 0) || 0) + 1);
     db.prepare('DELETE FROM activity_materials').run();
     db.prepare('DELETE FROM events').run();
+    db.prepare('DELETE FROM revoked_events').run();
     if (!keepPlayers) db.prepare('DELETE FROM players').run();
     setSetting('gameState', 'lobby');
   });

@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS players (
 CREATE INDEX IF NOT EXISTS players_canon   ON players(canon);
 CREATE INDEX IF NOT EXISTS players_updated ON players(updated_at);
 
--- 仅追加的事件日志。
+-- 事件日志通常仅追加；管理员撤销误签到时删除对应章，并把原记录留在 revoked_events。
 CREATE TABLE IF NOT EXISTS events (
   -- 客户端生成的 opId。重复提交靠主键自动忽略，弱网重试才安全
   id         TEXT PRIMARY KEY,
@@ -56,6 +56,16 @@ CREATE INDEX IF NOT EXISTS events_created ON events(created_at);
 -- 这条索引就是幂等的最后一道防线，应用层的检查挡不住并发
 CREATE UNIQUE INDEX IF NOT EXISTS events_station_once
   ON events(player_id, station_id) WHERE kind = 'station';
+
+-- 管理员撤销章后留下 opId 墓碑，防止旧离线队列重放已撤销的操作。
+CREATE TABLE IF NOT EXISTS revoked_events (
+  event_id TEXT PRIMARY KEY,
+  player_id TEXT NOT NULL,
+  station_id TEXT NOT NULL,
+  event_json TEXT NOT NULL,
+  operator TEXT NOT NULL DEFAULT '',
+  revoked_at INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,

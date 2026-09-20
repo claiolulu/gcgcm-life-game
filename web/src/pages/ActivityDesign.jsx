@@ -71,6 +71,10 @@ function nearestSnap(raw, candidates, tolerance) {
   return best;
 }
 
+/** 旋转吸附的角度：每 15° 一格，0 / ±90 / ±180 都在里面 —— 徒手很难正好转回 0。 */
+const ROTATE_SNAPS = Array.from({ length: 25 }, (_, i) => ({ value: -180 + i * 15 }));
+const ROTATE_SNAP_TOLERANCE = 6;
+
 function moveSnapCandidates(block, others, axis) {
   const pos = axis === 'x' ? 'x' : 'y';
   const sizeKey = axis === 'x' ? 'w' : 'h';
@@ -752,6 +756,49 @@ export default function ActivityDesign() {
     window.addEventListener('pointercancel', up);
   }
 
+  /**
+   * 已选中的图片块（铺满模式）上直接拖，改的是 posX/posY —— 挪图片在框里露出哪部分，
+   * 不是挪这个块本身（挪块交给上面那个 ✥ 手柄）。跟手方向：手指往哪边拖，图片就跟着
+   * 往哪边走（等价于 posX/posY 往反方向变），和常见修图工具的裁剪拖动手感一致。
+   */
+  function imagePan(e, b) {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = boxRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const blockW = (b.w / 100) * box.width;
+    const blockH = (b.h / 100) * box.height;
+    if (blockW <= 0 || blockH <= 0) return;
+    const rad = ((b.rot || 0) * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    // 放大之后同样的 posX 变化在屏幕上走得更远，除掉倍数才保持一样的跟手速度；
+    // 缩小时图比框还小、能走的距离本来就短，再放大灵敏度会很跳，所以只往上补
+    const zoom = Math.max(1, b.zoom ?? 1);
+    const s = { px: e.clientX, py: e.clientY, posX: b.posX ?? 50, posY: b.posY ?? 50 };
+    let changed = false;
+
+    const move = (ev) => {
+      if (!changed) { checkpoint(); changed = true; }
+      const dx = ev.clientX - s.px;
+      const dy = ev.clientY - s.py;
+      // 把屏幕位移转回区块自己没旋转时的坐标系
+      const localDx = dx * cos + dy * sin;
+      const localDy = -dx * sin + dy * cos;
+      const posX = Math.min(100, Math.max(0, s.posX - (localDx / blockW / zoom) * 100));
+      const posY = Math.min(100, Math.max(0, s.posY - (localDy / blockH / zoom) * 100));
+      patch(b.id, { posX: round(posX), posY: round(posY) }, { record: false });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
   /** 右上角旋转手柄：以区块中心为圆心，手指转多少，区块就转多少。 */
   function rotateDrag(e, b) {
     e.preventDefault();
@@ -773,7 +820,12 @@ export default function ActivityDesign() {
       let delta = ((angle - startAngle) * 180) / Math.PI;
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
-      patch(b.id, { rot: round(startRot + delta) }, { record: false });
+      // 转过头要绕回 -180..180：服务端那一段是夹住不是绕回，不绕会卡在 180 上
+      let next = startRot + delta;
+      if (next > 180) next -= 360;
+      if (next < -180) next += 360;
+      const snap = snapEnabled ? nearestSnap(next, ROTATE_SNAPS, ROTATE_SNAP_TOLERANCE) : null;
+      patch(b.id, { rot: snap ? snap.value : round(next) }, { record: false });
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -1162,14 +1214,20 @@ export default function ActivityDesign() {
           transformOrigin: 'center center',
         }}
       >
-        <VisaPageFrame theme={config.theme} activity={workingActivity} pageId={designPages?.[pageIndex]?.id}>
+        <VisaPageFrame theme={config.theme} activity={workingActivity} pageId={designPages?.[pageIndex]?.id}
+          showReviewEntry={pageIndex === 0 && (designPages?.length || 0) > 1}>
           <div style={{ position: 'absolute', inset: 0, zIndex: 3, containerType: 'size' }}>
             {blocks.map((b) => {
               const on = b.id === sel;
+              // 已选中的图片块（铺满/裁剪模式）身上直接拖是在挪图片露出哪部分，
+              // 不是挪这个块 —— 挪块请用选中框上方的 ✥ 手柄。
+              // 「配图」的图来自活动数据（data.photo），不是块自己的 src。
+              const hasPhoto = b.kind === 'image' ? !!b.src : b.kind === 'photo' && !!data.photo;
+              const panImage = on && hasPhoto;
               return (
                 <div
                   key={b.id}
-                  onPointerDown={(e) => blockTouch(e, b)}
+                  onPointerDown={(e) => (panImage ? imagePan(e, b) : blockTouch(e, b))}
                   style={{
                     position: 'absolute',
                     left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%`,
@@ -1177,7 +1235,7 @@ export default function ActivityDesign() {
                     opacity: b.opacity ?? 1,
                     zIndex: on ? 20 : undefined,
                     outline: on ? 'none' : '1px dashed rgba(120,120,120,.45)',
-                    outlineOffset: 1, cursor: 'move', touchAction: 'none',
+                    outlineOffset: 1, cursor: panImage ? 'grab' : 'move', touchAction: 'none',
                   }}
                 >
                   <BlockBody
@@ -1226,7 +1284,7 @@ export default function ActivityDesign() {
                 onClick={() => openInspector(selected.id)}>⚙</button>
               <button title="删除" aria-label="删除区块" onClick={() => remove(selected.id)}>🗑</button>
             </div>
-            <button className="design__rotate-handle" title="拖动旋转" aria-label="拖动旋转区块"
+            <button className="design__rotate-handle" title="拖动旋转（吸附开时每 15° 一档）" aria-label="拖动旋转区块"
               style={{
                 top: selected.y < 7 ? 3 : -17,
                 right: selected.x + selected.w > 97 ? 3 : -17,
@@ -1508,10 +1566,17 @@ function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages }
     return (
       <>
         <div className="tiny dim">这一场的配图，在活动详情页里换。</div>
-        <select className="input" value={b.fit} onChange={(e) => patch({ fit: e.target.value })}>
+        <select className="input" value={b.fit || 'cover'} onChange={(e) => patch({ fit: e.target.value })}>
           <option value="cover">铺满（会裁掉边）</option>
           <option value="contain">完整显示（会留白）</option>
         </select>
+        <div className="tiny dim">关掉这个面板后可以直接在画布上的图上拖动，选显示图片的哪一部分。缩放调小会把原来裁掉的部分重新显示出来，空出的地方留白。</div>
+        <Slider label="左右" value={b.posX ?? 50} min={0} max={100} step={1}
+          onChange={(v) => patch({ posX: v })} suffix="%" />
+        <Slider label="上下" value={b.posY ?? 50} min={0} max={100} step={1}
+          onChange={(v) => patch({ posY: v })} suffix="%" />
+        <Slider label="缩放" value={Math.round((b.zoom ?? 1) * 100)} min={25} max={400} step={5}
+          onChange={(v) => patch({ zoom: v / 100 })} suffix="%" />
       </>
     );
   }
@@ -1529,11 +1594,18 @@ function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages }
             <input type="file" accept="image/*" hidden disabled={busy === 'img'}
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onPickImage(f); }} />
           </label>
-          <select className="input grow" value={b.fit} onChange={(e) => patch({ fit: e.target.value })}>
+          <select className="input grow" value={b.fit || 'cover'} onChange={(e) => patch({ fit: e.target.value })}>
             <option value="cover">铺满（会裁掉边）</option>
             <option value="contain">完整显示（会留白）</option>
           </select>
         </div>
+        <div className="tiny dim">关掉这个面板后可以直接在画布上的图片上拖动，选显示图片的哪一部分。缩放调小会把原来裁掉的部分重新显示出来，空出的地方留白。</div>
+        <Slider label="左右" value={b.posX ?? 50} min={0} max={100} step={1}
+          onChange={(v) => patch({ posX: v })} suffix="%" />
+        <Slider label="上下" value={b.posY ?? 50} min={0} max={100} step={1}
+          onChange={(v) => patch({ posY: v })} suffix="%" />
+        <Slider label="缩放" value={Math.round((b.zoom ?? 1) * 100)} min={25} max={400} step={5}
+          onChange={(v) => patch({ zoom: v / 100 })} suffix="%" />
         <Slider label="圆角" value={b.radius || 0} min={0} max={50} step={1}
           onChange={(v) => patch({ radius: v })} suffix="%" />
       </>

@@ -7,7 +7,7 @@ import { NetBar, useToast, useConfirm, ago } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { copyText, copyImageBlob } from '../lib/clipboard.js';
 import { useConfig, loadConfig, allTags, activityVisibleTo, playerTags, tagChipStyle } from '../lib/config.js';
-import { useStaff, allPlayers, queueOp, settleOps, issueFor } from '../lib/staff.js';
+import { useStaff, allPlayers, queueOp, settleOps, issueFor, flush } from '../lib/staff.js';
 import { uploadPhoto } from '../lib/photo.js';
 import { onTick } from '../lib/realtime.js';
 import QRCode from 'qrcode';
@@ -182,6 +182,25 @@ export default function ActivityDetail() {
     }
   }
 
+  async function undoCheckIn(p) {
+    if (!await ask({
+      title: `撤销 ${p.name} 在这场活动的签到？`,
+      body: '这会移除该活动的参与章和对应分数，但保留报名记录。撤销后可以重新签到。',
+    })) return;
+    setChecking(p.id);
+    try {
+      await api(`/api/admin/activity/${encodeURIComponent(id)}/checkin/${encodeURIComponent(p.id)}`, {
+        method: 'DELETE', token,
+      });
+      await flush({ full: true });
+      toast(`${p.name} 的签到已撤销`, 'ok');
+    } catch (err) {
+      toast(err.message || '撤销失败', 'err');
+    } finally {
+      setChecking(null);
+    }
+  }
+
   /* ---- 签到名单：「已报名」框 ----
    *
    * 只列报名了这一场的人。没报名就来的人不在这里 —— 扫他的码，或者去
@@ -225,7 +244,7 @@ export default function ActivityDetail() {
    * 既没报名、也还没在这一场盖章的人。没报名直接来的人在这里找，点「签到」
    * 就是盖章 —— 盖完他就满足「已盖章」，自动挪到上面「已报名」那一框（标「未报名」）。
    * 不在可见范围里的人不列出：服务端不会收他的章，列出来只会给一个点了没用的按钮。
-   * 这一框**不做一键全签到** —— 那会给所有没来的人都盖上章，而且撤不掉。
+   * 这一框**不做一键全签到** —— 那会给所有没来的人都盖上章。
    */
   const [wiQuery, setWiQuery] = useState('');
   const walkIn = useMemo(() => {
@@ -255,8 +274,7 @@ export default function ActivityDetail() {
     if (!pendingCheckIn.length) return;
     const ok = await ask({
       title: `给${ciQuery.trim() ? `搜到的「${ciQuery.trim()}」里` : '列表里'}还没参加的 ${pendingCheckIn.length} 人全部签到？`,
-      body: '章盖下去就撤不掉了 —— 那是一条写进记录的事实，不是可以来回拨的开关。'
-        + '只会给还没签到的人盖，已经签到的不动。',
+      body: '只会给还没签到的人盖，已经签到的不动。标错时管理员可逐人撤销。',
     });
     if (!ok) return;
     setChecking('all');
@@ -817,7 +835,7 @@ export default function ActivityDetail() {
               </button>
             </div>
             <div className="tiny dim">
-              签到就是盖章 —— 和同工扫码盖的是同一个章，一场只盖一次，盖下去撤不掉。
+              签到就是盖章 —— 和同工扫码盖的是同一个章，一场只盖一次；标错可逐人撤销。
               标「补报名」的是活动开始或结束之后才报上的人，现场没扫到，章在这里补。
               {ciQuery.trim() ? '一键全签到只作用于当前搜到的人。' : ''}
               没报名的人盖了章也会列在这里；还没盖章的，扫他的码或去「👥 用户」里标记。
@@ -852,7 +870,14 @@ export default function ActivityDetail() {
                       )}
                     </div>
                     {p.done ? (
-                      <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已参加 ✓</span>
+                      <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
+                        <span className="tiny" style={{ color: 'var(--green)' }}>已参加 ✓</span>
+                        <button type="button" className="btn btn--sm btn--ghost"
+                          disabled={!!checking || !!p.stations[id].pending}
+                          onClick={() => undoCheckIn(p)}>
+                          {checking === p.id ? '…' : '撤销签到'}
+                        </button>
+                      </div>
                     ) : !p.eligible ? (
                       /* 报名后活动才限定了标签：服务端不会收这一章，别给个点了没反应的按钮 */
                       <span className="tiny dim" style={{ flex: '0 0 auto' }} title="这场活动的可见范围不包含他的标签">

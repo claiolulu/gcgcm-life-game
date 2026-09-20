@@ -597,6 +597,25 @@ export default function Admin() {
     }
   }
 
+  async function undoDone(playerId, stationId, name) {
+    if (!await ask({
+      title: `撤销 ${name} 在这场活动的签到？`,
+      body: '这会移除参与章和对应分数，但保留报名记录。撤销后可以重新签到。',
+    })) return;
+    setBusy(`undo-${stationId}`);
+    try {
+      await api(`/api/admin/activity/${encodeURIComponent(stationId)}/checkin/${encodeURIComponent(playerId)}`, {
+        method: 'DELETE', token,
+      });
+      await flush({ full: true });
+      toast(`${name} 的签到已撤销`, 'ok');
+    } catch (err) {
+      toast(err.message || '撤销失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function copyContact(v) {
     const ok = await copyText(v);
     toast(ok ? '联系方式已复制' : '复制不了，长按自己选', ok ? 'ok' : 'warn');
@@ -1172,7 +1191,14 @@ export default function Admin() {
                       </div>
                     </div>
                     {done ? (
-                      <span className="tiny" style={{ flex: '0 0 auto', color: 'var(--green)' }}>已参加 ✓</span>
+                      <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
+                        <span className="tiny" style={{ color: 'var(--green)' }}>已参加 ✓</span>
+                        <button className="btn btn--sm btn--ghost" style={{ flex: '0 0 auto' }}
+                          disabled={!!busy || !!detailPlayer.stations[a.id].pending}
+                          onClick={() => undoDone(detailPlayer.id, a.id, detailPlayer.name)}>
+                          {busy === `undo-${a.id}` ? '…' : '撤销签到'}
+                        </button>
+                      </div>
                     ) : !activityVisibleTo(a, playerTags(detailPlayer), signed ? [a.id] : []) ? (
                       /* 这一场对这个人不可见，服务端不会收这一章。
                          与其让人点了没反应，不如把按钮收起来说明白 —— 而且
@@ -1195,8 +1221,7 @@ export default function Admin() {
             </div>
 
             <div className="tiny dim">
-              盖过的章撤不掉 —— 那是一条写进记录的事实，不是一个可以来回拨的开关。
-              标错了人只能去数据库改。
+              标错了可撤销签到；报名记录不会一起删除。撤销后可以重新签到。
             </div>
             <button className="btn btn--danger btn--full"
               disabled={busy === `delete-${detailPlayer.id}`}

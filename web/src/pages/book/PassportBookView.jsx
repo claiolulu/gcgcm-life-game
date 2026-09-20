@@ -1,6 +1,7 @@
 import React from 'react';
 import Trophy from '../../components/Trophy.jsx';
 import VisaBlocks, { PassportMrz } from './VisaBlocks.jsx';
+import VisaReviewButton from './VisaReviewButton.jsx';
 
 /**
  * 护照册的视觉层 —— 由 Claude Design 的 `Life Passport v5 Classic.dc.html`
@@ -336,7 +337,7 @@ export default function PassportBookView({ v }) {
                   <div style={{width: "100%", height: "100%"}}>{v.qrThumb}</div>
                 </button>
                 <div style={{position: "absolute", inset: "0", pointerEvents: "none", opacity: v.guilloche, background: "repeating-conic-gradient(from 0deg at 18% 30%,rgba(var(--pp-ink-rgb),.05) 0 1.4deg,transparent 1.4deg 7deg),repeating-conic-gradient(from 0deg at 82% 70%,rgba(44,74,90,.045) 0 1.4deg,transparent 1.4deg 7deg),repeating-linear-gradient(28deg,rgba(var(--pp-ink-rgb),.032) 0 1px,transparent 1px 6px)"}} />
-                <div style={{position: "absolute", right: "3%", top: "12%", width: "40%", bottom: "14%", pointerEvents: "none", opacity: v.wmOpacity, backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
+                <div style={{position: "absolute", right: "3%", top: "12%", width: "40%", bottom: "14%", ...v.watermarkPlacement, pointerEvents: "none", opacity: v.wmOpacity, backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "contain", backgroundImage: v.watermark}} />
                 <div style={{position: "absolute", left: "0", right: "0", bottom: "0", height: "30px", pointerEvents: "none", zIndex: "2", background: "linear-gradient(0deg,rgba(60,40,30,.18),transparent)"}} />
                 <div style={{position: "relative", zIndex: "5", flex: "none", display: "flex", alignItems: "center", gap: "6px", padding: "9px 10px 7px", borderBottom: "1px solid rgba(var(--pp-ink-rgb),.4)"}}>
                   <button onClick={v.goBoard} style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pp-ink)"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
@@ -372,6 +373,17 @@ export default function PassportBookView({ v }) {
                       VISAS
                     </div>
                   </div>
+                  {v.isVisa && <div style={{position: 'relative', flex: 'none'}}><button onClick={v.toggleReviews} data-tour="reviews-toggle"
+                    aria-label={v.showReviews ? '收起所有活动回顾附页' : '展开所有活动回顾附页'}
+                    aria-pressed={v.showReviews}
+                    title={v.showReviews ? '收起所有活动回顾附页' : '展开所有活动回顾附页'}
+                    style={{height: "30px", padding: "0 8px", border: "1px solid rgba(var(--pp-ink-rgb),.5)", display: "flex", alignItems: "center", justifyContent: "center", color: v.showReviews ? "var(--pp-gold)" : "var(--pp-ink)", background: v.showReviews ? "var(--pp-ink)" : "rgba(var(--pp-ink-rgb),.08)", fontFamily: "inherit", fontSize: "10px", fontWeight: 700, letterSpacing: ".04em", whiteSpace: "nowrap"}}>
+                    详情页
+                  </button>{v.reviewNotice && <div role="status" aria-live="polite" style={{position: 'absolute', top: 'calc(100% + 7px)', right: 0, zIndex: 12, width: '166px', padding: '9px 10px', border: '1px solid rgba(var(--pp-ink-rgb),.5)', borderRadius: '5px', background: 'var(--pp-paper)', color: 'var(--pp-ink)', boxShadow: '0 5px 16px rgba(0,0,0,.18)', fontFamily: 'inherit', fontSize: '10px', lineHeight: 1.6, letterSpacing: '.02em', textAlign: 'left', pointerEvents: 'none'}}>
+                    <span style={{position: 'absolute', right: '22px', top: '-5px', width: '8px', height: '8px', transform: 'rotate(45deg)', borderTop: '1px solid rgba(var(--pp-ink-rgb),.5)', borderLeft: '1px solid rgba(var(--pp-ink-rgb),.5)', background: 'var(--pp-paper)'}} />
+                    <strong style={{display: 'block', fontSize: '11px'}}>{v.reviewNotice.open ? '详情页已展开' : '详情页已收起'}</strong>
+                    <span>{v.reviewNotice.open ? '照片和总结已加入翻页' : '现在每场只显示 Visa 首页'}</span>
+                  </div>}</div>}
                   <button onClick={v.goGuide} style={{flex: "none", width: "30px", height: "30px", border: "1px solid rgba(var(--pp-ink-rgb),.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond',serif", fontSize: "14px", color: "var(--pp-ink)"}} style-active="background:rgba(var(--pp-ink-rgb),.1)">
                     ?
                   </button>
@@ -451,6 +463,7 @@ export default function PassportBookView({ v }) {
                     <div style={{position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 4, height: "12%", pointerEvents: "none"}}>
                       <PassportMrz line1={v.visaBlockData?.mrz1} line2={v.visaBlockData?.mrz2} />
                     </div>
+                    {!v.showReviews && v.hasReviewPages && <VisaReviewButton onClick={v.openReview} />}
                     {v.checking ? (
                       <div style={{position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 6, padding: "7px 14px", background: "rgba(var(--pp-ink-rgb),.08)", fontFamily: "'EB Garamond',serif", fontSize: "9.5px", letterSpacing: ".2em", color: "rgba(var(--pp-ink-rgb),.5)", whiteSpace: "nowrap", pointerEvents: "none"}}>
                         CHECKING 查询中…
