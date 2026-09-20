@@ -1177,8 +1177,9 @@ body.has-sheet .toast-wrap { bottom: auto; top: calc(var(--safe-top, 0px) + 12px
   .staff-design { padding-top: calc(var(--safe-top) + 8px); }
   .staff-design .design__bar { border-radius: 13px; padding: 6px; }
   .staff-design .design__bar > .input { min-width: 0; }
-  .staff-design .design__mode-button { width: 34px; min-width: 34px; padding: 0; }
-  .staff-design .design__mode-button b { display: none; }
+  /* 窄屏也留着「吸附已开 / 退出全屏」这几个字 —— 光一个 🧲 或 ⛶ 没人看得出是干嘛的 */
+  .staff-design .design__mode-button { width: auto; min-width: 0; padding: 0 8px; }
+  .staff-design .design__mode-button b { display: inline; font-size: 10px; }
   .admin-header { align-items: center; margin-bottom: 18px; }
   .admin-header h1 { font-size: 28px; }
   .admin-header .small { display: none; }
@@ -1706,8 +1707,8 @@ html.book-locked body {
     padding-bottom: 3px;
   }
   .design__bar .btn { padding-left: 9px; padding-right: 9px; }
-  .design__mode-button { width: 32px; padding-left: 0 !important; padding-right: 0 !important; }
-  .design__mode-button b { display: none; }
+  .design__mode-button { width: auto; padding-left: 7px !important; padding-right: 7px !important; }
+  .design__mode-button b { display: inline; font-size: 10px; }
   .design__canvas-toolbar {
     min-height: 27px;
     margin-bottom: 3px;
@@ -1724,6 +1725,8 @@ html.book-locked body {
     font-size: 12px;
   }
   .design__canvas-toolbar .design__zoom-reset { width: auto; min-width: 36px; font-size: 8px; }
+  /* 吸附 / 全屏这两个按钮带文字，不能按正方形图标按钮裁 */
+  .design__canvas-toolbar .design__mode-button { width: auto; min-width: 0; padding: 0 6px !important; }
   .design__pages {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;

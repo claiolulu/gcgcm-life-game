@@ -1339,12 +1339,12 @@ export default function ActivityDesign() {
         <button className={`btn btn--sm btn--ghost design__mode-button ${snapEnabled ? 'design__mode-button--on' : ''}`}
           aria-pressed={snapEnabled} title={snapEnabled ? '关闭自动吸附' : '开启自动吸附'}
           onClick={() => { setSnapEnabled((v) => !v); setSnapGuides({ x: null, y: null }); }}>
-          <span aria-hidden="true">🧲</span><b>{snapEnabled ? '吸附开' : '吸附关'}</b>
+          <span aria-hidden="true">🧲</span><b>{snapEnabled ? '吸附已开' : '吸附已关'}</b>
         </button>
         <button className="btn btn--sm btn--ghost design__mode-button"
           aria-pressed={canvasFullscreen} onClick={toggleCanvasFullscreen}
           title={canvasFullscreen ? '退出全屏编辑' : '全屏编辑'}>
-          <span aria-hidden="true">{canvasFullscreen ? '⊡' : '⛶'}</span><b>{canvasFullscreen ? '退出' : '全屏'}</b>
+          <span aria-hidden="true">{canvasFullscreen ? '⊡' : '⛶'}</span><b>{canvasFullscreen ? '退出全屏' : '全屏编辑'}</b>
         </button>
         {canvasView.scale > 1.01 ? (
           <button className="btn btn--sm btn--ghost design__zoom-reset" onClick={resetCanvasView}
