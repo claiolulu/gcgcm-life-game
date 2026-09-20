@@ -648,6 +648,17 @@ check('错误 PIN 被拒', badPin.status === 401);
   check('一场活动能保存多张附加页', saved.status === 200 && extras.length === 2,
     JSON.stringify(extras));
   check('照片页和总结页类型被保留', extras[0]?.kind === 'photo' && extras[1]?.kind === 'summary');
+
+  const blankSave = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: base.map((a, i) => (i === 0 ? { ...a, extraPages: [
+      { id: 'blank1', kind: 'blank', title: '空白页', blocks: [] },
+    ] } : a)) },
+  });
+  check('空白页类型被保留、可以没有块',
+    blankSave.status === 200 && blankSave.body.activities[0].extraPages[0].kind === 'blank'
+      && (blankSave.body.activities[0].extraPages[0].blocks || []).length === 0,
+    JSON.stringify(blankSave.body.activities?.[0]?.extraPages?.[0]));
   check('照片页可设为仅已签到可见，未设置的总结页保持公开',
     extras[0]?.requireCheckin === true && extras[1]?.requireCheckin === false);
   check('重复的附加页 id 会自动错开', extras[0]?.id !== extras[1]?.id,

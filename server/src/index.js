@@ -1143,7 +1143,7 @@ function cleanExtraPages(raw, where) {
     seen.add(id);
     const title = String(page?.title || '').replace(/[\r\n]/g, ' ').trim().slice(0, 24)
       || `第 ${i + 2} 页`;
-    const kind = ['photo', 'summary', 'custom'].includes(page?.kind) ? page.kind : 'custom';
+    const kind = ['photo', 'summary', 'blank', 'custom'].includes(page?.kind) ? page.kind : 'custom';
     return { id, title, kind, requireCheckin: page?.requireCheckin === true,
       blocks: cleanBlocks(page?.blocks || [], `${where}「${title}」`) };
   });

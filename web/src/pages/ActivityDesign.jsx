@@ -120,14 +120,19 @@ function edgeSnapCandidates(others, axis) {
   return candidates;
 }
 
-function newExtraPage(kind, index) {
+function newExtraPage(kind) {
   const stamp = localId('').slice(0, 20);
   const isPhoto = kind === 'photo';
+  // 空白页只给一张白纸，块自己加；页名不编号 —— 同工要的是「照片页」
+  // 这种叫法，不是「照片页 2」，序号页签上本来就有
+  if (kind === 'blank') {
+    return { id: `p${stamp}`, kind: 'blank', requireCheckin: false, title: '空白页', blocks: [] };
+  }
   return {
     id: `p${stamp}`,
     kind,
     requireCheckin: false,
-    title: isPhoto ? `照片页 ${index}` : `活动总结 ${index}`,
+    title: isPhoto ? '照片页' : '活动总结',
     blocks: isPhoto ? [
       { id: `t${stamp}`, kind: 'text', x: 6, y: 15, w: 88, h: 9, rot: 0, opacity: 1,
         text: '活动照片', size: 5.2, color: '', font: 'serif', align: 'center', bold: true, lh: 1.2, href: '' },
@@ -520,12 +525,10 @@ export default function ActivityDesign() {
 
   function addPage(kind) {
     checkpoint();
-    const made = newExtraPage(kind, (designPages?.length || 1));
-    setDesignPages((cur) => {
-      const next = [...cur, made];
-      pagesRef.current = next;
-      return next;
-    });
+    const made = newExtraPage(kind);
+    const next = [...(pagesRef.current || []), made];
+    pagesRef.current = next;
+    setDesignPages(next);
     const nextIndex = designPages.length;
     pageIndexRef.current = nextIndex;
     blocksRef.current = made.blocks;
@@ -789,7 +792,7 @@ export default function ActivityDesign() {
     checkpoint();
     const nextBlocks = pageIndex === 0
       ? resolveBlocks(config?.visaTemplate, { ...workingActivity, blocks: undefined }, config?.theme).map(clone)
-      : newExtraPage(designPages[pageIndex].kind, pageIndex).blocks;
+      : newExtraPage(designPages[pageIndex].kind).blocks;
     setBlocks(nextBlocks);
     setSel(null);
     markDirty();
@@ -1295,6 +1298,7 @@ export default function ActivityDesign() {
         <div className="design__page-actions">
           <button className="btn btn--sm btn--ghost" onClick={() => addPage('photo')}>＋ 照片页</button>
           <button className="btn btn--sm btn--ghost" onClick={() => addPage('summary')}>＋ 总结页</button>
+          <button className="btn btn--sm btn--ghost" onClick={() => addPage('blank')}>＋ 空白页</button>
           {pageIndex > 0 ? (
             <>
               <button className="btn btn--sm btn--ghost" disabled={pageIndex <= 1}
