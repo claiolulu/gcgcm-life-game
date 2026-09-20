@@ -1296,16 +1296,19 @@ export default function ActivityDesign() {
           ))}
         </div>
         <div className="design__page-actions">
-          <button className="btn btn--sm btn--ghost" onClick={() => addPage('photo')}>＋ 照片页</button>
-          <button className="btn btn--sm btn--ghost" onClick={() => addPage('summary')}>＋ 总结页</button>
-          <button className="btn btn--sm btn--ghost" onClick={() => addPage('blank')}>＋ 空白页</button>
+          <button className="btn btn--sm btn--ghost" onClick={() => addPage('photo')}>＋ 照片<span className="design__narrow-hide">页</span></button>
+          <button className="btn btn--sm btn--ghost" onClick={() => addPage('summary')}>＋ 总结<span className="design__narrow-hide">页</span></button>
+          <button className="btn btn--sm btn--ghost" onClick={() => addPage('blank')}>＋ 空白<span className="design__narrow-hide">页</span></button>
           {pageIndex > 0 ? (
             <>
-              <button className="btn btn--sm btn--ghost" disabled={pageIndex <= 1}
-                onClick={() => movePage(-1)} title="上一页">←</button>
-              <button className="btn btn--sm btn--ghost" disabled={pageIndex >= designPages.length - 1}
-                onClick={() => movePage(1)} title="下一页">→</button>
-              <button className="btn btn--sm btn--danger" onClick={deletePage}>删除本页</button>
+              {/* 手机上这两个按钮藏起来：页签本来就能拖着排序，横排挤不下 */}
+              <button className="btn btn--sm btn--ghost design__page-move" disabled={pageIndex <= 1}
+                onClick={() => movePage(-1)} title="往前挪一页">←</button>
+              <button className="btn btn--sm btn--ghost design__page-move" disabled={pageIndex >= designPages.length - 1}
+                onClick={() => movePage(1)} title="往后挪一页">→</button>
+              <button className="btn btn--sm btn--danger" onClick={deletePage}>
+                删除<span className="design__narrow-hide">本页</span>
+              </button>
             </>
           ) : null}
           {/* 页名用 ImeInput：普通受控 input 在拼音选字期间会被 React 重写，
@@ -1320,7 +1323,7 @@ export default function ActivityDesign() {
         {pageIndex === 0 ? (
           <div className="tiny dim">第 1 页是活动信息页，始终保留；后续页面可以新增、排序或删除。</div>
         ) : (
-          <label className="row" style={{ gap: 8, alignItems: 'center', marginTop: 8 }}>
+          <label className="row design__page-gate" style={{ gap: 8, alignItems: 'center', marginTop: 8 }}>
             <input type="checkbox" checked={designPages[pageIndex].requireCheckin === true}
               onChange={(e) => setPageCheckin(e.target.checked)} />
             <span>仅已签到的人可看这一页的内容和照片</span>
