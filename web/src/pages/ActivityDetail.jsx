@@ -105,7 +105,9 @@ export default function ActivityDetail() {
     }
   }, [openPushCard]);
   async function saveAndAsk() {
-    if (!(await save())) return;
+    // 静默保存：紧接着就弹「要不要发通知」，那句话里已经写了「活动信息已经保存」，
+    // 再吐一条「已保存」只是压在弹层按钮上
+    if (!(await save({}, { quiet: true }))) return;
     const go = await ask({
       title: '要推送通知告诉大家吗？',
       body: '活动信息已经保存。要不要发一条通知提醒大家？下一步可以选发给谁、改标题和内容，发送前还会再确认一次。',

@@ -200,6 +200,15 @@ npm start
 
 ### 开发记录
 
+**2026-09-20 提示条不再压住弹层按钮** —— 已提交，前端构建已上线（无服务端改动，未重启）。
+- 根因：`.toast-wrap` 是 `z-index: 80` 的底部固定层，弹层（`.sheet` / `.sheet-backdrop`，60/61）在它下面，
+  而弹层的按钮都贴着底部 —— 活动页点「保存」后那句「已保存」正好盖住确认框的「去写通知」。
+- 改法：`Sheet` 打开时给 `document.body` 加 `has-sheet`（按嵌套层数计数，套弹层也对），
+  CSS 里 `body.has-sheet .toast-wrap` 改挂顶部；提示条仍在最上层，不会被背板盖掉。
+- 另外 `saveAndAsk()` 改成静默保存 —— 紧跟着弹的确认框里已经写了「活动信息已经保存」。
+- 验证：浏览器实测弹层开着时提示层在 12–58px、弹层按钮在 700px，不重叠；关掉后回到底部，
+  body 上的标记也撤掉。`npm test` 全过（27 / 239 / 11 / 33）。
+
 **2026-09-20 扫码报名放开到活动开始 / 结束之后** —— 已提交（`9d665fe`）并上线。另一会话（Codex）当时未提交的附页开关 / 撤销签到 / v2 水印放大等改动，按用户「一起提交重启」一并提交为 `b95373f`（展示稿产物 .codex-build / .codex-finalizer / outputs 已加进 .gitignore，未入库）。重启前备份 `server/data/pre-latesignup-2026-09-20.db`；旧进程 17262 → 新进程经 `scripts/start-local-server.sh` 启动，打开的仍是项目 `server/data/game.db`，`signups` 自动补上 `late` 列，推送公钥指纹不变，23 用户 / 12 报名 / 32 事件未变，game/staff/city 三个公网入口正常，隧道未动。线上已结束活动的报名接口返回「可以补登记」。尚未推送到 GitHub。
 - `signups` 加 `late` 列（schema.sql + db.js 里在准备语句前 ALTER，老库自动补）。
 - `activityRegistration()` 三种状态都收报名：live/done 返回 `late: true` 和各自的话术；

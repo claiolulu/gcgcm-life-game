@@ -189,15 +189,24 @@ export { ago };
 
 /* ------------------------------- 底部弹层 ------------------------------- */
 
+let sheetDepth = 0;
+
 export function Sheet({ open, onClose, children, title, className = '', backLabel = '' }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => e.key === 'Escape' && onClose?.();
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
+    // 提示条默认贴着屏幕底部，正好压在弹层的按钮上（保存完弹「要不要发通知」，
+    // 那句「已保存」就盖住了「去写通知」）。弹层开着的时候把提示条挪到顶部。
+    // 计数而不是布尔：弹层套弹层时，先关的那个不该把标记撤掉
+    sheetDepth += 1;
+    document.body.classList.add('has-sheet');
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
+      sheetDepth = Math.max(0, sheetDepth - 1);
+      if (!sheetDepth) document.body.classList.remove('has-sheet');
     };
   }, [open, onClose]);
 

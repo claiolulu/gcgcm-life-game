@@ -562,6 +562,7 @@ h3 { font-size: 16px; }
   left: 12px; right: 12px;
   bottom: calc(var(--nav-h) + var(--safe-bottom) + 14px);
   z-index: 80;
+  transition: bottom .2s ease, top .2s ease;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -580,6 +581,10 @@ h3 { font-size: 16px; }
   box-shadow: var(--shadow);
   animation: fade-up 0.25s ease both;
 }
+/* 弹层开着时提示条改挂顶部：弹层的按钮都在底部，提示条压在上面就点不着了
+   （z-index 不能降到弹层之下 —— 那样提示条会被整块背板盖住看不见） */
+body.has-sheet .toast-wrap { bottom: auto; top: calc(var(--safe-top, 0px) + 12px); }
+
 .toast--ok   { border-color: rgba(62, 201, 138, 0.5); background: #12291f; color: #9ff0c6; }
 .toast--err  { border-color: rgba(255, 90, 95, 0.5);  background: #2a1416; color: #ffb0b3; }
 .toast--warn { border-color: rgba(247, 201, 72, 0.5); background: #29220f; color: #ffe09a; }
