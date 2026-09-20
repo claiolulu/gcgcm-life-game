@@ -58,7 +58,7 @@ export async function uploadPhoto(file, token) {
 }
 
 /** 视频上限，和服务端 VIDEO_MAX 保持一致 */
-export const VIDEO_MAX_BYTES = 40 * 1024 * 1024;
+export const VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 
 /**
  * 上传一段活动短片。
@@ -73,7 +73,7 @@ export const VIDEO_MAX_BYTES = 40 * 1024 * 1024;
 export async function uploadVideo(file, token) {
   if (!/^video\//.test(file?.type || '')) throw new Error('只能选视频');
   if (file.size > VIDEO_MAX_BYTES) {
-    throw new Error(`视频 ${Math.round(file.size / 1048576)}MB，超过 40MB 上限。剪短一点，或者传到网盘再用页面链接挂过去。`);
+    throw new Error(`视频 ${Math.round(file.size / 1048576)}MB，超过 100MB 上限。剪短一点，或者传到网盘再用页面链接挂过去。`);
   }
   const res = await fetch('/api/admin/upload/video', {
     method: 'POST',

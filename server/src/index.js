@@ -49,7 +49,7 @@ const jsonSmall = express.json({ limit: '512kb' });
 const jsonImage = express.json({ limit: '4mb' });
 // 视频走原始二进制，不走 base64 的 JSON —— base64 会把体积撑大三分之一，
 // 一段 30MB 的短片编进 JSON 就是 40MB 的字符串，服务端还得整份读进内存
-const rawVideo = express.raw({ type: ['video/*', 'application/octet-stream'], limit: '60mb' });
+const rawVideo = express.raw({ type: ['video/*', 'application/octet-stream'], limit: '110mb' });
 app.use((req, res, next) => {
   if (req.path === '/api/admin/upload/video') return rawVideo(req, res, next);
   if (req.path === '/api/admin/upload' || /^\/api\/activity\/[^/]+\/materials$/.test(req.path)) {
@@ -1213,10 +1213,10 @@ app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
  * 收什么就存什么，能不能播由浏览器决定。mp4(H.264) 是唯一各家都认的，
  * 所以上传界面上写明了这一条；webm 和 iPhone 直出的 mov 也一并收下。
  *
- * 上限 40MB：签证页上的短片是「几十秒的回顾」，不是完整录像。再大的
+ * 上限 100MB：签证页上的短片是「几分钟的回顾」，不是完整录像。再大的
  * 应该传到 YouTube / 网盘，用页面链接块挂过去。
  */
-const VIDEO_MAX = 40 * 1024 * 1024;
+const VIDEO_MAX = 100 * 1024 * 1024;
 
 function videoExtOf(buf) {
   if (buf.length < 16) return null;
@@ -1235,7 +1235,7 @@ app.post('/api/admin/upload/video', staffAuth('admin'), (req, res) => {
   const buf = Buffer.isBuffer(req.body) ? req.body : null;
   if (!buf || buf.length < 1024) return res.status(400).json({ error: '没收到视频数据' });
   if (buf.length > VIDEO_MAX) {
-    return res.status(413).json({ error: '视频太大了（上限 40MB）。剪短一点，或者传到网盘再用页面链接挂过去。' });
+    return res.status(413).json({ error: '视频太大了（上限 100MB）。剪短一点，或者传到网盘再用页面链接挂过去。' });
   }
   const ext = videoExtOf(buf);
   if (!ext) return res.status(400).json({ error: '只收 mp4 / webm / mov 视频' });

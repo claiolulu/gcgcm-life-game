@@ -1776,7 +1776,7 @@ function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages, 
           </select>
         </div>
         <div className="tiny dim">
-          上限 40MB，mp4（H.264）各家浏览器都认，iPhone 直出的 mov 和 webm 也收。
+          上限 100MB，mp4（H.264）各家浏览器都认，iPhone 直出的 mov 和 webm 也收。
           更长的片子传到 YouTube / 网盘，再用「页面链接」挂过去。
           翻到这一页不会自动下载整段，参与者点了才开始加载。
         </div>
