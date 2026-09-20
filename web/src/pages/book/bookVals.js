@@ -583,6 +583,9 @@ export function buildVals({ me, rank, of, config, activities, board = [], ui, ac
     stageHeight: !ui.vpLandscape && ui.screenGap?.y
       ? `calc(100% - ${ui.screenGap.y}px)` : '100%',
     stageTransform: 'none',
+    // 整屏容器的高度：拿 visualViewport 量到的可见高度，量不到就退回 100dvh。
+    // iOS 横屏工具栏占的那几十像素就是「护照显示不全、要往下拉」的原因
+    screenHeight: ui.viewportH ? `${ui.viewportH}px` : '100dvh',
     screenAlign: ui.vpLandscape ? 'center' : (ui.screenGap?.y ? 'flex-end' : 'center'),
     screenJustify: ui.vpLandscape && ui.screenGap?.x ? 'flex-end' : 'center',
     // 横版纸没有铺到的区域属于屏幕留边，不属于护照封皮；统一用黑色，

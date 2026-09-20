@@ -70,6 +70,10 @@ export default function PassportBook() {
   // 竖屏少掉的区域落在底部，横屏少掉的区域落在右侧。CSS 内部居中
   // 仍会在最终截图里显得偏上/偏左，所以量出缺口并在相反一侧留出同宽黑边。
   const [screenGap, setScreenGap] = useState({ x: 0, y: 0 });
+  // 真正看得见的高度。iOS 横屏的 Safari 工具栏压在 100dvh 里面 ——
+  // 按 100dvh 铺满的话，护照下沿被工具栏盖住，人得往下拽一把才看得全。
+  // visualViewport 给的是「此刻没被工具栏/键盘遮住」的那块，按它来排
+  const [viewportH, setViewportH] = useState(0);
 
   // 自动引导在“第一次实际打开”时就记为已展示，而不是等用户点完或关闭。
   // 这样用户直接退出网站，下次进来也不会被重复弹出；问号仍可手动重看。
@@ -397,12 +401,22 @@ export default function PassportBook() {
         y: Math.max(0, Math.min(160, fullH - window.innerHeight)),
       });
     };
+    const measureHeight = () => {
+      const vv = window.visualViewport;
+      // 键盘弹出时 visualViewport 会骤降，那属于输入状态，不要跟着缩护照
+      const h = vv && vv.height > 0 ? Math.round(vv.height) : 0;
+      setViewportH(h && Math.abs(h - window.innerHeight) < 220 ? h : 0);
+    };
     measure();
-    window.addEventListener('resize', measure);
-    window.visualViewport?.addEventListener('resize', measure);
+    measureHeight();
+    const onResize = () => { measure(); measureHeight(); };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    window.visualViewport?.addEventListener('resize', onResize);
     return () => {
-      window.removeEventListener('resize', measure);
-      window.visualViewport?.removeEventListener('resize', measure);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+      window.visualViewport?.removeEventListener('resize', onResize);
     };
   }, [vpLandscape, standalone]);
 
@@ -532,7 +546,7 @@ export default function PassportBook() {
       ui: {
         page, overlay, modal, vpLandscape, flip, showReviews, reviewNotice,
         push: push.state,
-        qrThumb: qr.thumb, qrBigImg: qr.big, checking, screenGap,
+        qrThumb: qr.thumb, qrBigImg: qr.big, checking, screenGap, viewportH,
         // 资料页的证件照就是选手自己捏的头像。
         // 照片框是 0.78 的竖长方形而头像是 1:1，所以用 fill + 方形裁切
         // 让它铺满整个框（左右各裁掉一点，人物居中，不会切到脸）。

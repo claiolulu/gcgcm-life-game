@@ -10,7 +10,7 @@ import VisaReviewButton from './VisaReviewButton.jsx';
  */
 export default function PassportBookView({ v }) {
   return (
-      <div style={{...v.themeVars, position: "fixed", inset: "0", width: "100%", height: "auto", boxSizing: "border-box", display: "flex", alignItems: v.screenAlign, justifyContent: v.screenJustify, overflow: "hidden", background: "#000", fontFamily: "'Noto Serif SC','EB Garamond',serif"}}>
+      <div style={{...v.themeVars, position: "fixed", insetInline: "0", top: "0", width: "100%", height: v.screenHeight, boxSizing: "border-box", display: "flex", alignItems: v.screenAlign, justifyContent: v.screenJustify, overflow: "hidden", background: "#000", fontFamily: "'Noto Serif SC','EB Garamond',serif"}}>
         <div onClickCapture={v.screenEdgeTap} style={{width: v.stageWidth, maxWidth: v.stageMax, height: v.stageHeight, position: "relative", overflow: "hidden", background: v.stageBg, containerType: "size", perspective: "1500px", transform: v.stageTransform, transformOrigin: "center", transition: "none"}}>
           <div className="book-flip" style={{position: "absolute", inset: "0", animation: v.pageAnim}}>
           {v.isPortrait ? (
