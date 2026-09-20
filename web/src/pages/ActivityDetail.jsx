@@ -54,6 +54,10 @@ export default function ActivityDetail() {
   const editVersion = useRef(0);
   // 已经确认存到服务端的那一版。只有本地没有新改动时才允许拿服务端数据回填
   const savedVersion = useRef(0);
+  // 打开这一版时服务端的活动清单版本号，保存时带上去做乐观锁
+  const baseRev = useRef(null);
+  // 撞上别人的改动之后先停掉自动保存，免得反复重试把提示刷屏
+  const [conflict, setConflict] = useState(null);
   const failedAutoVersion = useRef(null);
 
   const activities = config?.activities || [];
@@ -67,6 +71,7 @@ export default function ActivityDetail() {
     if (hit) {
       setDraft(JSON.parse(JSON.stringify(hit)));
       savedVersion.current = editVersion.current;
+      baseRev.current = config?.activitiesRev ?? null;
     }
   }, [activities, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -346,7 +351,7 @@ export default function ActivityDetail() {
    * save 是函数声明，会提升，在这儿引用没问题。
    */
   useEffect(() => {
-    if (!dirty || busy || failedAutoVersion.current === editVersion.current) return;
+    if (!dirty || busy || conflict || failedAutoVersion.current === editVersion.current) return;
     const t = setTimeout(() => { save({}, { quiet: true }); }, 2400);
     return () => clearTimeout(t);
   }, [draft, dirty, busy]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -363,6 +368,30 @@ export default function ActivityDetail() {
         </div>
       </div>
     );
+  }
+
+  /** 用服务端那份替掉本地草稿，丢掉自己这一版 */
+  function takeTheirs() {
+    const theirs = (conflict?.activities || []).find((a) => a.id === id);
+    if (theirs) setDraft(JSON.parse(JSON.stringify(theirs)));
+    baseRev.current = conflict?.activitiesRev ?? null;
+    editVersion.current += 1;
+    savedVersion.current = editVersion.current;
+    failedAutoVersion.current = null;
+    setDirty(false);
+    setConflict(null);
+    loadConfig().catch(() => {});
+    toast('已载入别人保存的最新版本', 'ok');
+  }
+
+  /** 明确地用自己这一版覆盖：把版本号对齐到服务端当前，再存一次 */
+  async function keepMine() {
+    // 同画板：以服务端最新那份为底，只把这一场换成我的
+    const baseList = conflict?.activities || null;
+    baseRev.current = conflict?.activitiesRev ?? null;
+    failedAutoVersion.current = null;
+    setConflict(null);
+    await save({}, { baseList });
   }
 
   const edit = (patch) => {
@@ -382,19 +411,24 @@ export default function ActivityDetail() {
   };
 
   /** 把这一场的改动写回整份清单 */
-  async function save(patch = {}, { quiet = false } = {}) {
+  async function save(patch = {}, { quiet = false, baseList = null } = {}) {
     const next = { ...draft, ...patch };
     const savingVersion = editVersion.current;
     setBusy(quiet ? 'autosave' : 'save');
     try {
       // 设成「进行中」的时候顺手把别人降下来 —— 服务端只允许一场，
       // 与其让同工先去别的页面关掉再回来，不如在这里替他做了
-      const list = activities.map((a) => {
+      const list = (baseList || activities).map((a) => {
         if (a.id === id) return next;
         if (next.state === 'live' && a.state === 'live') return { ...a, state: 'done' };
         return a;
       });
-      await api('/api/admin/activities', { method: 'POST', body: { activities: list }, token });
+      const res = await api('/api/admin/activities', {
+        method: 'POST', token,
+        body: { activities: list, ...(baseRev.current === null ? {} : { rev: baseRev.current }) },
+      });
+      baseRev.current = res?.activitiesRev ?? baseRev.current;
+      setConflict(null);
       // 请求期间没有新输入，才算全部保存完。若用户还在打字，保留当前 draft
       // 和 dirty；本次结束后定时器会为最新一版再静默保存一次。
       savedVersion.current = savingVersion;
@@ -405,6 +439,13 @@ export default function ActivityDetail() {
       if (!quiet) toast('已保存', 'ok');
       return true;
     } catch (err) {
+      // 别人在你编辑期间改过这一场：停掉自动保存，把选择权交给人
+      if (err?.status === 409 && err.body?.conflict) {
+        failedAutoVersion.current = savingVersion;
+        setConflict(err.body);
+        toast('别人刚改过这一场，你的改动先没存上', 'warn');
+        return false;
+      }
       // 失败一定要说，自动保存也一样 —— 不吭声的话人以为存上了
       // 同一版失败后不无限自动重试、反复弹错；继续编辑或手动保存会再试。
       failedAutoVersion.current = savingVersion;
@@ -472,6 +513,25 @@ export default function ActivityDetail() {
   return (
     <div className="page page--wide staff-page staff-workspace">
       <NetBar />
+
+      {/* 撞上别人的改动：停在这里让人自己选，别替他决定谁覆盖谁 */}
+      {conflict ? (
+        <div className="card card--tight stack-sm" style={{ marginBottom: 10, borderColor: 'var(--yellow)' }}>
+          <div className="small bold" style={{ color: 'var(--yellow)' }}>⚠ 别人刚改过这一场</div>
+          <div className="tiny dim">
+            你打开这一页之后，有人保存过这场活动，所以你刚才的改动没有存上 ——
+            直接存会把他的改动整个盖掉。
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button type="button" className="btn btn--sm" onClick={takeTheirs}>
+              载入最新（丢掉我的改动）
+            </button>
+            <button type="button" className="btn btn--sm btn--danger" onClick={keepMine}>
+              用我的覆盖
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* 宽屏：标题在左、按钮在右。窄屏（手机）：第一行「返回 + 活动名」，
           第二行三个按钮铺满整行、和下面的卡片左右对齐 —— 原来按钮换行后

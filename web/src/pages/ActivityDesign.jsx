@@ -179,6 +179,10 @@ export default function ActivityDesign() {
   // 用 ref 不用 state：这个判断发生在 effect 和网络回调里，state 有一拍延迟
   const editVersion = useRef(0);
   const savedVersion = useRef(0);
+  // 打开（或上次同步到）这一版时服务端的版本号。保存时带上去，服务端拿它
+  // 判断「这期间有没有别人存过」——两个人同时开着画板，后存的那个原本会
+  // 把先存的整个盖掉，而且自己毫不知情
+  const baseRev = useRef(null);
   const markDirty = () => { editVersion.current += 1; setDirty(true); };
   const [busy, setBusy] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -271,6 +275,7 @@ export default function ActivityDesign() {
     setActivityFields(nextFields);
     activityFieldsRef.current = nextFields;
     savedVersion.current = editVersion.current;
+    baseRev.current = config?.activitiesRev ?? null;
   }, [activity, config, dirty]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1205,14 +1210,62 @@ export default function ActivityDesign() {
 
   /* --------------------------- 保存 --------------------------- */
 
-  async function save() {
+  /**
+   * 别人在你编辑期间存过这一场：让人自己选，不要替他决定。
+   *
+   * 「载入最新」会丢掉本地这一版 —— 所以先确认；「用我的覆盖」则带上
+   * 服务端当前版本号再存一次，覆盖是明确的动作，不是不小心。
+   */
+  async function resolveConflict(body) {
+    const pick = await ask({
+      title: '别人刚改过这场活动',
+      body: '你打开画板之后，有人保存过这一场。现在保存会把他的改动整个盖掉。',
+      choices: [
+        { value: 'reload', label: '载入最新（丢掉我这一版）' },
+        { value: 'force', label: '用我的覆盖', danger: true },
+      ],
+      cancelText: '先不动，我自己看看',
+    });
+    if (pick === 'force') {
+      // 覆盖的是「这一场」，不是整份清单：以服务端最新那份为底，
+      // 只把这一场换成我的 —— 否则别人新建的活动会被我手里的旧清单抹掉
+      baseRev.current = body?.activitiesRev ?? null;
+      await save({ baseList: body?.activities });
+      return;
+    }
+    if (pick === 'reload') {
+      const fresh = await loadConfig().catch(() => null);
+      const made = (fresh?.activities || body?.activities || []).find((a) => a.id === id);
+      if (made) {
+        const next = editorPages(fresh || config, made);
+        pagesRef.current = next;
+        const nextIndex = Math.min(pageIndexRef.current, next.length - 1);
+        pageIndexRef.current = nextIndex;
+        blocksRef.current = next[nextIndex]?.blocks || [];
+        setDesignPages(next);
+        setPageIndex(nextIndex);
+        setSel(null);
+        const nextFields = { en: made.en || '', issuer: made.issuer || '', desc: made.desc || made.rule || '' };
+        setActivityFields(nextFields);
+        activityFieldsRef.current = nextFields;
+        setName(made.name || '');
+        nameRef.current = made.name || '';
+      }
+      baseRev.current = fresh?.activitiesRev ?? body?.activitiesRev ?? null;
+      savedVersion.current = editVersion.current;
+      setDirty(false);
+      toast('已载入别人保存的最新版本', 'ok');
+    }
+  }
+
+  async function save({ baseList = null } = {}) {
     flushInlineEdit();
     setBusy('save');
     let saved = false;
     try {
       const savingVersion = editVersion.current;
       const pages = pagesRef.current || [];
-      const list = activities.map((a) => (a.id === id ? {
+      const list = (baseList || activities).map((a) => (a.id === id ? {
         ...a,
         ...activityFieldsRef.current,
         blocks: pages[0]?.blocks || [],
@@ -1222,7 +1275,10 @@ export default function ActivityDesign() {
         })),
         name: nameRef.current.trim() || a.name,
       } : a));
-      const res = await api('/api/admin/activities', { method: 'POST', body: { activities: list }, token });
+      const res = await api('/api/admin/activities', {
+        method: 'POST', token,
+        body: { activities: list, ...(baseRev.current === null ? {} : { rev: baseRev.current }) },
+      });
       const made = res.activities.find((a) => a.id === id);
       // 请求期间又打了字：这一版已经存上了，但界面上要留着人正在写的东西，
       // 不能拿服务端返回的那份重画（页名、活动名、文字块都会被打回去）
@@ -1244,11 +1300,17 @@ export default function ActivityDesign() {
         nameRef.current = made.name || '';
       }
       savedVersion.current = savingVersion;
+      baseRev.current = res?.activitiesRev ?? baseRev.current;
       await loadConfig();
       setDirty(!stillMine);
       toast(stillMine ? '已保存，所有人的护照上都换了' : '已保存；你刚打的字还留着，记得再存一次', 'ok');
       saved = true;
     } catch (err) {
+      if (err?.status === 409 && err.body?.conflict) {
+        setBusy(null);
+        await resolveConflict(err.body);
+        return;
+      }
       toast(err.message || '保存失败', 'err');
     } finally {
       setBusy(null);
@@ -1301,6 +1363,19 @@ export default function ActivityDesign() {
           {busy === 'save' ? '保存中…' : dirty ? '保存' : '已保存'}
         </button>
       </div>
+      {/* 别人在你编辑期间存过这一场：先说一声，别等保存冲突了才知道 */}
+      {dirty && baseRev.current !== null && config?.activitiesRev !== undefined
+        && config.activitiesRev !== baseRev.current ? (
+          <div className="card card--tight row" style={{ gap: 8, alignItems: 'center', marginBottom: 6 }}>
+            <span className="small" style={{ color: 'var(--yellow)' }}>
+              ⚠ 别人刚保存过这一场，你手上这版是基于旧的。
+            </span>
+            <button type="button" className="btn btn--sm btn--ghost"
+              onClick={() => resolveConflict({ activitiesRev: config.activitiesRev })}>
+              处理一下
+            </button>
+          </div>
+        ) : null}
       <div className="design__pages card">
         <div className="design__page-tabs" role="tablist" aria-label="活动页面">
           {designPages.map((p, i) => (

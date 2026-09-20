@@ -655,6 +655,46 @@ check('错误 PIN 被拒', badPin.status === 401);
       { id: 'blank1', kind: 'blank', title: '空白页', blocks: [] },
     ] } : a)) },
   });
+  /* ---- 两个人同时编辑：乐观锁 ---- */
+  {
+    const before = await j('/api/config');
+    const rev = before.body.activitiesRev;
+    check('配置里带着活动清单的版本号', typeof rev === 'number', String(rev));
+
+    const mine = before.body.activities.map((a, i) => (i === 0 ? { ...a, host: '我改的' } : a));
+    const theirs = before.body.activities.map((a, i) => (i === 0 ? { ...a, host: '他改的' } : a));
+
+    const first = await j('/api/admin/activities', {
+      method: 'POST', headers: adminH, body: { activities: theirs, rev },
+    });
+    check('拿着当前版本号保存成功', first.status === 200, `状态码 ${first.status}`);
+    check('保存后版本号往前走', first.body.activitiesRev === rev + 1,
+      `${rev} -> ${first.body.activitiesRev}`);
+
+    const stale = await j('/api/admin/activities', {
+      method: 'POST', headers: adminH, body: { activities: mine, rev },
+    });
+    check('拿着过期版本号保存被拒', stale.status === 409 && stale.body.conflict === true,
+      `状态码 ${stale.status}`);
+    check('被拒时把最新的一份带回来',
+      stale.body.activities?.[0]?.host === '他改的' && stale.body.activitiesRev === rev + 1,
+      JSON.stringify(stale.body.activitiesRev));
+
+    const stillTheirs = await j('/api/config');
+    check('被拒的那一版没有写进去', stillTheirs.body.activities[0].host === '他改的');
+
+    const forced = await j('/api/admin/activities', {
+      method: 'POST', headers: adminH, body: { activities: mine, rev: stale.body.activitiesRev },
+    });
+    check('对齐版本号后可以覆盖', forced.status === 200
+      && forced.body.activities[0].host === '我改的', `状态码 ${forced.status}`);
+
+    const noRev = await j('/api/admin/activities', {
+      method: 'POST', headers: adminH, body: { activities: before.body.activities },
+    });
+    check('不带版本号照旧放行（旧前端还在用）', noRev.status === 200, `状态码 ${noRev.status}`);
+  }
+
   check('空白页类型被保留、可以没有块',
     blankSave.status === 200 && blankSave.body.activities[0].extraPages[0].kind === 'blank'
       && (blankSave.body.activities[0].extraPages[0].blocks || []).length === 0,

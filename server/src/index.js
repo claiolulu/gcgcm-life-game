@@ -16,7 +16,7 @@ import { recordUsage, recordServerUsage, pruneUsage, usageReport, USAGE_RETENTIO
 import {
   db, stmts, getSettings, setSetting, secret, epoch, staffPin, adminPin,
   writeSnapshot, resetAll, snapshot,
-  getActivities, setActivities, getTheme, UPLOAD_DIR,
+  getActivities, setActivities, activitiesRev, getTheme, UPLOAD_DIR,
   getVisaTemplate, BUILTIN_TAGS, RESERVED_TAG_IDS, normalizeAudience,
   TAG_PALETTE, pickTagColor, normalizeTagColor,
 } from './db.js';
@@ -164,6 +164,7 @@ app.get('/api/config', (req, res) => {
     // 二维码和分享链接要拼的域名。见 shareOrigin 的说明
     shareOrigin: shareOrigin(req),
     activities: getActivities(),
+    activitiesRev: activitiesRev(),
     // 内置两个 + 自建的。前端据此渲染标签条，并在活动可见范围里给出勾选项
     tags: [...BUILTIN_TAGS, ...stmts.allTags.all().map((r) => ({ id: r.id, name: r.name, color: r.color }))],
     // 总控台点色点换颜色时按这个顺序轮
@@ -842,6 +843,28 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
   if (!raw) return res.status(400).json({ error: '格式不对，要一个数组' });
   if (raw.length > 60) return res.status(400).json({ error: '活动太多了（上限 60）' });
 
+  /**
+   * 乐观锁。这个接口是**整份替换**，两个人同时开着总控台/画板时，
+   * 后保存的那个会把先保存的那份整个盖掉，而且他自己毫不知情。
+   *
+   * 带上打开时拿到的版本号，对不上就拒绝，并把当前最新的一份回给他，
+   * 由前端去问人：用我的覆盖，还是载入最新。
+   *
+   * 没带版本号的请求照旧放行 —— 旧的前端缓存、脚本和测试都还在用。
+   */
+  const clientRev = req.body?.rev;
+  if (clientRev !== undefined && clientRev !== null) {
+    const now = activitiesRev();
+    if (Number(clientRev) !== now) {
+      return res.status(409).json({
+        error: '这份活动清单在你编辑期间被别人改过了',
+        conflict: true,
+        activities: getActivities(),
+        activitiesRev: now,
+      });
+    }
+  }
+
   const seen = new Set();
   const clean = [];
   for (const a of raw) {
@@ -927,7 +950,7 @@ app.post('/api/admin/activities', staffAuth('admin'), (req, res) => {
   if (getSettings().gameState !== nextState) setSetting('gameState', nextState);
 
   broadcast('config');
-  res.json({ activities: clean, gameState: nextState });
+  res.json({ activities: clean, gameState: nextState, activitiesRev: activitiesRev() });
 });
 
 /**

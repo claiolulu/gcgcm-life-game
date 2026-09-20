@@ -344,6 +344,16 @@ export function getActivities() {
 
 export function setActivities(list) {
   setSetting('_activities', list);
+  // 版本号：两个人同时开着画板时，后保存的那个要能发现「这份不是我打开时那份」。
+  // 单调递增就够了，不用时间戳 —— 同一毫秒内连着存两次也不会撞
+  setSetting('_activitiesRev', activitiesRev() + 1);
+}
+
+/** 活动清单的版本号。新库还没有这一项时当 0 */
+export function activitiesRev() {
+  const row = getSettingStmt.get('_activitiesRev');
+  const n = row ? Number(safeJSON(row.value, 0)) : 0;
+  return Number.isFinite(n) ? n : 0;
 }
 
 /**
