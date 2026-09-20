@@ -938,6 +938,11 @@ export default function Admin() {
               onClick={() => download('/api/admin/export.csv', 'mini-life-game.csv')}>📊 导出</button>
             <button className="btn btn--sm btn--ghost" disabled={!!busy} title="下载完整备份 JSON，出事了拿它恢复"
               onClick={() => download('/api/admin/backup.json', 'mlg-backup.json')}>🗄 备份</button>
+            {/* 重置密码的入口：弹层和接口一直都在，只是某次改版把这个按钮弄丢了，
+                功能整个点不到 —— 现场有人忘了密码就只能干等 */}
+            <button className="btn btn--sm btn--ghost" disabled={!!busy}
+              title={`勾人，把密码统一重置成 ${resetPin}`}
+              onClick={() => setManualOpen(true)}>🔑 重置密码</button>
             <button className="btn btn--sm btn--ghost" onClick={() => flush({ full: true })} title="重新拉取花名册">↻</button>
           </div>
         </div>
