@@ -200,7 +200,7 @@ npm start
 
 ### 开发记录
 
-**2026-09-20 扫码报名放开到活动开始 / 结束之后** —— 已提交，未部署（服务端改动要重启才生效）。
+**2026-09-20 扫码报名放开到活动开始 / 结束之后** —— 已提交（`9d665fe`）并上线。另一会话（Codex）当时未提交的附页开关 / 撤销签到 / v2 水印放大等改动，按用户「一起提交重启」一并提交为 `b95373f`（展示稿产物 .codex-build / .codex-finalizer / outputs 已加进 .gitignore，未入库）。重启前备份 `server/data/pre-latesignup-2026-09-20.db`；旧进程 17262 → 新进程经 `scripts/start-local-server.sh` 启动，打开的仍是项目 `server/data/game.db`，`signups` 自动补上 `late` 列，推送公钥指纹不变，23 用户 / 12 报名 / 32 事件未变，game/staff/city 三个公网入口正常，隧道未动。线上已结束活动的报名接口返回「可以补登记」。尚未推送到 GitHub。
 - `signups` 加 `late` 列（schema.sql + db.js 里在准备语句前 ALTER，老库自动补）。
 - `activityRegistration()` 三种状态都收报名：live/done 返回 `late: true` 和各自的话术；
   `POST /api/activity/:id/signup` 不再 409，按 late 落库并回传；`DELETE` 也不再看状态
