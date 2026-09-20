@@ -2250,7 +2250,9 @@ html.pp-themed .activity-qr-modal { background: rgba(var(--pp-ink-rgb), .55); }
   border: 1px solid rgba(var(--pp-ink-rgb), .28);
   background: rgba(var(--pp-ink-rgb), .06);
 }
-.visa-gallery__grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 整张显示，不裁。原来是 cover —— 竖构图的照片放进横格子里只剩中间一条，
+   手机横屏时格子更扁，看着就是「图只有一半」。宁可留边也别切掉人头 */
+.visa-gallery__grid img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .visa-gallery__grid span {
   position: absolute;
   inset: 0;
@@ -2311,7 +2313,7 @@ html.pp-themed .activity-qr-modal { background: rgba(var(--pp-ink-rgb), .55); }
   overscroll-behavior: contain;
 }
 .photo-gallery-modal__grid button { padding: 0; border: 0; overflow: hidden; background: #171719; }
-.photo-gallery-modal__grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-gallery-modal__grid img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .photo-gallery-modal__viewer { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; }
 .photo-gallery-modal__viewer > img { max-width: 100%; max-height: 100%; object-fit: contain; }
 /* 签证页上可点开看大图的图：按钮只是个透明外壳，样式全由里面那层决定 */
