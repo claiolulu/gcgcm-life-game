@@ -166,6 +166,9 @@ export default function ActivityDesign() {
   const [activityFields, setActivityFields] = useState({ en: '', issuer: '', desc: '' });
   const [sel, setSel] = useState(null);
   const [dirty, setDirty] = useState(false);
+  // 页签拖动排序：按下时量一次版面，之后只算「拖了多远 → 落到第几格」
+  const tabDragRef = useRef(null);
+  const [dragTab, setDragTab] = useState(null);
   // 每一次本地改动都 +1；savedVersion 是「已经确认存到服务端」的那一版。
   // 两者相等才允许拿服务端数据回填 —— 否则请求飞在路上时打的字会被抹掉。
   // 用 ref 不用 state：这个判断发生在 effect 和网络回调里，state 有一拍延迟
@@ -201,16 +204,24 @@ export default function ActivityDesign() {
   activityFieldsRef.current = activityFields;
   canvasViewRef.current = canvasView;
 
+  /**
+   * 改当前页的块。
+   *
+   * **算好再 setState，不在 updater 里改 ref。** updater 是 React 渲染时才跑的，
+   * 而 save() 读的是 pagesRef —— 在画布上打完字立刻点「保存」，blur 提交的这一版
+   * 还没进 ref，存上去的就是上一版，服务端再把旧文字painted 回来，看着就是「改了又弹回去」。
+   * 以 ref 为准同步算出下一版，两边永远是同一份。
+   */
   const setBlocks = (value) => {
-    setDesignPages((cur) => {
-      if (!cur?.[pageIndexRef.current]) return cur;
-      const old = cur[pageIndexRef.current].blocks || [];
-      const nextBlocks = typeof value === 'function' ? value(old) : value;
-      const next = cur.map((p, i) => (i === pageIndexRef.current ? { ...p, blocks: nextBlocks } : p));
-      pagesRef.current = next;
-      blocksRef.current = nextBlocks;
-      return next;
-    });
+    const cur = pagesRef.current;
+    const index = pageIndexRef.current;
+    if (!cur?.[index]) return;
+    const old = cur[index].blocks || [];
+    const nextBlocks = typeof value === 'function' ? value(old) : value;
+    const next = cur.map((p, i) => (i === index ? { ...p, blocks: nextBlocks } : p));
+    pagesRef.current = next;
+    blocksRef.current = nextBlocks;
+    setDesignPages(next);
   };
 
   const activities = config?.activities || [];
@@ -351,21 +362,16 @@ export default function ActivityDesign() {
 
   const patch = (bid, p, { record = true } = {}) => {
     if (record) checkpoint();
-    setBlocks((cur) => {
-      const next = cur.map((b) => (b.id === bid ? { ...b, ...p } : b));
-      blocksRef.current = next;
-      return next;
-    });
+    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...p } : b)));
     markDirty();
   };
 
   const patchActivity = (values) => {
     checkpoint();
-    setActivityFields((cur) => {
-      const next = { ...cur, ...values };
-      activityFieldsRef.current = next;
-      return next;
-    });
+    // 同 setBlocks：先算好、同步写进 ref，再 setState
+    const next = { ...(activityFieldsRef.current || {}), ...values };
+    activityFieldsRef.current = next;
+    setActivityFields(next);
     if (Object.prototype.hasOwnProperty.call(values, 'name')) {
       const nextName = values.name;
       nameRef.current = nextName;
@@ -383,11 +389,7 @@ export default function ActivityDesign() {
    */
   const bump = (bid, fn) => {
     checkpoint();
-    setBlocks((cur) => {
-      const next = cur.map((b) => (b.id === bid ? { ...b, ...fn(b) } : b));
-      blocksRef.current = next;
-      return next;
-    });
+    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...fn(b) } : b)));
     markDirty();
   };
 
@@ -455,20 +457,24 @@ export default function ActivityDesign() {
     setBusy('gallery');
     const urls = [];
     let failed = 0;
+    // 失败原因要留一条：原来只数个数，一张都没成功时只说「照片上传失败」，
+    // 人看不出是格式不认、太大还是没网，只能反复点同一个按钮
+    let firstError = '';
     for (const file of list) {
       try {
         const res = await uploadPhoto(file, token);
         urls.push(res.url);
-      } catch {
+      } catch (err) {
         failed += 1;
+        if (!firstError) firstError = `${file.name || '这张'}：${err.message || '上传失败'}`;
       }
     }
     try {
-      if (!urls.length) throw new Error('照片上传失败');
+      if (!urls.length) throw new Error(firstError || '照片上传失败');
       const current = (blocksRef.current || []).find((b) => b.id === bid);
       const photos = [...(current?.photos || []), ...urls].slice(0, 100);
       patch(bid, { photos });
-      toast(failed ? `已加入 ${urls.length} 张，${failed} 张失败，请重试` : `已加入 ${urls.length} 张照片`, failed ? 'warn' : 'ok');
+      toast(failed ? `已加入 ${urls.length} 张，${failed} 张没成功 —— ${firstError}` : `已加入 ${urls.length} 张照片`, failed ? 'warn' : 'ok');
     } catch (err) {
       toast(err.message || '照片上传失败', 'err');
     } finally {
@@ -521,6 +527,90 @@ export default function ActivityDesign() {
     markDirty();
   }
 
+  /** 把第 from 页挪到第 to 页（都是附加页，信息页永远第 1）*/
+  function reorderPages(from, to) {
+    if (from === to || from < 1 || to < 1) return;
+    if (!designPages?.[from] || !designPages?.[to]) return;
+    checkpoint();
+    const next = [...designPages];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    pagesRef.current = next;
+    pageIndexRef.current = to;
+    blocksRef.current = next[to].blocks || [];
+    setDesignPages(next);
+    setPageIndex(to);
+    setSel(null);
+    markDirty();
+  }
+
+  /**
+   * 页签拖动排序。
+   *
+   * 和总控台活动清单那套一个思路：按下时量好每个页签的位置，拖动时只改
+   * transform（不 setState，一秒几十帧不重绘），松手才真正重排一次。
+   * 没拖动就是普通点击 —— 切到那一页。
+   */
+  function startTabDrag(e, i) {
+    if (i === 0 || busy === 'save') return;     // 活动信息页钉在第一格
+    const slots = [...document.querySelectorAll('[data-page-tab]')].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { index: Number(el.dataset.pageTab), el, left: r.left, w: r.width };
+    });
+    const from = slots.findIndex((sl) => sl.index === i);
+    if (from < 1) return;
+    tabDragRef.current = { from, to: from, startX: e.clientX, slots, moved: false };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 浏览器会自己继续派发 */ }
+  }
+
+  function moveTabDrag(e) {
+    const d = tabDragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    if (!d.moved && Math.abs(dx) < 6) return;   // 手抖不算拖动
+    if (!d.moved) { d.moved = true; setDragTab(d.slots[d.from].index); }
+    e.preventDefault();
+    const { slots, from } = d;
+    const center = slots[from].left + slots[from].w / 2 + dx;
+    // 落到哪一格：拿起拖时的版面算，同一个 dx 永远得到同一个结果，不会来回跳。
+    // 第 0 格是信息页，附加页最前只能到第 1 格
+    let to = 1;
+    for (let i = 1; i < slots.length; i += 1) {
+      if (center >= slots[i].left) to = i;
+    }
+    d.to = to;
+    slots.forEach((sl, i) => {
+      if (i === from) {
+        sl.el.style.transition = 'none';
+        sl.el.style.transform = `translateX(${dx}px)`;
+        sl.el.style.zIndex = '2';
+        return;
+      }
+      let shift = 0;
+      if (to > from && i > from && i <= to) shift = slots[i - 1].left - slots[i].left;
+      if (to < from && i >= to && i < from) shift = slots[i + 1].left - slots[i].left;
+      sl.el.style.transition = '';
+      sl.el.style.transform = shift ? `translateX(${shift}px)` : '';
+    });
+  }
+
+  function endTabDrag(e, i) {
+    const d = tabDragRef.current;
+    if (!d) return;
+    tabDragRef.current = null;
+    setDragTab(null);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* 已自动释放 */ }
+    d.slots.forEach((sl) => {
+      sl.el.style.transition = 'none';
+      sl.el.style.transform = '';
+      sl.el.style.zIndex = '';
+      // 下一帧再把过渡放回来，否则归位时会自己滑一下
+      requestAnimationFrame(() => { sl.el.style.transition = ''; });
+    });
+    if (!d.moved) { selectPage(i); return; }
+    reorderPages(d.from, d.to);
+  }
+
   function movePage(dir) {
     const to = pageIndex + dir;
     if (pageIndex === 0 || to < 1 || to >= designPages.length) return;
@@ -537,22 +627,18 @@ export default function ActivityDesign() {
 
   function renamePage(title) {
     if (pageIndex === 0) return;
-    setDesignPages((cur) => {
-      const next = cur.map((p, i) => (i === pageIndex ? { ...p, title } : p));
-      pagesRef.current = next;
-      return next;
-    });
+    const next = (pagesRef.current || []).map((p, i) => (i === pageIndex ? { ...p, title } : p));
+    pagesRef.current = next;
+    setDesignPages(next);
     markDirty();
   }
 
   function setPageCheckin(required) {
     if (pageIndex === 0) return;
     checkpoint();
-    setDesignPages((cur) => {
-      const next = cur.map((p, i) => i === pageIndex ? { ...p, requireCheckin: required } : p);
-      pagesRef.current = next;
-      return next;
-    });
+    const next = (pagesRef.current || []).map((p, i) => (i === pageIndex ? { ...p, requireCheckin: required } : p));
+    pagesRef.current = next;
+    setDesignPages(next);
     markDirty();
   }
 
@@ -1163,8 +1249,17 @@ export default function ActivityDesign() {
         <div className="design__page-tabs" role="tablist" aria-label="活动页面">
           {designPages.map((p, i) => (
             <button key={p.id} role="tab" aria-selected={pageIndex === i}
-              className={`design__page-tab ${pageIndex === i ? 'design__page-tab--on' : ''}`}
-              onClick={() => selectPage(i)}>
+              data-page-tab={i}
+              className={`design__page-tab ${pageIndex === i ? 'design__page-tab--on' : ''}`
+                + `${dragTab === i ? ' design__page-tab--dragging' : ''}`}
+              title={i === 0 ? '活动信息页固定在第一页' : '拖动可以调整装订顺序'}
+              style={{ touchAction: i === 0 ? undefined : 'none', cursor: i === 0 ? undefined : 'grab' }}
+              onPointerDown={(e) => startTabDrag(e, i)}
+              onPointerMove={moveTabDrag}
+              onPointerUp={(e) => endTabDrag(e, i)}
+              onPointerCancel={(e) => endTabDrag(e, i)}
+              // 信息页没有拖动，点击照常切页；其余页的切换在 endTabDrag 里做
+              onClick={i === 0 ? () => selectPage(0) : undefined}>
               <span>{i + 1}</span>
               <b>{p.title}</b>
             </button>
@@ -1727,7 +1822,13 @@ function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages, 
         <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer', alignSelf: 'flex-start' }}>
           {busy === 'gallery' ? '上传中…' : '＋ 从设备选择多张'}
           <input type="file" accept="image/*" multiple hidden disabled={busy === 'gallery'}
-            onChange={(e) => { const files = e.target.files; e.target.value = ''; onPickGalleryImages(files); }} />
+            onChange={(e) => {
+              // 先把 FileList 拷成数组再清空这个 input —— value='' 会把 files 一起清掉，
+              // 直接把 FileList 传下去的话，拿到的是一个已经空掉的列表：点了没反应
+              const files = [...(e.target.files || [])];
+              e.target.value = '';
+              onPickGalleryImages(files);
+            }} />
         </label>
         <div className="row" style={{ gap: 8 }}>
           <label className="stack-sm grow" style={{ gap: 3 }}>

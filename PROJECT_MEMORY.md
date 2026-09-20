@@ -200,6 +200,20 @@ npm start
 
 ### 开发记录
 
+**2026-09-20 画板：图库上传没反应、改了被回退、页签拖动排序** —— 已提交，前端构建已上线（无服务端改动）。
+- 图库连传多张一直没反应：`onChange` 先读 `e.target.files` 再 `e.target.value = ''`，
+  而清空 input 会把同一个 FileList 一起清空，传下去的是空列表，于是静默 return。
+  改成先拷成数组（参与者投稿那个输入框同样处理）。失败时也不再只报个数，带上第一条原因。
+- `photo.js` 的 `shrink()` 加解码兜底：`createImageBitmap` 失败就退回 `<img>`，
+  HEIC / 老 Safari 至少能给出明确提示而不是静默失败。
+- 画板里所有 ref 改成「先算好、同步写 ref，再 setState」（`setBlocks` / `patch` / `bump` /
+  `renamePage` / `setPageCheckin` / `patchActivity`）。原来 ref 是在 setState 的 updater 里改的，
+  updater 要等 React 渲染才跑 —— 在画布上打完字立刻点「保存」，`save()` 读到的还是上一版，
+  存上去是旧文字，服务端再把旧值画回来，看着就是「总结页标题改不了」。
+- 页签支持拖动排序（信息页钉在第一格），松手才重排一次；原来的 ← → 按钮保留。
+- 验证：`npm test` 全过（27 / 248 / 11 / 33）；隔离实例里连传 3 张进图库成功、
+  画布改标题后立刻保存（抓到的请求体带新文字）、拖动页签改顺序并存到服务端、信息页拖不动。
+
 **2026-09-20 签证页支持视频、图片点开看大图，修编辑被回退** —— 已提交；前端构建已上线，**服务端要重启**（视频上传接口是新的）。
 - 视频：新块 `video`（src/poster/fit/radius/loop/muted/autoplay，autoplay 强制连带 muted）。
   上传走 `POST /api/admin/upload/video`，原始二进制（不走 base64 JSON）、上限 40MB、按内容哈希存进

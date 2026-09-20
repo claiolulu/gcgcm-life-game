@@ -111,7 +111,7 @@ export default function ActivityContributionSheet({ activity, token, onClose }) 
                 <span className="tiny dim" style={{ display: 'block', marginTop: 3 }}>一次最多 9 张，上传前自动压缩</span>
               </span>
               <input type="file" accept="image/*" multiple hidden disabled={busy}
-                onChange={(e) => { chooseFiles(e.target.files); e.target.value = ''; }} />
+                onChange={(e) => { chooseFiles([...(e.target.files || [])]); e.target.value = ''; }} />
             </label>
 
             <button className="btn btn--primary btn--full" disabled={busy} onClick={submit}>

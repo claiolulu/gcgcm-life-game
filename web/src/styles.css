@@ -1370,6 +1370,14 @@ html.book-locked body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.design__page-tab { transition: transform .16s ease; }
+/* 正在拖的那一页：抬起来一点，盖住旁边的 */
+.design__page-tab--dragging {
+  cursor: grabbing;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+  opacity: .96;
+}
+
 .design__page-tab--on {
   border-color: var(--gold-dim);
   background: var(--gold-glow);
