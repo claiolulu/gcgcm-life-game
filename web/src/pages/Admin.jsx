@@ -460,6 +460,30 @@ export default function Admin() {
   }, [players]);
 
 
+  /**
+   * 重置一个人的密码。现场最常见的就是「某某忘了密码」——
+   * 点开他的详情直接按，比回去批量勾选快
+   */
+  async function resetPinOne(player) {
+    const ok = await ask({
+      title: `重置 ${player.name} 的密码？`,
+      confirmText: `重置为 ${resetPin}`,
+      body: `${player.code} 号的密码会变成 ${resetPin}，原密码立即失效。`
+        + '\n告诉他用原来的编号 + 这个密码找回护照，不要重新报名。',
+    });
+    if (!ok) return;
+    setBusy(`pin-${player.id}`);
+    try {
+      const res = await api('/api/admin/reset-pin', { method: 'POST', body: { playerIds: [player.id] }, token });
+      applyRoster(res.players, res.epoch, res.serverTs);
+      toast(`${player.code} 号的密码已重置为 ${res.pin}`, 'ok', 6000);
+    } catch (err) {
+      toast(err.message || '重置失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   /** 把勾选的人的密码统一重置成 3927 */
   async function resetPinPicked() {
     if (picked.length === 0) return toast('先勾选选手', 'warn');
@@ -1227,6 +1251,15 @@ export default function Admin() {
 
             <div className="tiny dim">
               标错了可撤销签到；报名记录不会一起删除。撤销后可以重新签到。
+            </div>
+            <button className="btn btn--full"
+              disabled={busy === `pin-${detailPlayer.id}`}
+              onClick={() => resetPinOne(detailPlayer)}>
+              {busy === `pin-${detailPlayer.id}` ? '重置中…' : `🔑 重置密码为 ${resetPin}`}
+            </button>
+            <div className="tiny dim">
+              他忘了密码时按这个：重置完让他用原来的 {detailPlayer.code} 号加新密码找回护照，
+              别让他重新报名（会多出一个空号）。
             </div>
             <button className="btn btn--danger btn--full"
               disabled={busy === `delete-${detailPlayer.id}`}
