@@ -212,16 +212,29 @@ export default function ActivityDesign() {
    * 还没进 ref，存上去的就是上一版，服务端再把旧文字painted 回来，看着就是「改了又弹回去」。
    * 以 ref 为准同步算出下一版，两边永远是同一份。
    */
-  const setBlocks = (value) => {
+  const setBlocks = (value, atIndex) => {
     const cur = pagesRef.current;
-    const index = pageIndexRef.current;
+    const index = atIndex ?? pageIndexRef.current;
     if (!cur?.[index]) return;
     const old = cur[index].blocks || [];
     const nextBlocks = typeof value === 'function' ? value(old) : value;
     const next = cur.map((p, i) => (i === index ? { ...p, blocks: nextBlocks } : p));
     pagesRef.current = next;
-    blocksRef.current = nextBlocks;
+    if (index === pageIndexRef.current) blocksRef.current = nextBlocks;
     setDesignPages(next);
+  };
+
+  /**
+   * 这个块在第几页。
+   *
+   * 改字是在失焦/卸载时才提交的，而「切到别的页」本身就会把输入框卸载 ——
+   * 那一刻 pageIndexRef 已经指向新页了，按当前页去打补丁会落在错的一页上，
+   * 刚打的字就这么没了。按 id 找回它自己那一页。
+   */
+  const pageIndexOfBlock = (bid) => {
+    const pages = pagesRef.current || [];
+    const hit = pages.findIndex((p) => (p.blocks || []).some((b) => b.id === bid));
+    return hit < 0 ? pageIndexRef.current : hit;
   };
 
   const activities = config?.activities || [];
@@ -362,7 +375,7 @@ export default function ActivityDesign() {
 
   const patch = (bid, p, { record = true } = {}) => {
     if (record) checkpoint();
-    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...p } : b)));
+    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...p } : b)), pageIndexOfBlock(bid));
     markDirty();
   };
 
@@ -389,7 +402,7 @@ export default function ActivityDesign() {
    */
   const bump = (bid, fn) => {
     checkpoint();
-    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...fn(b) } : b)));
+    setBlocks((cur) => cur.map((b) => (b.id === bid ? { ...b, ...fn(b) } : b)), pageIndexOfBlock(bid));
     markDirty();
   };
 
@@ -482,7 +495,20 @@ export default function ActivityDesign() {
     }
   }
 
+  /**
+   * 把正在改的那段字立刻提交掉。
+   *
+   * 输入框是在失焦/卸载时才提交的，卸载那一路走的是 useEffect 清理 ——
+   * React 会等到这一帧画完才跑。切页、点保存这种「马上要读数据」的动作
+   * 先手动 blur 一下，提交就发生在当下，不用赌那一拍。
+   */
+  function flushInlineEdit() {
+    const el = document.querySelector('[data-inline-editor]');
+    if (el && document.activeElement === el) el.blur();
+  }
+
   function selectPage(index) {
+    flushInlineEdit();
     if (!designPages?.[index]) return;
     pageIndexRef.current = index;
     blocksRef.current = designPages[index].blocks || [];
@@ -1151,6 +1177,7 @@ export default function ActivityDesign() {
   /* --------------------------- 保存 --------------------------- */
 
   async function save() {
+    flushInlineEdit();
     setBusy('save');
     let saved = false;
     try {
@@ -1349,7 +1376,7 @@ export default function ActivityDesign() {
       <div
         className="design__canvas"
         ref={boxRef}
-        onPointerDown={() => { setSel(null); setInspectorOpen(false); setInlineText(null); }}
+        onPointerDown={() => { flushInlineEdit(); setSel(null); setInspectorOpen(false); setInlineText(null); }}
         style={{
           position: 'absolute', inset: 0, width: '100%', height: '100%',
           overflow: 'hidden', touchAction: 'none', background: '#000',

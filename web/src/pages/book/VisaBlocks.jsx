@@ -333,8 +333,15 @@ function InlineValue({ as: Tag = 'span', value, field, blockId, onTextChange, st
     initialValue.current = next;
   }, [value]);
 
+  // 提交逻辑要在「卸载之后」也能跑到，所以最新的那一份存进 ref：
+  // 点画布空白处时，画布的 pointerdown 先把 inlineText 清成 null，这个
+  // 输入框在 blur 之前就被卸载了 —— 只挂 onBlur 的话，刚打的字直接没了
+  const commitRef = useRef(() => {});
+  // React 在跑 effect 清理之前就把 ref 清成 null 了，所以自己留一份节点引用：
+  // 卸载时还要靠它把 DOM 里那段文字读出来
+  const nodeRef = useRef(null);
   const commit = () => {
-    const el = ref.current;
+    const el = ref.current || nodeRef.current;
     if (!el) return;
     // 按「字」数（码点），不按 UTF-16 数，免得把 emoji 劈成两半
     const chars = [...el.innerText];
@@ -349,10 +356,15 @@ function InlineValue({ as: Tag = 'span', value, field, blockId, onTextChange, st
       onTextChange?.(field, next, truncated ? { truncated: true, max: maxLength } : undefined);
     }
   };
+  commitRef.current = commit;
+
+  // 卸载时再提交一次：点框外、切页、选中别的块、直接点保存，都走这里。
+  // commit 自己会比对内容，没改动就什么都不做，不会重复触发
+  useEffect(() => () => commitRef.current(), []);
 
   return (
     <Tag
-      ref={ref}
+      ref={(el) => { ref.current = el; if (el) nodeRef.current = el; }}
       className="visa-inline-input"
       data-inline-editor={blockId}
       contentEditable
