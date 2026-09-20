@@ -6,7 +6,7 @@ import { api } from '../lib/api.js';
 import IconPicker from '../components/IconPicker.jsx';
 import { TEXT_BLOCK_MAX, useConfig, loadConfig } from '../lib/config.js';
 import { useStaff } from '../lib/staff.js';
-import { uploadPhoto } from '../lib/photo.js';
+import { uploadPhoto, uploadVideo } from '../lib/photo.js';
 import VisaPageFrame, { PAGE_ASPECT } from './book/VisaPageFrame.jsx';
 import { BlockBody, PassportMrz } from './book/VisaBlocks.jsx';
 import { resolveBlocks, blockData, bannerBrandOf } from './book/bookVals.js';
@@ -30,6 +30,8 @@ const PALETTE = [
   { kind: 'text',    name: '文字',     make: () => ({ x: 8, y: 30, w: 40, h: 14, text: '写点什么', size: 4, color: '', font: 'sans', align: 'left', bold: false, lh: 1.5 }) },
   { kind: 'image',   name: '图片',     make: () => ({ x: 10, y: 25, w: 30, h: 34, src: '', fit: 'cover', radius: 0 }) },
   { kind: 'gallery', name: '照片图库', make: () => ({ x: 7, y: 26, w: 86, h: 58, photos: [], featured: 6, cols: 3 }) },
+  // 活动短片：默认给一个 16:9 的框，摆在页面中间
+  { kind: 'video',   name: '视频',     make: () => ({ x: 8, y: 30, w: 52, h: 36, src: '', poster: '', fit: 'contain', radius: 0, loop: false, muted: false, autoplay: false }) },
   { kind: 'banner',  name: 'VISA 横框', make: (t) => ({ x: 4, y: 12.5, w: 92, h: 11, word: t.banner, ...t.brand }) },
   { kind: 'fields',  name: '栏目',     make: (t) => ({ x: 4.5, y: 27, w: 52, h: 62, cols: 2, rows: t.rows }) },
   { kind: 'station', name: '活动名',   make: (t) => ({ x: 60, y: 27, w: 36, h: 16, label: t.stationLabel }) },
@@ -164,6 +166,12 @@ export default function ActivityDesign() {
   const [activityFields, setActivityFields] = useState({ en: '', issuer: '', desc: '' });
   const [sel, setSel] = useState(null);
   const [dirty, setDirty] = useState(false);
+  // 每一次本地改动都 +1；savedVersion 是「已经确认存到服务端」的那一版。
+  // 两者相等才允许拿服务端数据回填 —— 否则请求飞在路上时打的字会被抹掉。
+  // 用 ref 不用 state：这个判断发生在 effect 和网络回调里，state 有一拍延迟
+  const editVersion = useRef(0);
+  const savedVersion = useRef(0);
+  const markDirty = () => { editVersion.current += 1; setDirty(true); };
   const [busy, setBusy] = useState(null);
   const [adding, setAdding] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -211,7 +219,10 @@ export default function ActivityDesign() {
   const sources = config?.visaSources || [];
 
   useEffect(() => {
-    if (dirty || !activity) return;
+    if (!activity) return;
+    // 有还没存上的本地改动就不要回填（原来看的是 dirty 这个 state，
+    // 它比按键慢一拍：保存刚回来那一瞬间打的字会被服务端那份盖掉）
+    if (designPages && editVersion.current !== savedVersion.current) return;
     const next = editorPages(config, activity);
     const activeId = pagesRef.current?.[pageIndexRef.current]?.id;
     const keepIndex = activeId ? next.findIndex((p) => p.id === activeId) : 0;
@@ -230,7 +241,8 @@ export default function ActivityDesign() {
     };
     setActivityFields(nextFields);
     activityFieldsRef.current = nextFields;
-  }, [activity, config, dirty]);
+    savedVersion.current = editVersion.current;
+  }, [activity, config, dirty]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (staff.session && staff.session.role !== 'admin') nav('/staff/scan', { replace: true });
@@ -318,7 +330,7 @@ export default function ActivityDesign() {
     setSel(null);
     setInlineText(null);
     setInspectorOpen(false);
-    setDirty(true);
+    markDirty();
   };
 
   function undo() {
@@ -344,7 +356,7 @@ export default function ActivityDesign() {
       blocksRef.current = next;
       return next;
     });
-    setDirty(true);
+    markDirty();
   };
 
   const patchActivity = (values) => {
@@ -359,7 +371,7 @@ export default function ActivityDesign() {
       nameRef.current = nextName;
       setName(nextName);
     }
-    setDirty(true);
+    markDirty();
   };
 
   /**
@@ -376,7 +388,7 @@ export default function ActivityDesign() {
       blocksRef.current = next;
       return next;
     });
-    setDirty(true);
+    markDirty();
   };
 
   function add(kind) {
@@ -390,7 +402,7 @@ export default function ActivityDesign() {
     };
     setBlocks((cur) => [...cur, made]);
     setSel(made.id);
-    setDirty(true);
+    markDirty();
     setAdding(false);
   }
 
@@ -401,6 +413,35 @@ export default function ActivityDesign() {
       const res = await uploadPhoto(file, token);
       patch(bid, { src: res.url });
       toast(`图已上传（${Math.round(res.bytes / 1024)}KB）`, 'ok');
+    } catch (err) {
+      toast(err.message || '上传失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function pickVideo(file, bid) {
+    if (!file) return;
+    setBusy('video');
+    try {
+      const res = await uploadVideo(file, token);
+      patch(bid, { src: res.url });
+      toast(`视频已上传（${Math.round(res.bytes / 1048576 * 10) / 10}MB）`, 'ok');
+    } catch (err) {
+      toast(err.message || '上传失败', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** 视频的海报图：走图片那条压缩上传，存进块的 poster */
+  async function pickVideoPoster(file, bid) {
+    if (!file) return;
+    setBusy('poster');
+    try {
+      const res = await uploadPhoto(file, token);
+      patch(bid, { poster: res.url });
+      toast('封面图已上传', 'ok');
     } catch (err) {
       toast(err.message || '上传失败', 'err');
     } finally {
@@ -458,7 +499,7 @@ export default function ActivityDesign() {
     blocksRef.current = made.blocks;
     setPageIndex(nextIndex);
     setSel(null);
-    setDirty(true);
+    markDirty();
   }
 
   async function deletePage() {
@@ -477,7 +518,7 @@ export default function ActivityDesign() {
     setDesignPages(next);
     setPageIndex(nextIndex);
     setSel(null);
-    setDirty(true);
+    markDirty();
   }
 
   function movePage(dir) {
@@ -491,7 +532,7 @@ export default function ActivityDesign() {
     blocksRef.current = next[to].blocks || [];
     setDesignPages(next);
     setPageIndex(to);
-    setDirty(true);
+    markDirty();
   }
 
   function renamePage(title) {
@@ -501,7 +542,7 @@ export default function ActivityDesign() {
       pagesRef.current = next;
       return next;
     });
-    setDirty(true);
+    markDirty();
   }
 
   function setPageCheckin(required) {
@@ -512,7 +553,7 @@ export default function ActivityDesign() {
       pagesRef.current = next;
       return next;
     });
-    setDirty(true);
+    markDirty();
   }
 
   async function openMaterials() {
@@ -539,7 +580,7 @@ export default function ActivityDesign() {
       setBlocks((cur) => cur.map((b) => (b.id === gallery.id
         ? { ...b, photos: [...photos, material.content].slice(0, 100) }
         : b)));
-      setDirty(true);
+      markDirty();
       setSel(gallery.id);
       toast(`已把 ${material.player?.name || '参与者'} 的照片加入图库`, 'ok');
       return;
@@ -568,7 +609,7 @@ export default function ActivityDesign() {
       setBlocks((cur) => [...cur, made]);
     }
     setSel(made.id);
-    setDirty(true);
+    markDirty();
     setMaterialsOpen(false);
     toast(`已把 ${material.player?.name || '参与者'} 的${isImage ? '照片' : '文字'}放到当前页`, 'ok');
   }
@@ -591,7 +632,7 @@ export default function ActivityDesign() {
     checkpoint();
     setBlocks((cur) => cur.filter((b) => b.id !== bid));
     setSel(null);
-    setDirty(true);
+    markDirty();
   };
 
   function duplicate(b) {
@@ -600,7 +641,7 @@ export default function ActivityDesign() {
                    x: round(b.x + 3), y: round(b.y + 3) };
     setBlocks((cur) => [...cur, made]);
     setSel(made.id);
-    setDirty(true);
+    markDirty();
   }
 
   /** 图层顺序就是数组顺序：后面的画在上面 */
@@ -614,7 +655,7 @@ export default function ActivityDesign() {
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
-    setDirty(true);
+    markDirty();
   };
 
   async function clearAll() {
@@ -625,7 +666,7 @@ export default function ActivityDesign() {
     checkpoint();
     setBlocks([]);
     setSel(null);
-    setDirty(true);
+    markDirty();
   }
 
   async function resetDefault() {
@@ -639,7 +680,7 @@ export default function ActivityDesign() {
       : newExtraPage(designPages[pageIndex].kind, pageIndex).blocks;
     setBlocks(nextBlocks);
     setSel(null);
-    setDirty(true);
+    markDirty();
   }
 
   /* --------------------------- 拖动 --------------------------- */
@@ -1027,6 +1068,7 @@ export default function ActivityDesign() {
     setBusy('save');
     let saved = false;
     try {
+      const savingVersion = editVersion.current;
       const pages = pagesRef.current || [];
       const list = activities.map((a) => (a.id === id ? {
         ...a,
@@ -1040,7 +1082,10 @@ export default function ActivityDesign() {
       } : a));
       const res = await api('/api/admin/activities', { method: 'POST', body: { activities: list }, token });
       const made = res.activities.find((a) => a.id === id);
-      if (made) {
+      // 请求期间又打了字：这一版已经存上了，但界面上要留着人正在写的东西，
+      // 不能拿服务端返回的那份重画（页名、活动名、文字块都会被打回去）
+      const stillMine = editVersion.current === savingVersion;
+      if (made && stillMine) {
         const next = editorPages(config, made);
         pagesRef.current = next;
         const nextIndex = Math.min(pageIndexRef.current, next.length - 1);
@@ -1056,9 +1101,10 @@ export default function ActivityDesign() {
         setName(made.name || '');
         nameRef.current = made.name || '';
       }
+      savedVersion.current = savingVersion;
       await loadConfig();
-      setDirty(false);
-      toast('已保存，所有人的护照上都换了', 'ok');
+      setDirty(!stillMine);
+      toast(stillMine ? '已保存，所有人的护照上都换了' : '已保存；你刚打的字还留着，记得再存一次', 'ok');
       saved = true;
     } catch (err) {
       toast(err.message || '保存失败', 'err');
@@ -1107,7 +1153,7 @@ export default function ActivityDesign() {
             checkpoint();
             nameRef.current = value;
             setName(value);
-            setDirty(true);
+            markDirty();
           }} />
         <button className="btn btn--sm btn--primary" disabled={busy === 'save' || !dirty} onClick={save}>
           {busy === 'save' ? '保存中…' : dirty ? '保存' : '已保存'}
@@ -1136,11 +1182,13 @@ export default function ActivityDesign() {
               <button className="btn btn--sm btn--danger" onClick={deletePage}>删除本页</button>
             </>
           ) : null}
+          {/* 页名用 ImeInput：普通受控 input 在拼音选字期间会被 React 重写，
+              打一半的字直接没了 —— 页名几乎都是中文，最容易撞上 */}
           {pageIndex > 0 ? (
-            <input className="input design__page-title" value={designPages[pageIndex].title}
+            <ImeInput className="input design__page-title" value={designPages[pageIndex].title}
               maxLength={24} aria-label="页面名称" placeholder="页面名称"
               onFocus={checkpoint}
-              onChange={(e) => renamePage(e.target.value)} />
+              onValue={(value) => renamePage(value)} />
           ) : null}
         </div>
         {pageIndex === 0 ? (
@@ -1400,6 +1448,8 @@ export default function ActivityDesign() {
             b={selected} patch={(p) => patch(selected.id, p)} sources={sources}
             busy={busy} onPickImage={(f) => pickImage(f, selected.id)}
             onPickGalleryImages={(files) => pickGalleryImages(files, selected.id)}
+            onPickVideo={(f) => pickVideo(f, selected.id)}
+            onPickVideoPoster={(f) => pickVideoPoster(f, selected.id)}
           />
 
           {selected.kind === 'text' && (() => {
@@ -1457,7 +1507,7 @@ export default function ActivityDesign() {
 }
 
 /** 每种块自己那几项 */
-function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages }) {
+function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages, onPickVideo, onPickVideoPoster }) {
   const toast = useToast();
   if (b.kind === 'icon') {
     return (
@@ -1583,6 +1633,56 @@ function Inspector({ b, patch, sources, busy, onPickImage, onPickGalleryImages }
 
   if (b.kind === 'links') {
     return <div className="tiny dim">这一场的页面链接，在活动详情页里加。这里只管它摆在哪。</div>;
+  }
+
+  if (b.kind === 'video') {
+    return (
+      <>
+        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+            {busy === 'video' ? '上传中…' : b.src ? '换一段' : '选一段视频'}
+            <input type="file" accept="video/*" hidden disabled={busy === 'video'}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onPickVideo(f); }} />
+          </label>
+          <select className="input grow" value={b.fit || 'contain'} onChange={(e) => patch({ fit: e.target.value })}>
+            <option value="contain">完整显示（会留黑边）</option>
+            <option value="cover">铺满（会裁掉边）</option>
+          </select>
+        </div>
+        <div className="tiny dim">
+          上限 40MB，mp4（H.264）各家浏览器都认，iPhone 直出的 mov 和 webm 也收。
+          更长的片子传到 YouTube / 网盘，再用「页面链接」挂过去。
+          翻到这一页不会自动下载整段，参与者点了才开始加载。
+        </div>
+        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <label className="btn btn--sm btn--ghost" style={{ cursor: 'pointer' }}>
+            {busy === 'poster' ? '上传中…' : b.poster ? '换封面图' : '选封面图（选填）'}
+            <input type="file" accept="image/*" hidden disabled={busy === 'poster'}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onPickVideoPoster(f); }} />
+          </label>
+          {b.poster && (
+            <button type="button" className="btn btn--sm btn--ghost" onClick={() => patch({ poster: '' })}>清掉封面</button>
+          )}
+        </div>
+        <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={!!b.loop} onChange={(e) => patch({ loop: e.target.checked })} />
+          <span className="small">循环播放</span>
+        </label>
+        <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={!!b.autoplay}
+            onChange={(e) => patch({ autoplay: e.target.checked, muted: e.target.checked ? true : b.muted })} />
+          <span className="small">翻到就自动播放（浏览器只允许静音自动播放）</span>
+        </label>
+        {!b.autoplay && (
+          <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <input type="checkbox" checked={!!b.muted} onChange={(e) => patch({ muted: e.target.checked })} />
+            <span className="small">默认静音</span>
+          </label>
+        )}
+        <Slider label="圆角" value={b.radius || 0} min={0} max={50} step={1}
+          onChange={(v) => patch({ radius: v })} suffix="%" />
+      </>
+    );
   }
 
   if (b.kind === 'image') {

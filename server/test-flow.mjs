@@ -303,6 +303,71 @@ check('错误 PIN 被拒', badPin.status === 401);
   const missing = await fetch(BASE + '/uploads/deadbeefdeadbeef.jpg');
   check('不存在的图返回 404，不会掉到首页上', missing.status === 404, `状态码 ${missing.status}`);
 
+  /* ---- 活动短片 ---- */
+  // 只需要通过头几个字节的嗅探：ISO BMFF 的 'ftyp' + brand，后面填够长度就行
+  const mp4 = Buffer.concat([
+    Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom', 'latin1'),
+    Buffer.alloc(2048, 7),
+  ]);
+  const postVideo = (buf, headers) => fetch(BASE + '/api/admin/upload/video', {
+    method: 'POST', headers: { 'content-type': 'video/mp4', ...headers }, body: buf,
+  });
+
+  const vid = await postVideo(mp4, adminH).then(async (r) => ({ status: r.status, body: await r.json() }));
+  check('能上传视频', vid.status === 200 && /^\/uploads\/[a-f0-9]{16}\.mp4$/.test(vid.body.url || ''),
+    JSON.stringify(vid.body));
+
+  const vidAgain = await postVideo(mp4, adminH).then(async (r) => ({ body: await r.json() }));
+  check('同一段视频传两次是同一个地址', vidAgain.body.url === vid.body.url);
+
+  const vidGet = await fetch(BASE + vid.body.url);
+  check('上传的视频能直接访问', vidGet.status === 200
+    && (vidGet.headers.get('content-type') || '').includes('mp4'),
+    `${vidGet.status} ${vidGet.headers.get('content-type')}`);
+
+  const ranged = await fetch(BASE + vid.body.url, { headers: { range: 'bytes=0-99' } });
+  check('视频支持范围请求（拖进度条要用）', ranged.status === 206, `状态码 ${ranged.status}`);
+
+  const fakeVideo = await postVideo(Buffer.alloc(2048, 65), adminH)
+    .then(async (r) => ({ status: r.status, body: await r.json() }));
+  check('不是视频的文件被拒', fakeVideo.status === 400, `状态码 ${fakeVideo.status}`);
+
+  const vidNotAdmin = await postVideo(mp4, staffH).then((r) => r.status);
+  check('普通工作人员不能上传视频', vidNotAdmin === 403, `状态码 ${vidNotAdmin}`);
+
+  // 存成签证页上的视频块
+  const vcfg = await j('/api/config');
+  // 挂在最后一场：第一场后面还有「没提供 blocks 就不写这个字段」那条检查
+  const vlast = vcfg.body.activities.length - 1;
+  const vacts = vcfg.body.activities.map((a, i) => (i === vlast ? {
+    ...a,
+    blocks: [{ id: 'vid1', kind: 'video', x: 8, y: 30, w: 52, h: 36,
+      src: vid.body.url, poster: up.body.url, fit: 'contain', autoplay: true, loop: true }],
+  } : a));
+  const vsaved = await j('/api/admin/activities', { method: 'POST', headers: adminH, body: { activities: vacts } });
+  const vblock = vsaved.body.activities?.[vlast]?.blocks?.[0];
+  check('视频块存得进活动', vsaved.status === 200 && vblock?.kind === 'video'
+    && vblock?.src === vid.body.url && vblock?.poster === up.body.url,
+    JSON.stringify(vblock));
+  check('自动播放一定连着静音', vblock?.autoplay === true && vblock?.muted === true, JSON.stringify(vblock));
+
+  const badSrc = await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: vcfg.body.activities.map((a, i) => (i === vlast ? {
+      ...a, blocks: [{ id: 'vid2', kind: 'video', x: 8, y: 30, w: 52, h: 36,
+        src: 'javascript:alert(1)' }],
+    } : a)) },
+  });
+  check('视频块里的坏地址被洗掉', badSrc.status === 200
+    && badSrc.body.activities[vlast].blocks[0].src === '',
+    JSON.stringify(badSrc.body.activities?.[vlast]?.blocks?.[0]));
+
+  // 收拾干净：这一场的块清掉，后面的检查还要用这份活动清单
+  await j('/api/admin/activities', {
+    method: 'POST', headers: adminH,
+    body: { activities: vcfg.body.activities },
+  });
+
   // 存进活动里
   const cfg = await j('/api/config');
   const acts = cfg.body.activities.map((a, i) => (i === 0 ? { ...a, photo: up.body.url } : a));

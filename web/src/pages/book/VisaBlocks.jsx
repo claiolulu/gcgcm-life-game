@@ -161,6 +161,95 @@ function QrBody({ b, data, editing }) {
   );
 }
 
+/**
+ * 点开看大图。
+ *
+ * 签证页上的图最大也就巴掌大，活动合影挤在里面根本看不清谁是谁。
+ * 复用图库那套弹层样式 —— 同一个页面上两种放大长得不一样才奇怪。
+ */
+function Zoomable({ src, alt, children, disabled = false }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // 画板里点图是选中这个块，不是看大图
+  if (disabled) return children;
+
+  const modal = open && typeof document !== 'undefined' ? createPortal(
+    <div className="photo-gallery-modal" role="dialog" aria-modal="true" aria-label="放大查看"
+      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) setOpen(false); }}>
+      <div className="photo-gallery-modal__bar">
+        <div><b>{alt || '这一页的图'}</b></div>
+        <button onClick={() => setOpen(false)} aria-label="关闭大图">×</button>
+      </div>
+      <div className="photo-gallery-modal__viewer">
+        <img src={src} alt={alt || ''} />
+      </div>
+    </div>, document.body,
+  ) : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="visa-zoom"
+        aria-label="点开看大图"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
+      >
+        {children}
+      </button>
+      {modal}
+    </>
+  );
+}
+
+/**
+ * 活动短片。
+ *
+ * 不自动下载整段（preload=metadata）—— 签证页一翻过去就拉几十兆，
+ * 手机流量和弱网都受不了。自动播放必须同时静音，否则浏览器直接拒绝。
+ * 画板里不给播：编辑时点下去应该是选中这个块，不是开始放片。
+ */
+function VideoBody({ b, editing }) {
+  if (!b.src) return editing ? <Ghost text="还没选视频" /> : null;
+
+  const shape = {
+    width: '100%', height: '100%', objectFit: b.fit === 'cover' ? 'cover' : 'contain',
+    display: 'block', background: '#000', borderRadius: `${b.radius || 0}%`,
+  };
+  if (editing) {
+    return (
+      <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+        <video src={b.src} poster={b.poster || undefined} style={{ ...shape, pointerEvents: 'none' }}
+          preload="metadata" muted playsInline />
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: '3cqh', textShadow: '0 1px 4px rgba(0,0,0,.8)', pointerEvents: 'none',
+        }}>▶ 视频</div>
+      </div>
+    );
+  }
+  return (
+    <video
+      src={b.src}
+      poster={b.poster || undefined}
+      style={shape}
+      controls
+      playsInline
+      preload="metadata"
+      loop={!!b.loop}
+      muted={!!b.muted || !!b.autoplay}
+      autoPlay={!!b.autoplay}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+}
+
 function GalleryBody({ b, editing }) {
   const photos = Array.isArray(b.photos) ? b.photos.filter(Boolean) : [];
   const featured = Math.max(1, Math.min(8, Number(b.featured) || 6));
@@ -541,12 +630,14 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
         return editing ? <Ghost text="配图（这一场还没传图）" /> : null;
       }
       return (
-        <div style={{ width: '100%', height: '100%', padding: '0.7cqh', background: '#fff', border: '1px solid rgba(var(--pp-ink-rgb),.35)', boxSizing: 'border-box' }}>
-          {/* 放大后要被这层白边框裁住，不然会糊出框外 */}
-          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-            <CroppedImage src={data.photo} b={b} />
+        <Zoomable src={data.photo} alt="活动配图" disabled={editing}>
+          <div style={{ width: '100%', height: '100%', padding: '0.7cqh', background: '#fff', border: '1px solid rgba(var(--pp-ink-rgb),.35)', boxSizing: 'border-box' }}>
+            {/* 放大后要被这层白边框裁住，不然会糊出框外 */}
+            <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+              <CroppedImage src={data.photo} b={b} />
+            </div>
           </div>
-        </div>
+        </Zoomable>
       );
 
     case 'links':
@@ -579,13 +670,18 @@ export function BlockBody({ b, data, editing, inlineEditing = false, onTextChang
       // 一起清掉 —— 图整个不见，还不报错。踩过一次了。
       if (!b.src) return editing ? <Ghost text="还没选图" /> : null;
       return (
-        <div style={{
-          width: '100%', height: '100%', overflow: 'hidden',
-          borderRadius: `${b.radius || 0}%`,
-        }}>
-          <CroppedImage src={b.src} b={b} />
-        </div>
+        <Zoomable src={b.src} alt="这一页的图" disabled={editing}>
+          <div style={{
+            width: '100%', height: '100%', overflow: 'hidden',
+            borderRadius: `${b.radius || 0}%`,
+          }}>
+            <CroppedImage src={b.src} b={b} />
+          </div>
+        </Zoomable>
       );
+
+    case 'video':
+      return <VideoBody b={b} editing={editing} />;
 
     case 'gallery':
       return <GalleryBody b={b} editing={editing} />;
@@ -676,8 +772,8 @@ export default function VisaBlocks({ blocks, data, editing = false }) {
             </a>
           );
         }
-        // 链接、图库和报名码需要接收点击；其它块继续穿透给翻页层。
-        const interactive = !editing && (b.kind === 'links' || b.kind === 'gallery' || b.kind === 'qr');
+        // 链接、图库、报名码、视频和可放大的图需要接收点击；其它块继续穿透给翻页层。
+        const interactive = !editing && ['links', 'gallery', 'qr', 'video', 'image', 'photo'].includes(b.kind);
         return <div key={b.id} style={{ ...box, pointerEvents: interactive ? 'auto' : 'none' }}>{body}</div>;
       })}
     </div>

@@ -54,9 +54,16 @@ export default defineConfig({
             },
           },
           {
+            // 活动视频：范围请求（拖进度条）靠的是 206，Service Worker 缓存
+            // 存不下也答不对 206；几十兆的片子也不该占满手机的缓存配额。
+            // 一律直连网络，由浏览器自己按 Range 取。
+            urlPattern: ({ url }) => /^\/uploads\/.+\.(mp4|webm|mov)$/i.test(url.pathname),
+            handler: 'NetworkOnly',
+          },
+          {
             // 活动配图：后台上传的照片。文件名是内容哈希，换图就是换地址，
             // 所以可以放心 CacheFirst —— 缓存永远不会是「旧图」，只会是没有
-            urlPattern: ({ url }) => url.pathname.startsWith('/uploads/'),
+            urlPattern: ({ url }) => /^\/uploads\/.+\.(jpg|jpeg|png|webp)$/i.test(url.pathname),
             handler: 'CacheFirst',
             options: {
               cacheName: 'mlg-photos',

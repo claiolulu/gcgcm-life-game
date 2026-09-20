@@ -200,6 +200,22 @@ npm start
 
 ### 开发记录
 
+**2026-09-20 签证页支持视频、图片点开看大图，修编辑被回退** —— 已提交；前端构建已上线，**服务端要重启**（视频上传接口是新的）。
+- 视频：新块 `video`（src/poster/fit/radius/loop/muted/autoplay，autoplay 强制连带 muted）。
+  上传走 `POST /api/admin/upload/video`，原始二进制（不走 base64 JSON）、上限 40MB、按内容哈希存进
+  `uploads/`，靠头几个字节认 mp4 / webm / mov，不转码。`safeVideo()` 只放行本机上传和 https。
+  护照里 `preload="metadata"`，翻到那页不下载整段；画板里不播，只显示首帧加「▶ 视频」。
+  PWA：`/uploads/*.mp4|webm|mov` 改成 NetworkOnly —— Service Worker 缓存答不了 206，拖进度条会坏。
+- 图片放大：`image` 和 `photo` 块在护照里点一下开大图弹层（复用图库那套样式），画板里不放大。
+  这两类块连同视频一起加进「可接收点击」的名单。
+- 编辑被回退：`ActivityDesign` / `ActivityDetail` 原来靠 `dirty` 这个 state 决定要不要拿服务端数据回填，
+  它比按键慢一拍 —— 保存请求飞在路上时打的字会被响应里那份盖掉。改成 `editVersion` / `savedVersion`
+  两个 ref 比对（同步、不受渲染时序影响）；保存回来发现版本变了就不重画，并提示「你刚打的字还留着」。
+- 附页标题（活动总结那个）改不动：那个输入框是普通受控 `input`，中文选字期间会被 React 重写，
+  换成 `ImeInput`（其它中文输入框早就用它了）。
+- 验证：`npm test` 全过（27 / 248 / 11 / 33）；隔离实例用一段真实 mov 走通上传→放进签证页→护照里播放
+  （readyState 4、可拖动）、图片点开放大、附页改名存到服务端、以及「保存飞行中继续打字不被回退」。
+
 **2026-09-20 提示条不再压住弹层按钮** —— 已提交，前端构建已上线（无服务端改动，未重启）。
 - 根因：`.toast-wrap` 是 `z-index: 80` 的底部固定层，弹层（`.sheet` / `.sheet-backdrop`，60/61）在它下面，
   而弹层的按钮都贴着底部 —— 活动页点「保存」后那句「已保存」正好盖住确认框的「去写通知」。

@@ -47,10 +47,16 @@ app.use(cors({ origin: true, credentials: true }));
 // 一个开放的 4mb 入口够别人拿来灌满磁盘了
 const jsonSmall = express.json({ limit: '512kb' });
 const jsonImage = express.json({ limit: '4mb' });
-app.use((req, res, next) => (
-  req.path === '/api/admin/upload' || /^\/api\/activity\/[^/]+\/materials$/.test(req.path)
-    ? jsonImage : jsonSmall
-)(req, res, next));
+// 视频走原始二进制，不走 base64 的 JSON —— base64 会把体积撑大三分之一，
+// 一段 30MB 的短片编进 JSON 就是 40MB 的字符串，服务端还得整份读进内存
+const rawVideo = express.raw({ type: ['video/*', 'application/octet-stream'], limit: '60mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/admin/upload/video') return rawVideo(req, res, next);
+  if (req.path === '/api/admin/upload' || /^\/api\/activity\/[^/]+\/materials$/.test(req.path)) {
+    return jsonImage(req, res, next);
+  }
+  return jsonSmall(req, res, next);
+});
 
 // 上传的图。放在 API 之前 —— 静态文件不该走那些鉴权中间件
 app.use('/uploads', express.static(UPLOAD_DIR, {
@@ -938,6 +944,18 @@ function safePhoto(v) {
   return '';
 }
 
+/**
+ * 视频地址。和配图一样只收本机上传的和 https 外链 —— 它会变成 <video src>，
+ * 收任意字符串同样是一条 XSS。
+ */
+function safeVideo(v) {
+  const s = String(v || '').trim().slice(0, 300);
+  if (!s) return '';
+  if (/^\/uploads\/[A-Za-z0-9_-]+\.(mp4|webm|mov)$/.test(s)) return s;
+  if (/^https:\/\/[^\s"'<>]+$/i.test(s)) return s;
+  return '';
+}
+
 const SRC_KEYS = new Set(VISA_ROW_SOURCES.map((x) => x.key));
 
 /**
@@ -1009,6 +1027,7 @@ function num(v, min, max, fallback) {
 
 const BLOCK_KINDS = new Set([
   'banner', 'fields', 'station', 'note', 'photo', 'links', 'text', 'image', 'icon', 'gallery', 'qr',
+  'video',
 ]);
 
 function cleanBlocks(raw, where) {
@@ -1073,6 +1092,13 @@ function cleanBlocks(raw, where) {
                  zoom: num(b?.zoom, 0.25, 4, 1) };
       case 'links':
         return base;
+      // 短片。自动播放只在静音时才被浏览器允许，所以 autoplay 一定连着 muted；
+      // 海报图是可选的，没有的话浏览器自己抽第一帧（preload=metadata 就够）
+      case 'video':
+        return { ...base, href: '', src: safeVideo(b?.src), poster: safePhoto(b?.poster),
+                 fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'contain',
+                 radius: num(b?.radius, 0, 50, 0),
+                 loop: !!b?.loop, muted: !!b?.muted || !!b?.autoplay, autoplay: !!b?.autoplay };
       case 'image':
         return { ...base, src: safePhoto(b?.src),
                  fit: CANVAS_FIT.has(b?.fit) ? b.fit : 'cover', radius: num(b?.radius, 0, 50, 0),
@@ -1178,6 +1204,46 @@ app.post('/api/admin/upload', staffAuth('admin'), (req, res) => {
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message });
   }
+});
+
+/**
+ * 活动短片。整段存进 uploads/，和图片一样用内容哈希当文件名。
+ *
+ * 这里不做转码（服务器上没有 ffmpeg，也不该在活动当天去烧 CPU）：
+ * 收什么就存什么，能不能播由浏览器决定。mp4(H.264) 是唯一各家都认的，
+ * 所以上传界面上写明了这一条；webm 和 iPhone 直出的 mov 也一并收下。
+ *
+ * 上限 40MB：签证页上的短片是「几十秒的回顾」，不是完整录像。再大的
+ * 应该传到 YouTube / 网盘，用页面链接块挂过去。
+ */
+const VIDEO_MAX = 40 * 1024 * 1024;
+
+function videoExtOf(buf) {
+  if (buf.length < 16) return null;
+  // ISO BMFF（mp4 / mov）：第 5-8 字节是 'ftyp'，再往后是 brand
+  if (buf.subarray(4, 8).toString('latin1') === 'ftyp') {
+    const brand = buf.subarray(8, 12).toString('latin1');
+    if (brand === 'qt  ') return 'mov';
+    return 'mp4';
+  }
+  // WebM / Matroska 的 EBML 头
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return 'webm';
+  return null;
+}
+
+app.post('/api/admin/upload/video', staffAuth('admin'), (req, res) => {
+  const buf = Buffer.isBuffer(req.body) ? req.body : null;
+  if (!buf || buf.length < 1024) return res.status(400).json({ error: '没收到视频数据' });
+  if (buf.length > VIDEO_MAX) {
+    return res.status(413).json({ error: '视频太大了（上限 40MB）。剪短一点，或者传到网盘再用页面链接挂过去。' });
+  }
+  const ext = videoExtOf(buf);
+  if (!ext) return res.status(400).json({ error: '只收 mp4 / webm / mov 视频' });
+
+  const name = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16) + '.' + ext;
+  const file = path.join(UPLOAD_DIR, name);
+  if (!fs.existsSync(file)) fs.writeFileSync(file, buf);
+  res.json({ url: `/uploads/${name}`, bytes: buf.length });
 });
 
 const materialJson = (row, withOwner = false) => ({

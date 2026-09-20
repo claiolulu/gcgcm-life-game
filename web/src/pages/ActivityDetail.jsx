@@ -52,17 +52,22 @@ export default function ActivityDetail() {
   // 每次本地编辑都递增。保存返回时只清理它真正保存过的那一版，
   // 不能拿网络响应覆盖请求发出后用户继续输入的新内容。
   const editVersion = useRef(0);
+  // 已经确认存到服务端的那一版。只有本地没有新改动时才允许拿服务端数据回填
+  const savedVersion = useRef(0);
   const failedAutoVersion = useRef(null);
 
   const activities = config?.activities || [];
   const players = useMemo(() => allPlayers(), [staff.players, staff.outbox]); // eslint-disable-line
 
   useEffect(() => {
-    if (dirty) return;
+    // 有还没存上的本地改动就不回填。原来看的是 dirty 这个 state —— 它比按键
+    // 慢一拍，自动保存刚回来那一瞬间打的字会被服务端那份盖回去
+    if (draft && editVersion.current !== savedVersion.current) return;
     const hit = activities.find((a) => a.id === id);
-    if (hit) setDraft(JSON.parse(JSON.stringify(hit)));
-    // dirty 从 true 变 false 时不要立刻用旧 config 回填；等 loadConfig
-    // 真正带回刚保存的数据后，activities 改变再同步。
+    if (hit) {
+      setDraft(JSON.parse(JSON.stringify(hit)));
+      savedVersion.current = editVersion.current;
+    }
   }, [activities, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -392,6 +397,7 @@ export default function ActivityDetail() {
       await api('/api/admin/activities', { method: 'POST', body: { activities: list }, token });
       // 请求期间没有新输入，才算全部保存完。若用户还在打字，保留当前 draft
       // 和 dirty；本次结束后定时器会为最新一版再静默保存一次。
+      savedVersion.current = savingVersion;
       if (editVersion.current === savingVersion) setDirty(false);
       await loadConfig();
       // 自动保存不吐提示：每停手一次弹一个「已保存」，一页填下来能弹十几次。
