@@ -1642,8 +1642,6 @@ html.book-locked body {
 .design__rotate-handle:active { cursor: grabbing; }
 .design__resize-handle {
   position: absolute;
-  right: -5px;
-  bottom: -5px;
   width: 12px;
   height: 12px;
   border: 2px solid #000;
@@ -1653,6 +1651,28 @@ html.book-locked body {
   touch-action: none;
   pointer-events: auto;
 }
+
+/* 四角 + 四条边的中点。把手都用 translate 压在边线上，
+   这样块本身的宽高不用为把手让位 */
+.design__resize-handle--nw { left: 0; top: 0; transform: translate(-50%, -50%); cursor: nwse-resize; }
+.design__resize-handle--n  { left: 50%; top: 0; transform: translate(-50%, -50%); cursor: ns-resize; }
+.design__resize-handle--ne { left: 100%; top: 0; transform: translate(-50%, -50%); cursor: nesw-resize; }
+.design__resize-handle--e  { left: 100%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; }
+.design__resize-handle--se { left: 100%; top: 100%; transform: translate(-50%, -50%); cursor: nwse-resize; }
+.design__resize-handle--s  { left: 50%; top: 100%; transform: translate(-50%, -50%); cursor: ns-resize; }
+.design__resize-handle--sw { left: 0; top: 100%; transform: translate(-50%, -50%); cursor: nesw-resize; }
+.design__resize-handle--w  { left: 0; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; }
+
+/* 触屏上手指比鼠标粗：把手本身还是 12px（视觉上别太笨重），
+   另外垫一圈透明的可点区域，实际能按到的范围大一圈 */
+@media (pointer: coarse) {
+  .design__resize-handle::after {
+    content: '';
+    position: absolute;
+    inset: -9px;
+  }
+}
+
 .design__snap-guide {
   position: absolute;
   z-index: 60;

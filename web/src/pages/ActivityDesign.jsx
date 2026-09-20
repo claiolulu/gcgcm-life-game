@@ -25,6 +25,18 @@ import { resolveBlocks, blockData, bannerBrandOf } from './book/bookVals.js';
 
 const round = (n) => Math.round(n * 10) / 10;
 
+/** 选中框上的八个缩放把手：四角 + 四条边的中点 */
+const RESIZE_HANDLES = [
+  { dir: 'nw', title: '拖这里改大小（左上角）' },
+  { dir: 'n', title: '拖这里改高度（上边）' },
+  { dir: 'ne', title: '拖这里改大小（右上角）' },
+  { dir: 'e', title: '拖这里改宽度（右边）' },
+  { dir: 'se', title: '拖这里改大小（右下角）' },
+  { dir: 's', title: '拖这里改高度（下边）' },
+  { dir: 'sw', title: '拖这里改大小（左下角）' },
+  { dir: 'w', title: '拖这里改宽度（左边）' },
+];
+
 /** 能往页面上加什么。删掉的内置块也能从这里加回来。 */
 const PALETTE = [
   { kind: 'text',    name: '文字',     make: () => ({ x: 8, y: 30, w: 40, h: 14, text: '写点什么', size: 4, color: '', font: 'sans', align: 'left', bold: false, lh: 1.5 }) },
@@ -865,14 +877,39 @@ export default function ActivityDesign() {
         setSnapGuides({ x: sx?.guide ?? null, y: sy?.guide ?? null });
         patch(b.id, { x: round(x), y: round(y) }, { record: false });
       } else {
-        let w = Math.max(2, s.w + dx);
-        let h = Math.max(2, s.h + dy);
-        const sx = snapEnabled ? nearestSnap(s.x + w, edgeSnapCandidates(others, 'x'), toleranceX) : null;
-        const sy = snapEnabled ? nearestSnap(s.y + h, edgeSnapCandidates(others, 'y'), toleranceY) : null;
-        if (sx && sx.value - s.x >= 2) w = sx.value - s.x;
-        if (sy && sy.value - s.y >= 2) h = sy.value - s.y;
-        setSnapGuides({ x: sx?.guide ?? null, y: sy?.guide ?? null });
-        patch(b.id, { w: round(w), h: round(h) }, { record: false });
+        // mode 形如 'size:se' / 'size:n'：字母是抓着哪条边或哪个角。
+        // 抓北边和西边时，改的是 x/y 和 w/h 两头 —— 对边要钉住不动
+        const dir = mode.includes(':') ? mode.split(':')[1] : 'se';
+        const east = dir.includes('e');
+        const west = dir.includes('w');
+        const south = dir.includes('s');
+        const north = dir.includes('n');
+        let { x, y, w, h } = s;
+        if (east) w = Math.max(2, s.w + dx);
+        if (west) {
+          w = Math.max(2, s.w - dx);
+          x = s.x + (s.w - w);          // 右边保持不动
+        }
+        if (south) h = Math.max(2, s.h + dy);
+        if (north) {
+          h = Math.max(2, s.h - dy);
+          y = s.y + (s.h - h);          // 下边保持不动
+        }
+        // 吸附：对齐正在动的那条边
+        const snapX = snapEnabled && (east || west)
+          ? nearestSnap(east ? x + w : x, edgeSnapCandidates(others, 'x'), toleranceX) : null;
+        const snapY = snapEnabled && (south || north)
+          ? nearestSnap(south ? y + h : y, edgeSnapCandidates(others, 'y'), toleranceY) : null;
+        if (snapX) {
+          if (east && snapX.value - x >= 2) w = snapX.value - x;
+          if (west && (x + w) - snapX.value >= 2) { w = (x + w) - snapX.value; x = snapX.value; }
+        }
+        if (snapY) {
+          if (south && snapY.value - y >= 2) h = snapY.value - y;
+          if (north && (y + h) - snapY.value >= 2) { h = (y + h) - snapY.value; y = snapY.value; }
+        }
+        setSnapGuides({ x: snapX?.guide ?? null, y: snapY?.guide ?? null });
+        patch(b.id, { x: round(x), y: round(y), w: round(w), h: round(h) }, { record: false });
       }
     };
     const up = () => {
@@ -1569,9 +1606,17 @@ export default function ActivityDesign() {
                 right: selected.x + selected.w > 97 ? 3 : -17,
               }}
               onPointerDown={(e) => rotateDrag(e, selected)}>↻</button>
-            <div className="design__resize-handle"
-              onPointerDown={(e) => drag(e, selected, 'size')}
-              title="拖这里改大小" />
+            {/* 八个把手：四角改两边，四边中点只改一条边。
+                旋转过的块也照常用 —— 位移已经在块自己的坐标系里算过了 */}
+            {RESIZE_HANDLES.map((h) => (
+              <div
+                key={h.dir}
+                className={`design__resize-handle design__resize-handle--${h.dir}`}
+                onPointerDown={(e) => drag(e, selected, `size:${h.dir}`)}
+                title={h.title}
+                aria-label={h.title}
+              />
+            ))}
           </div>
         ) : null}
       </div>
